@@ -287,8 +287,6 @@ def inject_css():
     """, unsafe_allow_html=True)
 
 # ── BUSCA DE DADOS ─────────────────────────────────────────────────────────────
-# MELHORIA 2: Removido st.spinner daqui — o loading agora é exibido
-# de forma elegante no layout principal, sem mostrar o nome da função.
 @st.cache_data(ttl=60)
 def fetch_leads():
     headers = {
@@ -365,11 +363,6 @@ def fetch_leads():
 
 # ── HELPER: Gera linhas de operadores para um status específico ───────────────
 def linhas_por_operador(df, status_filtro, cor):
-    """
-    Recebe o dataframe filtrado, o nome do status desejado e a cor do card.
-    Retorna uma string HTML com uma linha por operador e sua quantidade.
-    Se status_filtro for None, usa todos os registros do df (para Total de Leads).
-    """
     if status_filtro:
         df_filtrado = df[df["status"] == status_filtro]
     else:
@@ -396,12 +389,8 @@ def linhas_por_operador(df, status_filtro, cor):
         )
     return html
 
-# ── CARD DE MÉTRICA CUSTOMIZADO (com breakdown por operador) ──────────────────
+# ── CARD DE MÉTRICA CUSTOMIZADO ───────────────────────────────────────────────
 def render_card(icone, valor, label, cor, df=None, status_filtro=None):
-    """
-    Renderiza um card de métrica.
-    Se df for passado, exibe o breakdown de operadores ao lado do número.
-    """
     if df is not None:
         linhas = linhas_por_operador(df, status_filtro, cor)
         st.markdown(f"""
@@ -545,17 +534,19 @@ def grafico_acumulado(df, operadores):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 inject_css()
-
-# Cabeçalho
+# As proporções [4, 2, 1] significam: título | hora | botão
 col_titulo, col_hora, col_btn = st.columns([4, 2, 1])
+
 with col_titulo:
     st.title("📺 Dashboard · O2 Solution")
+
 with col_hora:
     st.markdown(
         f"<div class='update-time' style='margin-top:16px'>🕐 Atualizado: "
         f"{datetime.now().strftime('%d/%m/%Y %H:%M')}</div>",
         unsafe_allow_html=True
     )
+
 with col_btn:
     if st.button("🔄 Atualizar", key="refresh"):
         fetch_leads.clear()
@@ -563,9 +554,7 @@ with col_btn:
 
 st.markdown("---")
 
-# ── MELHORIA 2: Loading elegante no layout, sem mostrar nome da função ─────────
-# Criamos um placeholder que mostra uma animação enquanto os dados carregam.
-# Quando os dados chegam, o placeholder é substituído pelo conteúdo real.
+# ── LOADING ELEGANTE ──────────────────────────────────────────────────────────
 loading_placeholder = st.empty()
 loading_placeholder.markdown("""
 <div class="loading-box">
@@ -575,7 +564,6 @@ loading_placeholder.markdown("""
 
 df_todos, erro = fetch_leads()
 
-# Remove o loading assim que os dados chegaram
 loading_placeholder.empty()
 
 if erro:
@@ -641,8 +629,7 @@ agendado   = int((df["status"] == "Agendado").sum())
 primeiro   = int((df["status"] == "Primeiro Contato").sum())
 taxa_conv  = f"{(vendas / total * 100):.1f}%" if total > 0 else "0%"
 
-# ── MELHORIA 1: Comparativo com ontem ─────────────────────────────────────────
-# Calculamos leads de hoje e de ontem separadamente para mostrar a diferença.
+# ── Comparativo com ontem ─────────────────────────────────────────────────────
 hoje   = date.today()
 ontem  = hoje - timedelta(days=1)
 
@@ -656,19 +643,17 @@ df_hoje  = df_hoje[df_hoje["data_obj"].apply(lambda d: d == hoje)]
 leads_hoje  = len(df_hoje)
 leads_ontem = len(df_ontem)
 
-# Calcula a diferença e define ícone + cor
 diferenca = leads_hoje - leads_ontem
 if diferenca > 0:
     seta      = f"↑ +{diferenca} que ontem"
-    cor_seta  = "#22c55e"   # verde
+    cor_seta  = "#22c55e"
 elif diferenca < 0:
     seta      = f"↓ {diferenca} que ontem"
-    cor_seta  = "#ef4444"   # vermelho
+    cor_seta  = "#ef4444"
 else:
     seta      = "= igual a ontem"
-    cor_seta  = "#8b90a7"   # cinza
+    cor_seta  = "#8b90a7"
 
-# Ranking de operadores hoje
 operadores_hoje = (
     df_hoje.groupby("origem")
     .size()
@@ -676,7 +661,6 @@ operadores_hoje = (
     .sort_values("qtd", ascending=False)
 )
 
-# Meta diária
 META_DIARIA = 10
 progresso = min(leads_hoje / META_DIARIA, 1.0)
 pct_meta  = int(progresso * 100)
@@ -708,7 +692,6 @@ with h1:
                 '<span class="card-icone">🌅</span>'
                 f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
                 '<div class="card-label">Leads Captados Hoje</div>'
-                # ── Comparativo com ontem exibido abaixo do número ──
                 f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};">'
                 f'  {seta}'
                 f'</div>'
