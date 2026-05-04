@@ -347,6 +347,8 @@ def fetch_leads():
         equipe     = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
         interesse  = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
         criado_em  = lead.get("created_at", "")
+        valor_proposta = (lead.get("last_proposal") or {}).get("amount", None) or \
+                        (lead.get("finalization") or {}).get("amount", None)
 
         data_obj = None
         if criado_em:
@@ -366,6 +368,7 @@ def fetch_leads():
             "interesse": interesse,
             "criado_em": criado_em,
             "data_obj":  data_obj,
+            "valor_proposta": valor_proposta,
         })
 
     return pd.DataFrame(registros), None
@@ -639,6 +642,8 @@ nao_venda  = int((df["status"] == "Venda não Realizada").sum())
 agendado   = int((df["status"] == "Agendado").sum())
 primeiro   = int((df["status"] == "Primeiro Contato").sum())
 taxa_conv  = f"{(vendas / total * 100):.1f}%" if total > 0 else "0%"
+valor_contratos = df[df["status"] == "Venda Realizada"]["valor_proposta"].sum()
+valor_contratos_fmt = f"R$ {valor_contratos:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # ── Comparativo com ontem ─────────────────────────────────────────────────────
 hoje   = date.today()
@@ -789,7 +794,7 @@ with c2:
 with c3:
     render_card("✅", vendas, "Venda Realizada", "#22c55e", df=df, status_filtro="Venda Realizada")
 with c4:
-    render_card("💳", aguardando, "Aguardando Pagamento", "#f97316", df=df, status_filtro="Aguardando Pagamento")
+    render_card("💰", valor_contratos_fmt, "Valor em Contratos", "#22c55e", df=df, status_filtro="Venda Realizada")
 
 c5, c6, c7, c8 = st.columns(4)
 with c5:
@@ -837,6 +842,7 @@ col_labels = {
     "atendente": "Atendente",
     "interesse": "Interesse",
     "criado_em": "Cadastrado em",
+    "valor_proposta": "Valor Proposta",
 }
 
 df_show = df[list(col_labels.keys())].rename(columns=col_labels).head(100)
