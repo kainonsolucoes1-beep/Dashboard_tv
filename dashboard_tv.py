@@ -295,7 +295,7 @@ def inject_css():
     """, unsafe_allow_html=True)
 
 # ── BUSCA DE DADOS ─────────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=55)
 def fetch_leads():
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
