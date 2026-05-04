@@ -39,7 +39,15 @@ ICONES_STATUS = {
     "Aguardando Pagamento":"💳",
     "Venda Realizada":     "✅",
     "Venda não Realizada": "❌",
+
 }
+# ── RENOMEAÇÃO DOS OPERADORES ───────────────────────────────────────────────────────────────────────
+
+NOMES_OPERADORES = {
+
+    "Livia": "o2 Solution",
+    
+    }
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 def inject_css():
@@ -335,6 +343,7 @@ def fetch_leads():
         status_raw = lead.get("status", "")
         status_pt  = STATUS_MAP.get(status_raw, status_raw)
         origem     = (lead.get("tracking") or {}).get("source", "") or "Sem origem"
+        origem     = NOMES_OPERADORES.get(origem, origem)
         equipe     = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
         interesse  = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
         criado_em  = lead.get("created_at", "")
@@ -382,9 +391,11 @@ def linhas_por_operador(df, status_filtro, cor):
     for _, row in ranking.iterrows():
         html += (
             '<div style="display:flex;justify-content:space-between;align-items:center;'
-            'padding:3px 0;border-bottom:1px solid #2e3347;">'
-            f'<span style="color:#e8eaf0;font-size:12px;">👤 {row["origem"]}</span>'
-            f'<span style="color:{cor};font-weight:700;font-size:13px;">{row["qtd"]}</span>'
+            'gap:8px;padding:3px 0;border-bottom:1px solid #2e3347;">'
+            f'<span style="color:#e8eaf0;font-size:12px;overflow:hidden;'
+            f'text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">👤 {row["origem"]}</span>'
+            f'<span style="color:{cor};font-weight:700;font-size:13px;'
+            f'white-space:nowrap;flex-shrink:0;">{row["qtd"]}</span>'
             '</div>'
         )
     return html
@@ -394,16 +405,16 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
     if df is not None:
         linhas = linhas_por_operador(df, status_filtro, cor)
         st.markdown(f"""
-        <div class="card-status" style="border-left: 4px solid {cor}; display:flex; gap:16px; align-items:flex-start;">
-            <div style="min-width:90px;">
+        <div class="card-status" style="border-left: 4px solid {cor}; display:flex; gap:16px; align-items:flex-start; overflow:hidden;">
+            <div style="min-width:90px;flex-shrink:0;">
                 <span class="card-icone">{icone}</span>
                 <div class="card-valor" style="color: {cor};">{valor}</div>
-                <div class="card-label">{label}</div>
+                <div class="card-label" style="white-space:nowrap;">{label}</div>
             </div>
-            <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
-            <div style="flex:1;min-width:0;padding-top:4px;">
+            <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+            <div style="flex:1;overflow:hidden;padding-top:4px;">
                 <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
-                            letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
+                            letter-spacing:.6px;margin-bottom:6px;white-space:nowrap;">Por Operador</div>
                 {linhas}
             </div>
         </div>
@@ -677,9 +688,11 @@ with h1:
         qtd  = row["qtd"]
         linhas_operadores += (
             '<div style="display:flex;justify-content:space-between;align-items:center;'
-            'padding:4px 0;border-bottom:1px solid #2e3347;">'
-            f'<span style="color:#e8eaf0;font-size:16px;">👤 {nome}</span>'
-            f'<span style="color:#4f8ef7;font-weight:700;font-size:14px;">{qtd}</span>'
+            'gap:8px;padding:4px 0;border-bottom:1px solid #2e3347;">'
+            f'<span style="color:#e8eaf0;font-size:14px;overflow:hidden;'
+            f'text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;">👤 {nome}</span>'
+            f'<span style="color:#4f8ef7;font-weight:700;font-size:14px;'
+            f'white-space:nowrap;flex-shrink:0;">{qtd}</span>'
             '</div>'
         )
 
@@ -687,20 +700,20 @@ with h1:
         linhas_operadores = '<span style="color:#8b90a7;font-size:13px;">Nenhum lead hoje</span>'
 
     card_html = (
-        '<div class="card-total" style="display:flex;gap:24px;align-items:flex-start;">'
-            '<div style="min-width:120px;">'
+        '<div class="card-total" style="display:flex;gap:24px;align-items:flex-start;overflow:hidden;">'
+            '<div style="min-width:120px;flex-shrink:0;">'
                 '<span class="card-icone">🌅</span>'
                 f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
-                '<div class="card-label">Leads Captados Hoje</div>'
-                f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};">'
+                '<div class="card-label" style="white-space:nowrap;">Leads Captados Hoje</div>'
+                f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};white-space:nowrap;">'
                 f'  {seta}'
                 f'</div>'
-                f'<div style="font-size:11px;color:#8b90a7;margin-top:2px;">Ontem: {leads_ontem} leads</div>'
+                f'<div style="font-size:11px;color:#8b90a7;margin-top:2px;white-space:nowrap;">Ontem: {leads_ontem} leads</div>'
             '</div>'
-            '<div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>'
-            '<div style="flex:1;min-width:0;">'
+            '<div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>'
+            '<div style="flex:1;overflow:hidden;">'
                 '<div style="color:#8b90a7;font-size:14px;font-weight:600;'
-                'text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Por Operador</div>'
+                'text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;white-space:nowrap;">Por Operador</div>'
                 + linhas_operadores +
             '</div>'
         '</div>'
@@ -742,16 +755,16 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     linhas_total = linhas_por_operador(df, None, "#4f8ef7")
     st.markdown(f"""
-    <div class="card-total" style="display:flex;gap:16px;align-items:flex-start;">
-        <div style="min-width:90px;">
+    <div class="card-total" style="display:flex;gap:16px;align-items:flex-start;overflow:hidden;">
+        <div style="min-width:90px;flex-shrink:0;">
             <span class="card-icone">📋</span>
             <div class="card-valor" style="color:#4f8ef7;">{total}</div>
-            <div class="card-label">Total de Leads</div>
+            <div class="card-label" style="white-space:nowrap;">Total de Leads</div>
         </div>
-        <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
-        <div style="flex:1;min-width:0;padding-top:4px;">
+        <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+        <div style="flex:1;overflow:hidden;padding-top:4px;">
             <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
-                        letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
+                        letter-spacing:.6px;margin-bottom:6px;white-space:nowrap;">Por Operador</div>
             {linhas_total}
         </div>
     </div>
@@ -759,16 +772,16 @@ with c1:
 with c2:
     linhas_taxa = linhas_por_operador(df, "Venda Realizada", "#22c55e")
     st.markdown(f"""
-    <div class="card-taxa" style="display:flex;gap:16px;align-items:flex-start;">
-        <div style="min-width:90px;">
+    <div class="card-taxa" style="display:flex;gap:16px;align-items:flex-start;overflow:hidden;">
+        <div style="min-width:90px;flex-shrink:0;">
             <span class="card-icone">📈</span>
             <div class="card-valor" style="color:#22c55e;">{taxa_conv}</div>
-            <div class="card-label">Taxa de Conversão</div>
+            <div class="card-label" style="white-space:nowrap;">Taxa de Conversão</div>
         </div>
-        <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
-        <div style="flex:1;min-width:0;padding-top:4px;">
+        <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+        <div style="flex:1;overflow:hidden;padding-top:4px;">
             <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
-                        letter-spacing:.6px;margin-bottom:6px;">Vendas / Op.</div>
+                        letter-spacing:.6px;margin-bottom:6px;white-space:nowrap;">Vendas / Op.</div>
             {linhas_taxa}
         </div>
     </div>
