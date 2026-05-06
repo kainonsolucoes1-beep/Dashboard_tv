@@ -53,12 +53,12 @@ def inject_css():
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
     :root {
-        --bg-main:   #0f1117;
-        --bg-card:   #1a1d27;
-        --bg-input:  #23273a;
-        --border:    #2e3347;
-        --text-main: #e8eaf0;
-        --text-sub:  #8b90a7;
+        --bg-main:   #060e1a;
+        --bg-card:   #050b14;
+        --bg-input:  #060e1a;
+        --border:    #152a4a;
+        --text-main: #e8eef8;
+        --text-sub:  #7a9cc7;
         --accent:    #4f8ef7;
         --green:     #22c55e;
         --red:       #ef4444;
@@ -108,10 +108,10 @@ def inject_css():
         height: 100%;
         border-radius: 16px 0 0 16px;
     }
-    .card-icone  { font-size: 28px; margin-bottom: 8px; display: block; }
-    .card-valor  { font-size: 38px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
+    .card-icone  { font-size: 30px; margin-bottom: 8px; display: block; }
+    .card-valor  { font-size: 42px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
     .card-label  {
-        font-size: 12px; font-weight: 500;
+        font-size: 13px; font-weight: 600;
         text-transform: uppercase; letter-spacing: .6px;
         color: var(--text-sub);
     }
@@ -306,7 +306,7 @@ def fetch_leads():
 
     todos_leads = []
     pagina = 1
-    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=80)).strftime("%Y-%m-%d")
 
     while True:
         params = {"date_from": date_from, "per_page": 200, "page": pagina}
@@ -337,13 +337,17 @@ def fetch_leads():
 
     registros = []
     for lead in todos_leads:
-        atendente  = (lead.get("attendant") or {}).get("name", "Sem atendente")
+        atendente = (
+            ((lead.get("contact") or {}).get("attendant") or {}).get("name")
+            or (lead.get("attendant") or {}).get("name", "Sem atendente")
+        )
         status_raw = lead.get("status", "")
         status_pt  = STATUS_MAP.get(status_raw, status_raw)
         origem     = (lead.get("tracking") or {}).get("source", "") or "Sem origem"
         equipe     = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
         interesse  = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
         criado_em  = lead.get("created_at", "")
+        atualizado_em = lead.get("updated_at", "")
 
         # ── NOVO: Temperatura (perception) ────────────────────────────────────
         # A API retorna valores como "hot", "warm", "cold" (ou None se não preenchido)
@@ -375,6 +379,7 @@ def fetch_leads():
             "data_obj":      data_obj,
             "perception":    perception_pt,       # temperatura traduzida
             "valor_proposta": float(valor_proposta),  # valor em R$
+            "atualizado_em": atualizado_em,
         })
 
     return pd.DataFrame(registros), None
@@ -395,13 +400,13 @@ def linhas_por_operador(df, status_filtro, cor):
         .sort_values("qtd", ascending=False)
     )
     if ranking.empty:
-        return '<span style="color:#8b90a7;font-size:12px;">Sem registros</span>'
+        return '<span style="color:#7a9cc7;font-size:12px;">Sem registros</span>'
     html = ""
     for _, row in ranking.iterrows():
         html += (
             '<div style="display:flex;justify-content:space-between;align-items:center;'
-            'padding:3px 0;border-bottom:1px solid #2e3347;">'
-            f'<span style="color:#e8eaf0;font-size:12px;">👤 {row["origem"]}</span>'
+            'padding:3px 0;border-bottom:1px solid #152a4a;">'
+            f'<span style="color:#e8eef8;font-size:12px;">👤 {row["origem"]}</span>'
             f'<span style="color:{cor};font-weight:700;font-size:13px;">{row["qtd"]}</span>'
             '</div>'
         )
@@ -419,9 +424,9 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
                 <div class="card-valor" style="color:{cor};">{valor}</div>
                 <div class="card-label">{label}</div>
             </div>
-            <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
+            <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
-                <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
+                <div style="color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;
                             letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
                 {linhas}
             </div>
@@ -445,9 +450,9 @@ def grafico_rosca(df):
     colors = [CORES_STATUS.get(l, "#aaa") for l in labels]
     fig = go.Figure(go.Pie(
         labels=labels, values=values, hole=0.55,
-        marker=dict(colors=colors, line=dict(color="#1a1d27", width=2)),
+        marker=dict(colors=colors, line=dict(color="#050b14", width=2)),
         textinfo="label+percent",
-        textfont=dict(size=12, color="#e8eaf0"),
+        textfont=dict(size=12, color="#e8eef8"),
         hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
     ))
     fig.update_layout(
@@ -464,18 +469,18 @@ def grafico_origens(df):
         x=ranking.values.tolist(), y=ranking.index.tolist(), orientation="h",
         marker=dict(
             color=ranking.values.tolist(),
-            colorscale=[[0, "#1a1d27"], [1, "#22c55e"]],
-            line=dict(color="#2e3347", width=1)
+            colorscale=[[0, "#050b14"], [1, "#22c55e"]],
+            line=dict(color="#152a4a", width=1)
         ),
         text=ranking.values.tolist(), textposition="outside",
-        textfont=dict(color="#e8eaf0", size=12),
+        textfont=dict(color="#e8eef8", size=12),
         hovertemplate="<b>%{y}</b><br>%{x} vendas<extra></extra>",
     ))
     fig.update_layout(
         margin=dict(t=10, b=10, l=10, r=40), height=280,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=True, gridcolor="#2e3347", color="#8b90a7", zeroline=False),
-        yaxis=dict(color="#e8eaf0", autorange="reversed"),
+        xaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7", zeroline=False),
+        yaxis=dict(color="#e8eef8", autorange="reversed"),
     )
     return fig
 
@@ -503,11 +508,11 @@ def grafico_acumulado(df, operadores):
     fig.update_layout(
         margin=dict(t=20, b=20, l=10, r=20), height=320,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eaf0", size=13)),
-        xaxis=dict(showgrid=True, gridcolor="#2e3347", color="#8b90a7",
-                   tickfont=dict(color="#e8eaf0", size=12)),
-        yaxis=dict(showgrid=True, gridcolor="#2e3347", color="#8b90a7",
-                   tickfont=dict(color="#e8eaf0", size=12), zeroline=False),
+        legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=13)),
+        xaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                   tickfont=dict(color="#e8eef8", size=12)),
+        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                   tickfont=dict(color="#e8eef8", size=12), zeroline=False),
         hovermode="x unified",
     )
     return fig
@@ -548,9 +553,9 @@ def grafico_funil_status(df_atendente):
         textinfo="none",
         text=textos,
         textposition="inside",
-        textfont=dict(color="#e8eaf0", size=13, family="DM Sans"),
-        marker=dict(color=cores, line=dict(color="#1a1d27", width=1)),
-        connector=dict(line=dict(color="#2e3347", width=1)),
+        textfont=dict(color="#e8eef8", size=13, family="DM Sans"),
+        marker=dict(color=cores, line=dict(color="#050b14", width=1)),
+        connector=dict(line=dict(color="#152a4a", width=1)),
         hovertemplate="<b>%{y}</b><br>%{x} leads<br>%{text}<extra></extra>",
     ))
     fig.update_layout(
@@ -558,7 +563,7 @@ def grafico_funil_status(df_atendente):
         height=320,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(color="#e8eaf0"),
+        yaxis=dict(color="#e8eef8"),
     )
     return fig
 
@@ -575,13 +580,13 @@ def grafico_temperatura_pizza(df_atendente):
     contagens = df_com_temp["perception"].value_counts()
     labels = contagens.index.tolist()
     values = contagens.values.tolist()
-    cores  = [CORES_PERCEPTION.get(l, "#8b90a7") for l in labels]
+    cores  = [CORES_PERCEPTION.get(l, "#7a9cc7") for l in labels]
 
     fig = go.Figure(go.Pie(
         labels=labels, values=values, hole=0.5,
-        marker=dict(colors=cores, line=dict(color="#1a1d27", width=2)),
+        marker=dict(colors=cores, line=dict(color="#050b14", width=2)),
         textinfo="label+value+percent",
-        textfont=dict(size=12, color="#e8eaf0"),
+        textfont=dict(size=12, color="#e8eef8"),
         hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
     ))
     fig.update_layout(
@@ -622,12 +627,12 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
         <div style="font-size:36px;">👩‍💼</div>
         <div>
             <div style="font-size:20px;font-weight:700;color:{cor_atendente};">{nome_atendente}</div>
-            <div style="font-size:13px;color:#8b90a7;margin-top:2px;">
+            <div style="font-size:13px;color:#7a9cc7;margin-top:2px;">
                 <b>{total_at} leads no período · {vendas_at} vendas · {taxa_at} conversão</b>
             </div>
         </div>
         <div style="margin-left:auto;text-align:right;">
-            <div style="font-size:11px;color:#8b90a7;text-transform:uppercase;letter-spacing:.6px;">
+            <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;">
                 <b>Valor total em carteira</b>
             </div>
             <div style="font-size:24px;font-weight:700;color:#22c55e;">{fmt_brl(total_valor)}</div>
@@ -658,7 +663,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
                 <div style="margin-top:8px;font-size:13px;font-weight:600;color:#22c55e;">
                     {fmt_brl(valor_sum)}
                 </div>
-                <div style="font-size:11px;color:#8b90a7;">em propostas</div>
+                <div style="font-size:11px;color:#7a9cc7;">em propostas</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -666,11 +671,11 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
     sem_perc = int((df_atendente["perception"] == "Sem percepção").sum())
     with ct4:
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid #8b90a7;">
+        <div class="card-status" style="border-left:4px solid #7a9cc7;">
             <span class="card-icone">❓</span>
-            <div class="card-valor" style="color:#8b90a7;">{sem_perc}</div>
+            <div class="card-valor" style="color:#7a9cc7;">{sem_perc}</div>
             <div class="card-label">Sem percepção</div>
-            <div style="margin-top:8px;font-size:11px;color:#8b90a7;">não classificados</div>
+            <div style="margin-top:8px;font-size:11px;color:#7a9cc7;">não classificados</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -764,7 +769,7 @@ col_op, col_st, col_de, col_ate = st.columns([3, 2, 1.5, 1.5])
 with col_op:
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
     selecionados = st.multiselect(
-        "👤 Operadores", options=origens_disp, default=origens_disp, key="filtro_origem"
+        "👤 Origem", options=origens_disp, default=origens_disp, key="filtro_origem"
     )
 with col_st:
     filtro_status = st.selectbox(
@@ -835,7 +840,7 @@ with aba_visao:
     elif diferenca < 0:
         seta, cor_seta = f"↓ {diferenca} que ontem", "#ef4444"
     else:
-        seta, cor_seta = "= igual a ontem", "#8b90a7"
+        seta, cor_seta = "= igual a ontem", "#7a9cc7"
 
     operadores_hoje = (
         df_hoje_v.groupby("origem").size()
@@ -856,13 +861,13 @@ with aba_visao:
         for _, row in operadores_hoje.iterrows():
             linhas_op += (
                 '<div style="display:flex;justify-content:space-between;align-items:center;'
-                'padding:4px 0;border-bottom:1px solid #2e3347;">'
-                f'<span style="color:#e8eaf0;font-size:16px;">👤 {row["origem"]}</span>'
+                'padding:4px 0;border-bottom:1px solid #152a4a;">'
+                f'<span style="color:#e8eef8;font-size:16px;">👤 {row["origem"]}</span>'
                 f'<span style="color:#4f8ef7;font-weight:700;font-size:14px;">{row["qtd"]}</span>'
                 '</div>'
             )
         if not linhas_op:
-            linhas_op = '<span style="color:#8b90a7;font-size:13px;">Nenhum lead hoje</span>'
+            linhas_op = '<span style="color:#7a9cc7;font-size:13px;">Nenhum lead hoje</span>'
 
         st.markdown(
             '<div class="card-total" style="display:flex;gap:24px;align-items:flex-start;">'
@@ -871,11 +876,11 @@ with aba_visao:
             f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
             '<div class="card-label">Leads Captados Hoje</div>'
             f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};">{seta}</div>'
-            f'<div style="font-size:11px;color:#8b90a7;margin-top:2px;">Ontem: {leads_ontem} leads</div>'
+            f'<div style="font-size:11px;color:#7a9cc7;margin-top:2px;">Ontem: {leads_ontem} leads</div>'
             '</div>'
-            '<div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>'
+            '<div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>'
             '<div style="flex:1;min-width:0;">'
-            '<div style="color:#8b90a7;font-size:14px;font-weight:600;text-transform:uppercase;'
+            '<div style="color:#7a9cc7;font-size:14px;font-weight:600;text-transform:uppercase;'
             'letter-spacing:.6px;margin-bottom:8px;">Por Operador</div>'
             + linhas_op +
             '</div></div>',
@@ -888,7 +893,7 @@ with aba_visao:
             <span class="card-icone">🎯</span>
             <div class="card-valor" style="color:{cor_meta};">{leads_hoje} / {META_DIARIA}</div>
             <div class="card-label">Meta Diária de Leads</div>
-            <div style="background:#2e3347;border-radius:99px;height:8px;margin-top:10px;overflow:hidden;">
+            <div style="background:#152a4a;border-radius:99px;height:8px;margin-top:10px;overflow:hidden;">
                 <div style="background:{cor_meta};width:{pct_meta}%;height:100%;border-radius:99px;"></div>
             </div>
             <div style="color:{cor_meta};font-size:11px;margin-top:4px;">{pct_meta}% da meta</div>
@@ -908,9 +913,9 @@ with aba_visao:
                 <div class="card-valor" style="color:#4f8ef7;">{total}</div>
                 <div class="card-label">Total de Leads</div>
             </div>
-            <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
+            <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
-                <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
+                <div style="color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;
                             letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
                 {linhas_total}
             </div>
@@ -925,9 +930,9 @@ with aba_visao:
                 <div class="card-valor" style="color:#22c55e;">{taxa_conv}</div>
                 <div class="card-label">Taxa de Conversão</div>
             </div>
-            <div style="width:1px;background:#2e3347;align-self:stretch;margin:4px 0;"></div>
+            <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
-                <div style="color:#8b90a7;font-size:11px;font-weight:600;text-transform:uppercase;
+                <div style="color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;
                             letter-spacing:.6px;margin-bottom:6px;">Vendas / Op.</div>
                 {linhas_taxa}
             </div>
@@ -965,7 +970,7 @@ with aba_funil:
 
     st.markdown("#### 🔥 Funil de Vendas · Giovanna & Rayanna")
     st.markdown(
-        "<p style='color:#8b90a7;font-size:13px;margin-top:-4px;'>"
+        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
         "Acompanhe o pipeline de cada atendente: temperatura dos leads, "
         "valor das propostas em carteira e progressão no funil."
         "</p>",
@@ -1054,7 +1059,7 @@ with aba_detalhamento:
 
     st.markdown("#### 📆 Detalhamento de Leads por Dia e Operador")
     st.markdown(
-        "<p style='color:#8b90a7;font-size:13px;margin-top:-4px;'>"
+        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
         "Análise detalhada dia a dia — filtre o período abaixo de forma independente das outras abas."
         "</p>",
         unsafe_allow_html=True
@@ -1082,7 +1087,7 @@ with aba_detalhamento:
     with fd3:
         ops_disp_det = sorted(df_todos["origem"].dropna().unique().tolist())
         det_ops = st.multiselect(
-            "👤 Operadores",
+            "👤 Origem",
             options=ops_disp_det,
             default=ops_disp_det,
             key="det_ops"
@@ -1128,6 +1133,12 @@ with aba_detalhamento:
                 media_op = pivot[op][pivot[op] > 0].mean()
                 media_op = round(media_op, 1) if not pd.isna(media_op) else 0
 
+                # Valor total em propostas e ticket médio
+                df_op_det = df_det[df_det["origem"] == op]
+                valor_op  = df_op_det["valor_proposta"].sum()
+                leads_com_valor = int((df_op_det["valor_proposta"] > 0).sum())
+                ticket_op = valor_op / leads_com_valor if leads_com_valor > 0 else 0
+
                 # Tendência: compara primeira metade vs segunda metade do período
                 vals = pivot[op].tolist()
                 metade = len(vals) // 2
@@ -1139,21 +1150,37 @@ with aba_detalhamento:
                     elif media_fim < media_ini:
                         tendencia, cor_tend = "↓ Caindo", "#ef4444"
                     else:
-                        tendencia, cor_tend = "→ Estável", "#8b90a7"
+                        tendencia, cor_tend = "→ Estável", "#7a9cc7"
                 else:
-                    tendencia, cor_tend = "→ Estável", "#8b90a7"
+                    tendencia, cor_tend = "→ Estável", "#7a9cc7"
 
                 with col_c:
                     st.markdown(f"""
-                    <div class="card-status" style="border-left:4px solid {cor_op};">
-                        <span class="card-icone">👤</span>
-                        <div class="card-valor" style="color:{cor_op};">{total_op}</div>
-                        <div class="card-label">{op}</div>
-                        <div style="margin-top:10px;font-size:12px;color:#8b90a7;">
-                            Média: <b style="color:{cor_op};">{media_op}/dia</b>
+                    <div class="card-status" style="border-left:4px solid {cor_op};display:flex;gap:16px;align-items:flex-start;">
+                        <div style="min-width:110px;">
+                            <span class="card-icone">👤</span>
+                            <div class="card-valor" style="color:{cor_op};">{total_op}</div>
+                            <div class="card-label">{op}</div>
+                            <div style="margin-top:10px;font-size:14px;color:#7a9cc7;">
+                                Média: <b style="color:{cor_op};">{media_op}/dia</b>
+                            </div>
+                            <div style="margin-top:6px;font-size:15px;font-weight:700;color:{cor_tend};">
+                                {tendencia}
+                            </div>
                         </div>
-                        <div style="margin-top:4px;font-size:13px;font-weight:700;color:{cor_tend};">
-                            {tendencia}
+                        <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+                        <div style="flex:1;min-width:0;padding-top:4px;">
+                            <div style="color:#7a9cc7;font-size:13px;font-weight:600;text-transform:uppercase;
+                                        letter-spacing:.6px;margin-bottom:6px;">Carteira (R$)</div>
+                            <div style="font-size:26px;font-weight:700;color:#22c55e;line-height:1.1;">
+                                {fmt_brl(valor_op)}
+                            </div>
+                            <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">em propostas enviadas</div>
+                            <div style="margin-top:10px;color:#7a9cc7;font-size:13px;font-weight:600;
+                                        text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Ticket Médio</div>
+                            <div style="font-size:22px;font-weight:700;color:#4f8ef7;">
+                                {fmt_brl(ticket_op)}
+                            </div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1181,10 +1208,10 @@ with aba_detalhamento:
             height=340,
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", y=1.12, x=0, font=dict(color="#e8eaf0", size=13)),
-            xaxis=dict(showgrid=False, color="#8b90a7", tickfont=dict(color="#e8eaf0", size=11)),
-            yaxis=dict(showgrid=True, gridcolor="#2e3347", color="#8b90a7",
-                       tickfont=dict(color="#e8eaf0", size=12), zeroline=False),
+            legend=dict(orientation="h", y=1.12, x=0, font=dict(color="#e8eef8", size=13)),
+            xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
+            yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                       tickfont=dict(color="#e8eef8", size=12), zeroline=False),
             hovermode="x unified",
         )
         st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
@@ -1221,7 +1248,7 @@ with aba_detalhamento:
         # ── EVOLUÇÃO DIÁRIA POR OPERADOR (variação vs dia anterior) ──────────
         st.markdown("#### 📈 Evolução Diária por Operador (Δ vs dia anterior)")
         st.markdown(
-            "<p style='color:#8b90a7;font-size:12px;margin-top:-8px;'>"
+            "<p style='color:#7a9cc7;font-size:12px;margin-top:-8px;'>"
             "↑ verde = captou mais que o dia anterior · ↓ vermelho = captou menos · = cinza = igual"
             "</p>",
             unsafe_allow_html=True
@@ -1234,13 +1261,13 @@ with aba_detalhamento:
                 '<div style="overflow-x:auto;">'
                 '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
                 '<thead><tr>'
-                '<th style="text-align:left;padding:8px 12px;color:#8b90a7;'
-                'border-bottom:1px solid #2e3347;white-space:nowrap;">Operador</th>'
+                '<th style="text-align:left;padding:8px 12px;color:#7a9cc7;'
+                'border-bottom:1px solid #152a4a;white-space:nowrap;">Operador</th>'
             )
             for d in datas_sorted:
                 evolucao_html += (
-                    f'<th style="text-align:center;padding:8px 10px;color:#8b90a7;'
-                    f'border-bottom:1px solid #2e3347;white-space:nowrap;">'
+                    f'<th style="text-align:center;padding:8px 10px;color:#7a9cc7;'
+                    f'border-bottom:1px solid #152a4a;white-space:nowrap;">'
                     f'{d.strftime("%d/%m")}</th>'
                 )
             evolucao_html += '</tr></thead><tbody>'
@@ -1250,7 +1277,7 @@ with aba_detalhamento:
                 evolucao_html += (
                     f'<tr>'
                     f'<td style="padding:8px 12px;font-weight:600;color:{cor_op};'
-                    f'border-bottom:1px solid #2e3347;white-space:nowrap;">👤 {op}</td>'
+                    f'border-bottom:1px solid #152a4a;white-space:nowrap;">👤 {op}</td>'
                 )
                 for idx, d in enumerate(datas_sorted):
                     val_hoje = int(pivot.loc[d, op]) if d in pivot.index else 0
@@ -1258,8 +1285,8 @@ with aba_detalhamento:
                         # Primeiro dia: sem comparativo
                         evolucao_html += (
                             f'<td style="text-align:center;padding:8px 10px;'
-                            f'border-bottom:1px solid #2e3347;">'
-                            f'<span style="color:#e8eaf0;font-weight:700;">{val_hoje}</span>'
+                            f'border-bottom:1px solid #152a4a;">'
+                            f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
                             f'</td>'
                         )
                     else:
@@ -1271,11 +1298,11 @@ with aba_detalhamento:
                         elif diff < 0:
                             cor_cell, seta_cell = "#ef4444", f"↓ {diff}"
                         else:
-                            cor_cell, seta_cell = "#8b90a7", "="
+                            cor_cell, seta_cell = "#7a9cc7", "="
                         evolucao_html += (
                             f'<td style="text-align:center;padding:8px 10px;'
-                            f'border-bottom:1px solid #2e3347;">'
-                            f'<span style="color:#e8eaf0;font-weight:700;">{val_hoje}</span>'
+                            f'border-bottom:1px solid #152a4a;">'
+                            f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
                             f'<br><span style="color:{cor_cell};font-size:11px;">{seta_cell}</span>'
                             f'</td>'
                         )
@@ -1294,7 +1321,7 @@ with aba_leads:
 
     st.markdown("#### 📋 Leads Recentes")
     st.markdown(
-        "<p style='color:#8b90a7;font-size:13px;margin-top:-4px;'>"
+        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
         f"Exibindo os 100 leads mais recentes do período filtrado ({len(df)} no total)."
         "</p>",
         unsafe_allow_html=True
@@ -1309,20 +1336,22 @@ with aba_leads:
         "origem":        "Operador",
         "interesse":     "Interesse",
         "criado_em":     "Cadastrado em",
+        "atualizado_em": "Última Atualização",
     }
 
     df_show = df.copy()
+    df_show = df_show.sort_values("atualizado_em", ascending=False)  # ← ordenação
     df_show["valor_proposta"] = df_show["valor_proposta"].apply(
         lambda v: fmt_brl(v) if v > 0 else "—"
-    )
-    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100)
+)
+    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100) 
     st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
 
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
-    "<div style='text-align:center;color:#8b90a7;font-size:12px;'>"
+    "<div style='text-align:center;color:#7a9cc7;font-size:12px;'>"
     "Dados atualizados automaticamente a cada 1 minuto · O2 Solution"
     "</div>",
     unsafe_allow_html=True
