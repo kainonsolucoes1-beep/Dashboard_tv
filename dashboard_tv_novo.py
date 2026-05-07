@@ -2,8 +2,12 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
+import base64
+import os
 from datetime import datetime, date, timedelta
 from config import ACCESS_TOKEN
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -12,6 +16,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+# ── RENOMEAÇÃO DE ORIGENS ─────────────────────────────────────────────────────
+ORIGEM_MAP = {
+    "Livia": "O2 Solution",
+}
 
 # ── MAPEAMENTO DE STATUS ───────────────────────────────────────────────────────
 STATUS_MAP = {
@@ -293,45 +302,32 @@ def inject_css():
 
 
 # ── BUSCA DE DADOS ─────────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
-def fetch_leads():
-    """
-    Busca todos os leads dos últimos 30 dias na API do Followize.
-    Agora também captura 'perception' (temperatura) e 'last_proposal.amount' (valor).
-    """
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Accept": "application/json"
-    }
+DIAS_CRITICOS = 4  # últimos N dias considerados tempo-real
 
+
+def _fetch_leads_from_api(days: int, date_of: str = "creation"):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
     todos_leads = []
     pagina = 1
-    date_from = (datetime.now() - timedelta(days=80)).strftime("%Y-%m-%d")
-
+    date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     while True:
-        params = {"date_from": date_from, "per_page": 200, "page": pagina}
+        params = {"date_from": date_from, "date_of": date_of, "per_page": 200, "page": pagina}
         try:
             response = requests.get(
                 "https://api.followize.com.br/v3/leads",
-                headers=headers,
-                params=params,
-                timeout=30
+                headers=headers, params=params, timeout=30
             )
             if response.status_code != 200:
                 return pd.DataFrame(), f"Erro na API: {response.status_code}"
-
             data = response.json()
             leads = data.get("data", [])
             if not leads:
                 break
-
             todos_leads.extend(leads)
-
             meta = data.get("meta", {})
             if pagina >= meta.get("last_page", 1):
                 break
             pagina += 1
-
         except Exception as e:
             return pd.DataFrame(), f"Erro ao buscar leads: {e}"
 
@@ -341,24 +337,18 @@ def fetch_leads():
             ((lead.get("contact") or {}).get("attendant") or {}).get("name")
             or (lead.get("attendant") or {}).get("name", "Sem atendente")
         )
-        status_raw = lead.get("status", "")
-        status_pt  = STATUS_MAP.get(status_raw, status_raw)
-        origem     = (lead.get("tracking") or {}).get("source", "") or "Sem origem"
-        equipe     = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
-        interesse  = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
-        criado_em  = lead.get("created_at", "")
-        atualizado_em = lead.get("updated_at", "")
-
-        # ── NOVO: Temperatura (perception) ────────────────────────────────────
-        # A API retorna valores como "hot", "warm", "cold" (ou None se não preenchido)
+        status_raw     = lead.get("status", "")
+        status_pt      = STATUS_MAP.get(status_raw, status_raw)
+        origem_raw     = (lead.get("tracking") or {}).get("source", "") or "Sem origem"
+        origem         = ORIGEM_MAP.get(origem_raw, origem_raw)
+        equipe         = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
+        interesse      = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
+        criado_em      = lead.get("created_at", "")
+        atualizado_em  = lead.get("updated_at", "")
         perception_raw = lead.get("perception") or ""
         perception_pt  = PERCEPTION_MAP.get(perception_raw, perception_raw or "Sem percepção")
-
-        # ── NOVO: Valor da proposta (last_proposal.amount) ────────────────────
-        # Vem como número (ex: 450.00) ou None se não houver proposta ainda
-        last_proposal = lead.get("last_proposal") or {}
+        last_proposal  = lead.get("last_proposal") or {}
         valor_proposta = last_proposal.get("amount") or 0.0
-
         data_obj = None
         if criado_em:
             try:
@@ -367,28 +357,64 @@ def fetch_leads():
                 criado_em = dt.strftime("%d/%m/%Y %H:%M")
             except Exception:
                 pass
-
         registros.append({
-            "nome":          lead.get("name", ""),
-            "status":        status_pt,
-            "atendente":     atendente,
-            "origem":        origem,
-            "equipe":        equipe,
-            "interesse":     interesse,
-            "criado_em":     criado_em,
-            "data_obj":      data_obj,
-            "perception":    perception_pt,       # temperatura traduzida
-            "valor_proposta": float(valor_proposta),  # valor em R$
-            "atualizado_em": atualizado_em,
+            "id":             lead.get("id"),
+            "nome":           lead.get("name", ""),
+            "status":         status_pt,
+            "atendente":      atendente,
+            "origem":         origem,
+            "equipe":         equipe,
+            "interesse":      interesse,
+            "criado_em":      criado_em,
+            "data_obj":       data_obj,
+            "perception":     perception_pt,
+            "valor_proposta": float(valor_proposta),
+            "atualizado_em":  atualizado_em,
         })
-
     return pd.DataFrame(registros), None
+
+
+@st.cache_data(ttl=1800, show_spinner=False, persist="disk")
+def fetch_leads_historico():
+    """80 dias por criação · cache 30 min em disco · sobrevive reinicializações."""
+    return _fetch_leads_from_api(days=80, date_of="creation")
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def fetch_leads_criticos():
+    """Últimos 4 dias por atualização · cache 5s · captura qualquer lead modificado."""
+    return _fetch_leads_from_api(days=DIAS_CRITICOS, date_of="change")
+
+
+def merge_leads():
+    """Une histórico + crítico. Crítico tem prioridade para leads duplicados (mais atualizado)."""
+    df_hist, err1 = fetch_leads_historico()
+    df_crit, err2 = fetch_leads_criticos()
+    if df_hist.empty and df_crit.empty:
+        return pd.DataFrame(), err1 or err2
+    partes = [p for p in [df_crit, df_hist] if not p.empty]
+    merged = pd.concat(partes, ignore_index=True)
+    if "id" in merged.columns:
+        merged = merged.drop_duplicates(subset=["id"], keep="first")
+    return merged, err1 or err2
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def fmt_brl(valor: float) -> str:
     """Formata um número como moeda brasileira: R$ 1.234,56"""
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+@st.cache_data(show_spinner=False)
+def foto_base64(path: str) -> str | None:
+    try:
+        abs_path = os.path.join(SCRIPT_DIR, path)
+        with open(abs_path, "rb") as f:
+            ext = path.rsplit(".", 1)[-1].lower()
+            mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+            return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+    except Exception:
+        return None
 
 
 def linhas_por_operador(df, status_filtro, cor):
@@ -599,7 +625,7 @@ def grafico_temperatura_pizza(df_atendente):
     return fig
 
 
-def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
+def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_path=None):
     """
     Renderiza o painel completo de um atendente na aba de Funil:
     - Cards de temperatura com valores
@@ -611,6 +637,24 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
     total_valor = df_atendente["valor_proposta"].sum()
     vendas_at   = int((df_atendente["status"] == "Venda Realizada").sum())
     taxa_at     = f"{(vendas_at / total_at * 100):.1f}%" if total_at > 0 else "0%"
+
+    # ── Avatar: foto circular ou iniciais como fallback ───────────────────────
+    foto_uri = foto_base64(foto_path) if foto_path else None
+    iniciais = "".join(p[0].upper() for p in nome_atendente.split()[:2])
+    if foto_uri:
+        avatar_html = (
+            f'<img src="{foto_uri}" style="'
+            f'width:64px;height:64px;border-radius:50%;'
+            f'border:3px solid {cor_atendente};object-fit:cover;flex-shrink:0;">'
+        )
+    else:
+        avatar_html = (
+            f'<div style="width:64px;height:64px;border-radius:50%;'
+            f'border:3px solid {cor_atendente};background:{cor_atendente}22;'
+            f'display:flex;align-items:center;justify-content:center;'
+            f'font-size:22px;font-weight:700;color:{cor_atendente};flex-shrink:0;">'
+            f'{iniciais}</div>'
+        )
 
     # ── Cabeçalho do atendente ────────────────────────────────────────────────
     st.markdown(f"""
@@ -624,7 +668,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
         align-items: center;
         gap: 16px;
     ">
-        <div style="font-size:36px;">👩‍💼</div>
+        {avatar_html}
         <div>
             <div style="font-size:20px;font-weight:700;color:{cor_atendente};">{nome_atendente}</div>
             <div style="font-size:13px;color:#7a9cc7;margin-top:2px;">
@@ -724,6 +768,135 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente):
     st.dataframe(df_show, use_container_width=True, hide_index=True, height=300)
 
 
+# ── FRAGMENTS (abas de tempo real) ────────────────────────────────────────────
+def _df_com_filtros_globais(df_base: pd.DataFrame) -> pd.DataFrame:
+    """Aplica os filtros globais (período, origem, status) a qualquer dataframe."""
+    data_de      = st.session_state.get("filtro_de",     date.today() - timedelta(days=30))
+    data_ate     = st.session_state.get("filtro_ate",    date.today())
+    selecionados = st.session_state.get("filtro_origem", [])
+    f_status     = st.session_state.get("filtro_status", "Todos")
+    df = df_base[df_base["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
+    if selecionados:
+        df = df[df["origem"].isin(selecionados)]
+    if f_status != "Todos":
+        df = df[df["status"] == f_status]
+    return df
+
+
+@st.fragment
+def render_funil_rt():
+    df_todos_rt, _ = merge_leads()
+
+    # ── Filtros independentes desta aba ────────────────────────────────────────
+    st.markdown("#### 🔎 Filtros da Aba")
+    ff1, ff2, ff3, ff4, ff5 = st.columns([1.5, 1.5, 2.5, 2, 1.5])
+    with ff1:
+        funil_de = st.date_input(
+            "📅 De",
+            value=date.today() - timedelta(days=30),
+            format="DD/MM/YYYY",
+            key="funil_de"
+        )
+    with ff2:
+        funil_ate = st.date_input(
+            "📅 Até",
+            value=date.today(),
+            format="DD/MM/YYYY",
+            key="funil_ate"
+        )
+    with ff3:
+        ops_funil = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
+        funil_origem = st.multiselect(
+            "👤 Origem",
+            options=ops_funil,
+            default=ops_funil,
+            key="funil_origem"
+        )
+    with ff4:
+        funil_status = st.selectbox(
+            "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="funil_status"
+        )
+    with ff5:
+        filtro_temp = st.selectbox(
+            "🌡️ Temperatura",
+            ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
+            key="filtro_temperatura"
+        )
+
+    # ── Aplica filtros ────────────────────────────────────────────────────────
+    df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
+    if not df_funil.empty:
+        df_funil = df_funil[df_funil["data_obj"].apply(
+            lambda d: d is not None and funil_de <= d <= funil_ate
+        )]
+        if funil_origem:
+            df_funil = df_funil[df_funil["origem"].isin(funil_origem)]
+        if funil_status != "Todos":
+            df_funil = df_funil[df_funil["status"] == funil_status]
+        if filtro_temp != "Todas":
+            df_funil = df_funil[df_funil["perception"] == filtro_temp]
+
+    st.markdown("---")
+
+    df_giovanna = df_funil[df_funil["atendente"].str.contains("Giovanna", case=False, na=False)]
+    df_rayanna  = df_funil[df_funil["atendente"].str.contains("Rayanna",  case=False, na=False)]
+
+    col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
+    with col_gio:
+        render_painel_atendente(df_giovanna, "Giovanna", "#8b5cf6", foto_path="fotos/giovanna.jpg")
+    with col_ray:
+        render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
+
+    st.markdown("---")
+    st.markdown("#### 📊 Consolidado das Atendentes")
+
+    total_carteira = df_funil["valor_proposta"].sum()
+    leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
+    ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
+
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
+    with rc2:
+        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
+    with rc3:
+        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
+    with rc4:
+        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
+
+
+@st.fragment
+def render_leads_rt():
+    df_todos_rt, _ = merge_leads()
+    df_rt = _df_com_filtros_globais(df_todos_rt) if not df_todos_rt.empty else df_todos_rt
+
+    st.markdown("#### 📋 Leads Recentes")
+    st.markdown(
+        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+        f"Exibindo os 100 leads mais recentes do período filtrado ({len(df_rt)} no total)."
+        "</p>",
+        unsafe_allow_html=True
+    )
+
+    col_labels = {
+        "nome":           "Nome",
+        "status":         "Status",
+        "perception":     "Temperatura",
+        "valor_proposta": "Valor (R$)",
+        "atendente":      "Atendente",
+        "origem":         "Operador",
+        "interesse":      "Interesse",
+        "criado_em":      "Cadastrado em",
+        "atualizado_em":  "Última Atualização",
+    }
+    df_show = df_rt.copy().sort_values("atualizado_em", ascending=False)
+    df_show["valor_proposta"] = df_show["valor_proposta"].apply(
+        lambda v: fmt_brl(v) if v > 0 else "—"
+    )
+    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100)
+    st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -741,7 +914,8 @@ with col_hora:
     )
 with col_btn:
     if st.button("🔄 Atualizar", key="refresh"):
-        fetch_leads.clear()
+        fetch_leads_historico.clear()
+        fetch_leads_criticos.clear()
         st.rerun()
 
 st.markdown("---")
@@ -752,7 +926,7 @@ loading_ph.markdown(
     '<div class="loading-box">⏳ Carregando leads, aguarde...</div>',
     unsafe_allow_html=True
 )
-df_todos, erro = fetch_leads()
+df_todos, erro = merge_leads()
 loading_ph.empty()
 
 if erro:
@@ -762,38 +936,6 @@ if erro:
 if df_todos.empty:
     st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
     st.stop()
-
-# ── Filtros globais (acima das abas — valem para tudo) ────────────────────────
-col_op, col_st, col_de, col_ate = st.columns([3, 2, 1.5, 1.5])
-
-with col_op:
-    origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
-    selecionados = st.multiselect(
-        "👤 Origem", options=origens_disp, default=origens_disp, key="filtro_origem"
-    )
-with col_st:
-    filtro_status = st.selectbox(
-        "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="filtro_status"
-    )
-with col_de:
-    data_de = st.date_input(
-        "📅 De", value=date.today() - timedelta(days=30),
-        format="DD/MM/YYYY", key="filtro_de"
-    )
-with col_ate:
-    data_ate = st.date_input(
-        "📅 Até", value=date.today(), format="DD/MM/YYYY", key="filtro_ate"
-    )
-
-# Aplica filtros ao dataframe principal
-df = df_todos.copy()
-df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
-if selecionados:
-    df = df[df["origem"].isin(selecionados)]
-if filtro_status != "Todos":
-    df = df[df["status"] == filtro_status]
-
-st.markdown("---")
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
 aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads = st.tabs([
@@ -809,6 +951,42 @@ aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads = st.tabs([
 # ABA 1 — VISÃO GERAL
 # ══════════════════════════════════════════════════════════════════════════════
 with aba_visao:
+
+    # ── Filtros desta aba ────────────────────────────────────────────────────
+    st.markdown("#### 🔎 Filtros da Aba")
+    origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
+    with st.form("filtros_visao", border=False):
+        col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
+        with col_op:
+            selecionados = st.multiselect(
+                "👤 Origem", options=origens_disp, default=origens_disp, key="filtro_origem"
+            )
+        with col_st:
+            filtro_status = st.selectbox(
+                "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="filtro_status"
+            )
+        with col_de:
+            data_de = st.date_input(
+                "📅 De", value=date.today() - timedelta(days=30),
+                format="DD/MM/YYYY", key="filtro_de"
+            )
+        with col_ate:
+            data_ate = st.date_input(
+                "📅 Até", value=date.today(), format="DD/MM/YYYY", key="filtro_ate"
+            )
+        with col_btn_f:
+            st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+            st.form_submit_button("✔ Aplicar", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    df = df_todos.copy()
+    df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
+    if selecionados:
+        df = df[df["origem"].isin(selecionados)]
+    if filtro_status != "Todos":
+        df = df[df["status"] == filtro_status]
+
+    st.markdown("---")
 
     # Métricas gerais do período
     total      = len(df)
@@ -964,7 +1142,7 @@ with aba_visao:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 2 — FUNIL DE VENDAS (PRIORIDADE)
+# ABA 2 — FUNIL DE VENDAS (tempo real via fragment)
 # ══════════════════════════════════════════════════════════════════════════════
 with aba_funil:
 
@@ -977,58 +1155,7 @@ with aba_funil:
         unsafe_allow_html=True
     )
 
-    # ── Filtro de temperatura (exclusivo desta aba) ────────────────────────
-    col_temp, _ = st.columns([2, 4])
-    with col_temp:
-        filtro_temp = st.selectbox(
-            "🌡️ Filtrar por Temperatura",
-            ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
-            key="filtro_temperatura"
-        )
-
-    # Aplica filtro de temperatura em cima do df já filtrado por período/operador
-    df_funil = df.copy()
-    if filtro_temp != "Todas":
-        df_funil = df_funil[df_funil["perception"] == filtro_temp]
-
-    st.markdown("---")
-
-    # ── Painel Giovanna | Painel Rayanna lado a lado ───────────────────────
-    # ATENÇÃO: ajuste os nomes abaixo caso a grafia no Followize seja diferente.
-    # O campo "atendente" vem de lead["attendant"]["name"].
-    NOME_GIOVANNA = "Giovanna"
-    NOME_RAYANNA  = "Rayanna"
-
-    df_giovanna = df_funil[df_funil["atendente"].str.contains(NOME_GIOVANNA, case=False, na=False)]
-    df_rayanna  = df_funil[df_funil["atendente"].str.contains(NOME_RAYANNA,  case=False, na=False)]
-
-    col_gio, col_ray = st.columns(2)
-
-    with col_gio:
-        render_painel_atendente(df_giovanna, NOME_GIOVANNA, "#8b5cf6")
-
-    with col_ray:
-        render_painel_atendente(df_rayanna, NOME_RAYANNA, "#f59e0b")
-
-    # ── Resumo consolidado das duas ────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("#### 📊 Consolidado das Atendentes")
-
-    total_carteira = df_funil["valor_proposta"].sum()
-    leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
-    ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
-
-    rc1, rc2, rc3, rc4 = st.columns(4)
-    with rc1:
-        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
-    with rc2:
-        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
-    with rc3:
-        qtd_quente = int((df_funil["perception"] == "🔥 Quente").sum())
-        render_card("🔥", qtd_quente, "Leads Quentes", "#ef4444")
-    with rc4:
-        qtd_morno = int((df_funil["perception"] == "🌡️ Morno").sum())
-        render_card("🌡️", qtd_morno, "Leads Mornos", "#f59e0b")
+    render_funil_rt()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1036,20 +1163,39 @@ with aba_funil:
 # ══════════════════════════════════════════════════════════════════════════════
 with aba_operadores:
 
+    # ── Filtros desta aba ────────────────────────────────────────────────────
+    st.markdown("#### 🔎 Filtros da Aba")
+    origens_op_disp = sorted(df_todos["origem"].dropna().unique().tolist())
+    op1, op2, _ = st.columns([3, 2, 3])
+    with op1:
+        op_selecionados = st.multiselect(
+            "👤 Origem", options=origens_op_disp, default=origens_op_disp, key="op_origem"
+        )
+    with op2:
+        op_status = st.selectbox(
+            "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="op_status"
+        )
+
+    st.markdown("---")
     st.markdown("#### 📈 Acumulado de Leads por Operador no Mês")
 
-    if selecionados:
+    if op_selecionados:
         df_acum = df_todos.copy()
-        df_acum = df_acum[df_acum["origem"].isin(selecionados)]
-        if filtro_status != "Todos":
-            df_acum = df_acum[df_acum["status"] == filtro_status]
-        st.plotly_chart(grafico_acumulado(df_acum, selecionados), use_container_width=True, key="acumulado_op")
+        df_acum = df_acum[df_acum["origem"].isin(op_selecionados)]
+        if op_status != "Todos":
+            df_acum = df_acum[df_acum["status"] == op_status]
+        st.plotly_chart(grafico_acumulado(df_acum, op_selecionados), use_container_width=True, key="acumulado_op")
     else:
         st.info("Selecione ao menos um operador para ver o acumulado.")
 
     st.markdown("---")
     st.markdown("#### 🏆 Ranking de Vendas por Operador")
-    st.plotly_chart(grafico_origens(df), use_container_width=True, key="origens_op")
+    df_op_rank = df_todos.copy()
+    if op_selecionados:
+        df_op_rank = df_op_rank[df_op_rank["origem"].isin(op_selecionados)]
+    if op_status != "Todos":
+        df_op_rank = df_op_rank[df_op_rank["status"] == op_status]
+    st.plotly_chart(grafico_origens(df_op_rank), use_container_width=True, key="origens_op")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1315,44 +1461,18 @@ with aba_detalhamento:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 5 — LEADS RECENTES
+# ABA 5 — LEADS RECENTES (tempo real via fragment)
 # ══════════════════════════════════════════════════════════════════════════════
 with aba_leads:
 
-    st.markdown("#### 📋 Leads Recentes")
-    st.markdown(
-        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-        f"Exibindo os 100 leads mais recentes do período filtrado ({len(df)} no total)."
-        "</p>",
-        unsafe_allow_html=True
-    )
-
-    col_labels = {
-        "nome":          "Nome",
-        "status":        "Status",
-        "perception":    "Temperatura",
-        "valor_proposta":"Valor (R$)",
-        "atendente":     "Atendente",
-        "origem":        "Operador",
-        "interesse":     "Interesse",
-        "criado_em":     "Cadastrado em",
-        "atualizado_em": "Última Atualização",
-    }
-
-    df_show = df.copy()
-    df_show = df_show.sort_values("atualizado_em", ascending=False)  # ← ordenação
-    df_show["valor_proposta"] = df_show["valor_proposta"].apply(
-        lambda v: fmt_brl(v) if v > 0 else "—"
-)
-    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100) 
-    st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
+    render_leads_rt()
 
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center;color:#7a9cc7;font-size:12px;'>"
-    "Dados atualizados automaticamente a cada 1 minuto · O2 Solution"
+    "Funil e Leads Recentes · atualização automática a cada 5s · demais abas a cada 10 min · O2 Solution"
     "</div>",
     unsafe_allow_html=True
 )
@@ -1360,6 +1480,6 @@ st.markdown(
 # Auto-refresh a cada 1 minuto
 st.markdown("""
     <script>
-        setTimeout(function() { window.location.reload(); }, 60000);
+        setTimeout(function() { window.location.reload(); }, 600000);
     </script>
 """, unsafe_allow_html=True)
