@@ -5,14 +5,16 @@ import plotly.graph_objects as go
 import base64
 import os
 from datetime import datetime, date, timedelta
+from PIL import Image
 from config import ACCESS_TOKEN
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
+_logo = Image.open(os.path.join(SCRIPT_DIR, "logo o2 atualizada.png"))
 st.set_page_config(
     page_title="Dashboard · O2 Solution",
-    page_icon="📺",
+    page_icon=_logo,
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -312,24 +314,31 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     while True:
         params = {"date_from": date_from, "date_of": date_of, "per_page": 200, "page": pagina}
-        try:
-            response = requests.get(
-                "https://api.followize.com.br/v3/leads",
-                headers=headers, params=params, timeout=30
-            )
-            if response.status_code != 200:
-                return pd.DataFrame(), f"Erro na API: {response.status_code}"
-            data = response.json()
-            leads = data.get("data", [])
-            if not leads:
+        ultimo_erro = None
+        data = None
+        for _ in range(3):
+            try:
+                response = requests.get(
+                    "https://api.followize.com.br/v3/leads",
+                    headers=headers, params=params, timeout=60
+                )
+                if response.status_code != 200:
+                    return pd.DataFrame(), f"Erro na API: {response.status_code}"
+                data = response.json()
+                ultimo_erro = None
                 break
-            todos_leads.extend(leads)
-            meta = data.get("meta", {})
-            if pagina >= meta.get("last_page", 1):
-                break
-            pagina += 1
-        except Exception as e:
-            return pd.DataFrame(), f"Erro ao buscar leads: {e}"
+            except Exception as e:
+                ultimo_erro = e
+        if ultimo_erro is not None:
+            return pd.DataFrame(), f"Erro ao buscar leads: {ultimo_erro}"
+        leads = data.get("data", [])
+        if not leads:
+            break
+        todos_leads.extend(leads)
+        meta = data.get("meta", {})
+        if pagina >= meta.get("last_page", 1):
+            break
+        pagina += 1
 
     registros = []
     for lead in todos_leads:
@@ -349,14 +358,25 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
         perception_pt  = PERCEPTION_MAP.get(perception_raw, perception_raw or "Sem percepção")
         last_proposal  = lead.get("last_proposal") or {}
         valor_proposta = last_proposal.get("amount") or 0.0
+        def _parse_dt(s):
+            for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ",
+                        "%Y-%m-%dT%H:%M:%S.%f+00:00", "%Y-%m-%dT%H:%M:%S+00:00"):
+                try:
+                    return datetime.strptime(s, fmt)
+                except ValueError:
+                    continue
+            return None
+
         data_obj = None
         if criado_em:
-            try:
-                dt       = datetime.fromisoformat(criado_em.replace("Z", "+00:00"))
-                data_obj = dt.date()
+            dt = _parse_dt(criado_em)
+            if dt:
+                data_obj  = dt.date()
                 criado_em = dt.strftime("%d/%m/%Y %H:%M")
-            except Exception:
-                pass
+        if atualizado_em:
+            dt = _parse_dt(atualizado_em)
+            if dt:
+                atualizado_em = dt.strftime("%d/%m/%Y %H:%M")
         registros.append({
             "id":             lead.get("id"),
             "nome":           lead.get("name", ""),
@@ -374,21 +394,25 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
     return pd.DataFrame(registros), None
 
 
-@st.cache_data(ttl=1800, show_spinner=False, persist="disk")
-def fetch_leads_historico():
-    """80 dias por criação · cache 30 min em disco · sobrevive reinicializações."""
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_leads_30dias():
+    """30 dias por criação · cache 30 min · abas de visão geral."""
+    return _fetch_leads_from_api(days=30, date_of="creation")
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_leads_80dias():
+    """80 dias por criação · cache 30 min · funil de atendentes."""
     return _fetch_leads_from_api(days=80, date_of="creation")
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_leads_criticos():
-    """Últimos 4 dias por atualização · cache 5s · captura qualquer lead modificado."""
+    """Últimos 4 dias por atualização · cache 60s · captura qualquer lead modificado."""
     return _fetch_leads_from_api(days=DIAS_CRITICOS, date_of="change")
 
 
-def merge_leads():
-    """Une histórico + crítico. Crítico tem prioridade para leads duplicados (mais atualizado)."""
-    df_hist, err1 = fetch_leads_historico()
+def _merge(df_hist, err1):
     df_crit, err2 = fetch_leads_criticos()
     if df_hist.empty and df_crit.empty:
         return pd.DataFrame(), err1 or err2
@@ -397,6 +421,18 @@ def merge_leads():
     if "id" in merged.columns:
         merged = merged.drop_duplicates(subset=["id"], keep="first")
     return merged, err1 or err2
+
+
+def merge_leads_curto():
+    """30 dias + críticos · usado em Visão Geral, Operador, Detalhamento e Leads."""
+    df_hist, err1 = fetch_leads_30dias()
+    return _merge(df_hist, err1)
+
+
+def merge_leads_longo():
+    """80 dias + críticos · usado no Funil de Vendas."""
+    df_hist, err1 = fetch_leads_80dias()
+    return _merge(df_hist, err1)
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -755,26 +791,31 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     )
 
     col_map = {
-        "nome":       "Nome",
-        "status":     "Status",
-        "perception": "Temperatura",
-        "Valor":      "Valor da Proposta",
-        "origem":     "Operador",
-        "interesse":  "Interesse",
-        "criado_em":  "Cadastrado em",
+        "nome":          "Nome",
+        "status":        "Status",
+        "perception":    "Temperatura",
+        "Valor":         "Valor da Proposta",
+        "origem":        "Canal",
+        "interesse":     "Interesse",
+        "criado_em":     "Cadastrado em",
+        "atualizado_em": "Última Atualização",
     }
 
-    df_show = df_tabela[list(col_map.keys())].rename(columns=col_map)
+    df_show = (
+        df_tabela[list(col_map.keys())]
+        .sort_values("atualizado_em", ascending=False)
+        .rename(columns=col_map)
+    )
     st.dataframe(df_show, use_container_width=True, hide_index=True, height=300)
 
 
 # ── FRAGMENTS (abas de tempo real) ────────────────────────────────────────────
 def _df_com_filtros_globais(df_base: pd.DataFrame) -> pd.DataFrame:
     """Aplica os filtros globais (período, origem, status) a qualquer dataframe."""
-    data_de      = st.session_state.get("filtro_de",     date.today() - timedelta(days=30))
-    data_ate     = st.session_state.get("filtro_ate",    date.today())
-    selecionados = st.session_state.get("filtro_origem", [])
-    f_status     = st.session_state.get("filtro_status", "Todos")
+    data_de      = st.session_state.get("visao_de",     date.today() - timedelta(days=30))
+    data_ate     = st.session_state.get("visao_ate",    date.today())
+    selecionados = st.session_state.get("visao_origem", [])
+    f_status     = st.session_state.get("visao_status", "Todos")
     df = df_base[df_base["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
     if selecionados:
         df = df[df["origem"].isin(selecionados)]
@@ -785,7 +826,24 @@ def _df_com_filtros_globais(df_base: pd.DataFrame) -> pd.DataFrame:
 
 @st.fragment
 def render_funil_rt():
-    df_todos_rt, _ = merge_leads()
+    # ── Lazy load: só busca 80 dias quando o usuário solicitar ────────────────
+    if "df_funil" not in st.session_state:
+        st.markdown(
+            "<div style='text-align:center;padding:48px 0 16px;color:#7a9cc7;font-size:14px;'>"
+            "Os dados do Funil cobrem 80 dias e são carregados sob demanda."
+            "</div>",
+            unsafe_allow_html=True
+        )
+        _, col_c, _ = st.columns([1, 2, 1])
+        with col_c:
+            if st.button("📊 Carregar Funil de Vendas", use_container_width=True):
+                with st.spinner("Buscando 80 dias de dados..."):
+                    df, _ = merge_leads_longo()
+                    st.session_state["df_funil"] = df
+                st.rerun()
+        return
+
+    df_todos_rt = st.session_state["df_funil"]
 
     # ── Filtros independentes desta aba ────────────────────────────────────────
     st.markdown("#### 🔎 Filtros da Aba")
@@ -865,144 +923,19 @@ def render_funil_rt():
         render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
-@st.fragment
-def render_leads_rt():
-    df_todos_rt, _ = merge_leads()
-    df_rt = _df_com_filtros_globais(df_todos_rt) if not df_todos_rt.empty else df_todos_rt
+@st.fragment(run_every=60)
+def render_hoje_rt():
+    """Seção 'Hoje' com auto-refresh a cada 60s, independente do form de filtros."""
+    fetch_leads_criticos.clear()
+    df_base, _ = merge_leads_curto()
+    if df_base.empty:
+        return
 
-    st.markdown("#### 📋 Leads Recentes")
-    st.markdown(
-        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-        f"Exibindo os 100 leads mais recentes do período filtrado ({len(df_rt)} no total)."
-        "</p>",
-        unsafe_allow_html=True
-    )
-
-    col_labels = {
-        "nome":           "Nome",
-        "status":         "Status",
-        "perception":     "Temperatura",
-        "valor_proposta": "Valor (R$)",
-        "atendente":      "Atendente",
-        "origem":         "Operador",
-        "interesse":      "Interesse",
-        "criado_em":      "Cadastrado em",
-        "atualizado_em":  "Última Atualização",
-    }
-    df_show = df_rt.copy().sort_values("atualizado_em", ascending=False)
-    df_show["valor_proposta"] = df_show["valor_proposta"].apply(
-        lambda v: fmt_brl(v) if v > 0 else "—"
-    )
-    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100)
-    st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ── MAIN ──────────────────────────────────────────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════════════════
-inject_css()
-
-# ── Cabeçalho ─────────────────────────────────────────────────────────────────
-col_titulo, col_hora, col_btn = st.columns([4, 2, 1])
-with col_titulo:
-    st.title("📺 Dashboard · O2 Solution")
-with col_hora:
-    st.markdown(
-        f"<div class='update-time' style='margin-top:16px'>🕐 Atualizado: "
-        f"{datetime.now().strftime('%d/%m/%Y %H:%M')}</div>",
-        unsafe_allow_html=True
-    )
-with col_btn:
-    if st.button("🔄 Atualizar", key="refresh"):
-        fetch_leads_historico.clear()
-        fetch_leads_criticos.clear()
-        st.rerun()
-
-st.markdown("---")
-
-# ── Loading ────────────────────────────────────────────────────────────────────
-loading_ph = st.empty()
-loading_ph.markdown(
-    '<div class="loading-box">⏳ Carregando leads, aguarde...</div>',
-    unsafe_allow_html=True
-)
-df_todos, erro = merge_leads()
-loading_ph.empty()
-
-if erro:
-    st.error(erro)
-    st.stop()
-
-if df_todos.empty:
-    st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
-    st.stop()
-
-# ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads = st.tabs([
-    "📊 Visão Geral",
-    "🔥 Funil de Vendas",
-    "👤 Por Operador",
-    "📆 Detalhamento por Dia",
-    "📋 Leads Recentes",
-])
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 1 — VISÃO GERAL
-# ══════════════════════════════════════════════════════════════════════════════
-with aba_visao:
-
-    # ── Filtros desta aba ────────────────────────────────────────────────────
-    st.markdown("#### 🔎 Filtros da Aba")
-    origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
-    with st.form("filtros_visao", border=False):
-        col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
-        with col_op:
-            selecionados = st.multiselect(
-                "👤 Origem", options=origens_disp, default=origens_disp, key="filtro_origem"
-            )
-        with col_st:
-            filtro_status = st.selectbox(
-                "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="filtro_status"
-            )
-        with col_de:
-            data_de = st.date_input(
-                "📅 De", value=date.today() - timedelta(days=30),
-                format="DD/MM/YYYY", key="filtro_de"
-            )
-        with col_ate:
-            data_ate = st.date_input(
-                "📅 Até", value=date.today(), format="DD/MM/YYYY", key="filtro_ate"
-            )
-        with col_btn_f:
-            st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
-            st.form_submit_button("✔ Aplicar", use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    df = df_todos.copy()
-    df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
-    if selecionados:
-        df = df[df["origem"].isin(selecionados)]
-    if filtro_status != "Todos":
-        df = df[df["status"] == filtro_status]
-
-    st.markdown("---")
-
-    # Métricas gerais do período
-    total      = len(df)
-    vendas     = int((df["status"] == "Venda Realizada").sum())
-    aguardando = int((df["status"] == "Aguardando Pagamento").sum())
-    proposta   = int((df["status"] == "Proposta Enviada").sum())
-    nao_venda  = int((df["status"] == "Venda não Realizada").sum())
-    agendado   = int((df["status"] == "Agendado").sum())
-    primeiro   = int((df["status"] == "Primeiro Contato").sum())
-    taxa_conv  = f"{(vendas / total * 100):.1f}%" if total > 0 else "0%"
-
-    # Comparativo hoje vs ontem
+    selecionados = st.session_state.get("visao_origem", [])
     hoje  = date.today()
     ontem = hoje - timedelta(days=1)
 
-    df_base_hoje = df_todos.copy()
+    df_base_hoje = df_base.copy()
     if selecionados:
         df_base_hoje = df_base_hoje[df_base_hoje["origem"].isin(selecionados)]
 
@@ -1030,7 +963,6 @@ with aba_visao:
     pct_meta  = int(progresso * 100)
     cor_meta  = "#22c55e" if progresso >= 1.0 else "#f59e0b" if progresso >= 0.5 else "#ef4444"
 
-    # Seção Hoje
     st.markdown("#### 📅 Hoje")
     h1, h2 = st.columns(2)
 
@@ -1077,6 +1009,139 @@ with aba_visao:
             <div style="color:{cor_meta};font-size:11px;margin-top:4px;">{pct_meta}% da meta</div>
         </div>
         """, unsafe_allow_html=True)
+
+
+@st.fragment
+def render_leads_rt():
+    df_todos_rt, _ = merge_leads_curto()
+    df_rt = _df_com_filtros_globais(df_todos_rt) if not df_todos_rt.empty else df_todos_rt
+
+    st.markdown("#### 📋 Leads Recentes")
+    st.markdown(
+        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+        f"Exibindo os 100 leads mais recentes do período filtrado ({len(df_rt)} no total)."
+        "</p>",
+        unsafe_allow_html=True
+    )
+
+    col_labels = {
+        "nome":           "Nome",
+        "status":         "Status",
+        "perception":     "Temperatura",
+        "valor_proposta": "Valor (R$)",
+        "atendente":      "Atendente",
+        "origem":         "Operador",
+        "interesse":      "Interesse",
+        "criado_em":      "Cadastrado em",
+        "atualizado_em":  "Última Atualização",
+    }
+    df_show = df_rt.copy().sort_values("atualizado_em", ascending=False)
+    df_show["valor_proposta"] = df_show["valor_proposta"].apply(
+        lambda v: fmt_brl(v) if v > 0 else "—"
+    )
+    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100)
+    st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+inject_css()
+
+# ── Cabeçalho ─────────────────────────────────────────────────────────────────
+col_titulo, col_hora, col_btn = st.columns([4, 2, 1])
+with col_titulo:
+    st.title("📺 Dashboard · O2 Solution")
+with col_hora:
+    st.markdown(
+        f"<div class='update-time' style='margin-top:16px'>🕐 Atualizado: "
+        f"{datetime.now().strftime('%d/%m/%Y %H:%M')}</div>",
+        unsafe_allow_html=True
+    )
+with col_btn:
+    if st.button("🔄 Atualizar", key="refresh"):
+        fetch_leads_30dias.clear()
+        fetch_leads_80dias.clear()
+        fetch_leads_criticos.clear()
+        st.session_state.pop("df_funil", None)
+        st.rerun()
+
+st.markdown("---")
+
+# ── Loading ────────────────────────────────────────────────────────────────────
+loading_ph = st.empty()
+loading_ph.markdown(
+    '<div class="loading-box">⏳ Carregando leads, aguarde...</div>',
+    unsafe_allow_html=True
+)
+df_todos, erro = merge_leads_curto()
+loading_ph.empty()
+
+if erro:
+    st.error(erro)
+    st.stop()
+
+if df_todos.empty:
+    st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
+    st.stop()
+
+# ── ABAS ──────────────────────────────────────────────────────────────────────
+aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads = st.tabs([
+    "📊 Visão Geral",
+    "🔥 Funil de Vendas",
+    "👤 Por Operador",
+    "📆 Detalhamento por Dia",
+    "📋 Leads Recentes",
+])
+
+
+@st.fragment
+def render_visao_geral(df_todos: pd.DataFrame):
+    st.markdown("#### 🔎 Filtros da Aba")
+    origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
+    with st.form("filtros_visao", border=False):
+        col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
+        with col_op:
+            selecionados = st.multiselect(
+                "👤 Origem", options=origens_disp, default=origens_disp, key="visao_origem"
+            )
+        with col_st:
+            filtro_status = st.selectbox(
+                "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="visao_status"
+            )
+        with col_de:
+            data_de = st.date_input(
+                "📅 De", value=date.today() - timedelta(days=30),
+                format="DD/MM/YYYY", key="visao_de"
+            )
+        with col_ate:
+            data_ate = st.date_input(
+                "📅 Até", value=date.today(), format="DD/MM/YYYY", key="visao_ate"
+            )
+        with col_btn_f:
+            st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+            st.form_submit_button("✔ Aplicar", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    df = df_todos.copy()
+    df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
+    if selecionados:
+        df = df[df["origem"].isin(selecionados)]
+    if filtro_status != "Todos":
+        df = df[df["status"] == filtro_status]
+
+    st.markdown("---")
+
+    total      = len(df)
+    vendas     = int((df["status"] == "Venda Realizada").sum())
+    aguardando = int((df["status"] == "Aguardando Pagamento").sum())
+    proposta   = int((df["status"] == "Proposta Enviada").sum())
+    nao_venda  = int((df["status"] == "Venda não Realizada").sum())
+    agendado   = int((df["status"] == "Agendado").sum())
+    primeiro   = int((df["status"] == "Primeiro Contato").sum())
+    taxa_conv  = f"{(vendas / total * 100):.1f}%" if total > 0 else "0%"
+
+    render_hoje_rt()
 
     st.markdown("---")
     st.markdown("#### 📊 Visão Geral do Período")
@@ -1141,29 +1206,8 @@ with aba_visao:
         st.plotly_chart(grafico_origens(df), use_container_width=True, key="origens_visao")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 2 — FUNIL DE VENDAS (tempo real via fragment)
-# ══════════════════════════════════════════════════════════════════════════════
-with aba_funil:
-
-    st.markdown("#### 🔥 Funil de Vendas · Giovanna & Rayanna")
-    st.markdown(
-        "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-        "Acompanhe o pipeline de cada atendente: temperatura dos leads, "
-        "valor das propostas em carteira e progressão no funil."
-        "</p>",
-        unsafe_allow_html=True
-    )
-
-    render_funil_rt()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 3 — POR OPERADOR
-# ══════════════════════════════════════════════════════════════════════════════
-with aba_operadores:
-
-    # ── Filtros desta aba ────────────────────────────────────────────────────
+@st.fragment
+def render_operadores(df_todos: pd.DataFrame):
     st.markdown("#### 🔎 Filtros da Aba")
     origens_op_disp = sorted(df_todos["origem"].dropna().unique().tolist())
     op1, op2, _ = st.columns([3, 2, 3])
@@ -1198,11 +1242,8 @@ with aba_operadores:
     st.plotly_chart(grafico_origens(df_op_rank), use_container_width=True, key="origens_op")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 4 — DETALHAMENTO POR DIA
-# ══════════════════════════════════════════════════════════════════════════════
-with aba_detalhamento:
-
+@st.fragment
+def render_detalhamento(df_todos: pd.DataFrame):
     st.markdown("#### 📆 Detalhamento de Leads por Dia e Operador")
     st.markdown(
         "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
@@ -1212,36 +1253,26 @@ with aba_detalhamento:
     )
 
     st.markdown("---")
-
-    # ── Filtros próprios desta aba ────────────────────────────────────────────
     st.markdown("#### 🔎 Filtros da Aba")
     fd1, fd2, fd3 = st.columns([1.5, 1.5, 3])
     with fd1:
         det_de = st.date_input(
-            "📅 De",
-            value=date.today().replace(day=1),   # começo do mês atual
-            format="DD/MM/YYYY",
-            key="det_de"
+            "📅 De", value=date.today().replace(day=1),
+            format="DD/MM/YYYY", key="det_de"
         )
     with fd2:
         det_ate = st.date_input(
-            "📅 Até",
-            value=date.today(),
-            format="DD/MM/YYYY",
-            key="det_ate"
+            "📅 Até", value=date.today(),
+            format="DD/MM/YYYY", key="det_ate"
         )
     with fd3:
         ops_disp_det = sorted(df_todos["origem"].dropna().unique().tolist())
         det_ops = st.multiselect(
-            "👤 Origem",
-            options=ops_disp_det,
-            default=ops_disp_det,
-            key="det_ops"
+            "👤 Origem", options=ops_disp_det, default=ops_disp_det, key="det_ops"
         )
 
     st.markdown("---")
 
-    # ── Aplica filtros ────────────────────────────────────────────────────────
     df_det = df_todos.copy()
     df_det = df_det[df_det["data_obj"].notna()]
     df_det = df_det[df_det["data_obj"].apply(lambda d: det_de <= d <= det_ate)]
@@ -1250,215 +1281,216 @@ with aba_detalhamento:
 
     if df_det.empty or not det_ops:
         st.info("Nenhum dado encontrado para o período e operadores selecionados.")
-    else:
-        operadores_det = sorted(df_det["origem"].dropna().unique().tolist())
-        CORES_DET = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
-        cor_por_op = {op: CORES_DET[i % len(CORES_DET)] for i, op in enumerate(operadores_det)}
+        return
 
-        # ── Pivot: linhas = data, colunas = operadores ────────────────────────
-        pivot = (
-            df_det.groupby(["data_obj", "origem"])
-            .size()
-            .reset_index(name="leads")
-            .pivot(index="data_obj", columns="origem", values="leads")
-            .fillna(0)
-            .astype(int)
-            .sort_index()
-        )
-        pivot["Total"] = pivot[operadores_det].sum(axis=1)
+    operadores_det = sorted(df_det["origem"].dropna().unique().tolist())
+    CORES_DET = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
+    cor_por_op = {op: CORES_DET[i % len(CORES_DET)] for i, op in enumerate(operadores_det)}
 
-        # ── CARDS DE RESUMO POR OPERADOR ──────────────────────────────────────
-        st.markdown("#### 👤 Resumo do Período por Operador")
+    pivot = (
+        df_det.groupby(["data_obj", "origem"])
+        .size()
+        .reset_index(name="leads")
+        .pivot(index="data_obj", columns="origem", values="leads")
+        .fillna(0)
+        .astype(int)
+        .sort_index()
+    )
+    pivot["Total"] = pivot[operadores_det].sum(axis=1)
 
-        chunks = [operadores_det[i:i+4] for i in range(0, len(operadores_det), 4)]
-        for chunk in chunks:
-            cols_cards = st.columns(len(chunk))
-            for col_c, op in zip(cols_cards, chunk):
-                cor_op = cor_por_op[op]
-                total_op = int(pivot[op].sum())
-                media_op = pivot[op][pivot[op] > 0].mean()
-                media_op = round(media_op, 1) if not pd.isna(media_op) else 0
+    st.markdown("#### 👤 Resumo do Período por Operador")
 
-                # Valor total em propostas e ticket médio
-                df_op_det = df_det[df_det["origem"] == op]
-                valor_op  = df_op_det["valor_proposta"].sum()
-                leads_com_valor = int((df_op_det["valor_proposta"] > 0).sum())
-                ticket_op = valor_op / leads_com_valor if leads_com_valor > 0 else 0
+    chunks = [operadores_det[i:i+4] for i in range(0, len(operadores_det), 4)]
+    for chunk in chunks:
+        cols_cards = st.columns(len(chunk))
+        for col_c, op in zip(cols_cards, chunk):
+            cor_op = cor_por_op[op]
+            total_op = int(pivot[op].sum())
+            dias_uteis = len(pivot)
+            media_op = round(total_op / dias_uteis, 1) if dias_uteis > 0 else 0
 
-                # Tendência: compara primeira metade vs segunda metade do período
-                vals = pivot[op].tolist()
-                metade = len(vals) // 2
-                if metade > 0:
-                    media_ini = sum(vals[:metade]) / metade
-                    media_fim = sum(vals[metade:]) / max(len(vals[metade:]), 1)
-                    if media_fim > media_ini:
-                        tendencia, cor_tend = "↑ Subindo", "#22c55e"
-                    elif media_fim < media_ini:
-                        tendencia, cor_tend = "↓ Caindo", "#ef4444"
-                    else:
-                        tendencia, cor_tend = "→ Estável", "#7a9cc7"
+            df_op_det = df_det[df_det["origem"] == op]
+            valor_op  = df_op_det["valor_proposta"].sum()
+            leads_com_valor = int((df_op_det["valor_proposta"] > 0).sum())
+            ticket_op = valor_op / leads_com_valor if leads_com_valor > 0 else 0
+
+            vals = pivot[op].tolist()
+            metade = len(vals) // 2
+            if metade > 0:
+                media_ini = sum(vals[:metade]) / metade
+                media_fim = sum(vals[metade:]) / max(len(vals[metade:]), 1)
+                if media_fim > media_ini:
+                    tendencia, cor_tend = "↑ Subindo", "#22c55e"
+                elif media_fim < media_ini:
+                    tendencia, cor_tend = "↓ Caindo", "#ef4444"
                 else:
                     tendencia, cor_tend = "→ Estável", "#7a9cc7"
+            else:
+                tendencia, cor_tend = "→ Estável", "#7a9cc7"
 
-                with col_c:
-                    st.markdown(f"""
-                    <div class="card-status" style="border-left:4px solid {cor_op};display:flex;gap:16px;align-items:flex-start;">
-                        <div style="min-width:110px;">
-                            <span class="card-icone">👤</span>
-                            <div class="card-valor" style="color:{cor_op};">{total_op}</div>
-                            <div class="card-label">{op}</div>
-                            <div style="margin-top:10px;font-size:14px;color:#7a9cc7;">
-                                Média: <b style="color:{cor_op};">{media_op}/dia</b>
-                            </div>
-                            <div style="margin-top:6px;font-size:15px;font-weight:700;color:{cor_tend};">
-                                {tendencia}
-                            </div>
+            with col_c:
+                st.markdown(f"""
+                <div class="card-status" style="border-left:4px solid {cor_op};display:flex;gap:16px;align-items:flex-start;">
+                    <div style="min-width:110px;">
+                        <span class="card-icone">👤</span>
+                        <div class="card-valor" style="color:{cor_op};">{total_op}</div>
+                        <div class="card-label">{op}</div>
+                        <div style="margin-top:10px;font-size:14px;color:#7a9cc7;">
+                            Média: <b style="color:{cor_op};">{media_op}/dia</b>
                         </div>
-                        <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
-                        <div style="flex:1;min-width:0;padding-top:4px;">
-                            <div style="color:#7a9cc7;font-size:13px;font-weight:600;text-transform:uppercase;
-                                        letter-spacing:.6px;margin-bottom:6px;">Carteira (R$)</div>
-                            <div style="font-size:26px;font-weight:700;color:#22c55e;line-height:1.1;">
-                                {fmt_brl(valor_op)}
-                            </div>
-                            <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">em propostas enviadas</div>
-                            <div style="margin-top:10px;color:#7a9cc7;font-size:13px;font-weight:600;
-                                        text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Ticket Médio</div>
-                            <div style="font-size:22px;font-weight:700;color:#4f8ef7;">
-                                {fmt_brl(ticket_op)}
-                            </div>
+                        <div style="margin-top:6px;font-size:15px;font-weight:700;color:{cor_tend};">
+                            {tendencia}
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+                    <div style="flex:1;min-width:0;padding-top:4px;">
+                        <div style="color:#7a9cc7;font-size:13px;font-weight:600;text-transform:uppercase;
+                                    letter-spacing:.6px;margin-bottom:6px;">Carteira (R$)</div>
+                        <div style="font-size:26px;font-weight:700;color:#22c55e;line-height:1.1;">
+                            {fmt_brl(valor_op)}
+                        </div>
+                        <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">em propostas enviadas</div>
+                        <div style="margin-top:10px;color:#7a9cc7;font-size:13px;font-weight:600;
+                                    text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Ticket Médio</div>
+                        <div style="font-size:22px;font-weight:700;color:#4f8ef7;">
+                            {fmt_brl(ticket_op)}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-        st.markdown("---")
+    st.markdown("---")
+    st.markdown("#### 📊 Leads por Dia (todos os operadores)")
 
-        # ── GRÁFICO DE BARRAS EMPILHADAS POR DIA ──────────────────────────────
-        st.markdown("#### 📊 Leads por Dia (todos os operadores)")
+    fig_barras = go.Figure()
+    for op in operadores_det:
+        cor_op = cor_por_op[op]
+        datas_fmt = [d.strftime("%d/%m") for d in pivot.index]
+        fig_barras.add_trace(go.Bar(
+            name=op,
+            x=datas_fmt,
+            y=pivot[op].tolist(),
+            marker_color=cor_op,
+            hovertemplate=f"<b>{op}</b><br>%{{x}}<br>%{{y}} leads<extra></extra>",
+        ))
 
-        fig_barras = go.Figure()
+    fig_barras.update_layout(
+        barmode="group",
+        margin=dict(t=20, b=20, l=10, r=20),
+        height=340,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", y=1.12, x=0, font=dict(color="#e8eef8", size=13)),
+        xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
+        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                   tickfont=dict(color="#e8eef8", size=12), zeroline=False),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
+
+    st.markdown("---")
+    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
+
+    tabela_display = pivot.copy()
+    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
+        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
+        .replace("Thu", "Qui").replace("Fri", "Sex")
+        .replace("Sat", "Sáb").replace("Sun", "Dom")
+        for d in tabela_display.index
+    ]
+    tabela_display.index.name = "Data"
+    tabela_display = tabela_display.reset_index()
+
+    linha_total = {"Data": "📊 TOTAL"}
+    for op in operadores_det:
+        linha_total[op] = int(pivot[op].sum())
+    linha_total["Total"] = int(pivot["Total"].sum())
+    tabela_display = pd.concat(
+        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
+    )
+    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
+
+    st.markdown("---")
+    st.markdown("#### 📈 Evolução Diária por Operador (Δ vs dia anterior)")
+    st.markdown(
+        "<p style='color:#7a9cc7;font-size:12px;margin-top:-8px;'>"
+        "↑ verde = captou mais que o dia anterior · ↓ vermelho = captou menos · = cinza = igual"
+        "</p>",
+        unsafe_allow_html=True
+    )
+
+    datas_sorted = sorted(pivot.index.tolist())
+    if len(datas_sorted) >= 2:
+        evolucao_html = (
+            '<div style="overflow-x:auto;">'
+            '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            '<thead><tr>'
+            '<th style="text-align:left;padding:8px 12px;color:#7a9cc7;'
+            'border-bottom:1px solid #152a4a;white-space:nowrap;">Operador</th>'
+        )
+        for d in datas_sorted:
+            evolucao_html += (
+                f'<th style="text-align:center;padding:8px 10px;color:#7a9cc7;'
+                f'border-bottom:1px solid #152a4a;white-space:nowrap;">'
+                f'{d.strftime("%d/%m")}</th>'
+            )
+        evolucao_html += '</tr></thead><tbody>'
+
         for op in operadores_det:
             cor_op = cor_por_op[op]
-            datas_fmt = [d.strftime("%d/%m") for d in pivot.index]
-            fig_barras.add_trace(go.Bar(
-                name=op,
-                x=datas_fmt,
-                y=pivot[op].tolist(),
-                marker_color=cor_op,
-                hovertemplate=f"<b>{op}</b><br>%{{x}}<br>%{{y}} leads<extra></extra>",
-            ))
-
-        fig_barras.update_layout(
-            barmode="group",
-            margin=dict(t=20, b=20, l=10, r=20),
-            height=340,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", y=1.12, x=0, font=dict(color="#e8eef8", size=13)),
-            xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
-            yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                       tickfont=dict(color="#e8eef8", size=12), zeroline=False),
-            hovermode="x unified",
-        )
-        st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
-
-        st.markdown("---")
-
-        # ── TABELA PIVOT COM INDICADORES ──────────────────────────────────────
-        st.markdown("#### 📋 Tabela de Leads por Data e Operador")
-
-        # Monta tabela formatada para exibição
-        tabela_display = pivot.copy()
-        tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
-            "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
-            .replace("Thu", "Qui").replace("Fri", "Sex")
-            .replace("Sat", "Sáb").replace("Sun", "Dom")
-            for d in tabela_display.index
-        ]
-        tabela_display.index.name = "Data"
-        tabela_display = tabela_display.reset_index()
-
-        # Linha de totais
-        linha_total = {"Data": "📊 TOTAL"}
-        for op in operadores_det:
-            linha_total[op] = int(pivot[op].sum())
-        linha_total["Total"] = int(pivot["Total"].sum())
-        tabela_display = pd.concat(
-            [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
-        )
-
-        st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
-
-        st.markdown("---")
-
-        # ── EVOLUÇÃO DIÁRIA POR OPERADOR (variação vs dia anterior) ──────────
-        st.markdown("#### 📈 Evolução Diária por Operador (Δ vs dia anterior)")
-        st.markdown(
-            "<p style='color:#7a9cc7;font-size:12px;margin-top:-8px;'>"
-            "↑ verde = captou mais que o dia anterior · ↓ vermelho = captou menos · = cinza = igual"
-            "</p>",
-            unsafe_allow_html=True
-        )
-
-        datas_sorted = sorted(pivot.index.tolist())
-        if len(datas_sorted) >= 2:
-            # Uma linha por operador, colunas = dias
-            evolucao_html = (
-                '<div style="overflow-x:auto;">'
-                '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-                '<thead><tr>'
-                '<th style="text-align:left;padding:8px 12px;color:#7a9cc7;'
-                'border-bottom:1px solid #152a4a;white-space:nowrap;">Operador</th>'
+            evolucao_html += (
+                f'<tr>'
+                f'<td style="padding:8px 12px;font-weight:600;color:{cor_op};'
+                f'border-bottom:1px solid #152a4a;white-space:nowrap;">👤 {op}</td>'
             )
-            for d in datas_sorted:
-                evolucao_html += (
-                    f'<th style="text-align:center;padding:8px 10px;color:#7a9cc7;'
-                    f'border-bottom:1px solid #152a4a;white-space:nowrap;">'
-                    f'{d.strftime("%d/%m")}</th>'
-                )
-            evolucao_html += '</tr></thead><tbody>'
-
-            for op in operadores_det:
-                cor_op = cor_por_op[op]
-                evolucao_html += (
-                    f'<tr>'
-                    f'<td style="padding:8px 12px;font-weight:600;color:{cor_op};'
-                    f'border-bottom:1px solid #152a4a;white-space:nowrap;">👤 {op}</td>'
-                )
-                for idx, d in enumerate(datas_sorted):
-                    val_hoje = int(pivot.loc[d, op]) if d in pivot.index else 0
-                    if idx == 0:
-                        # Primeiro dia: sem comparativo
-                        evolucao_html += (
-                            f'<td style="text-align:center;padding:8px 10px;'
-                            f'border-bottom:1px solid #152a4a;">'
-                            f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
-                            f'</td>'
-                        )
+            for idx, d in enumerate(datas_sorted):
+                val_hoje = int(pivot.loc[d, op]) if d in pivot.index else 0
+                if idx == 0:
+                    evolucao_html += (
+                        f'<td style="text-align:center;padding:8px 10px;'
+                        f'border-bottom:1px solid #152a4a;">'
+                        f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
+                        f'</td>'
+                    )
+                else:
+                    d_ant = datas_sorted[idx - 1]
+                    val_ant = int(pivot.loc[d_ant, op]) if d_ant in pivot.index else 0
+                    diff = val_hoje - val_ant
+                    if diff > 0:
+                        cor_cell, seta_cell = "#22c55e", f"↑ +{diff}"
+                    elif diff < 0:
+                        cor_cell, seta_cell = "#ef4444", f"↓ {diff}"
                     else:
-                        d_ant = datas_sorted[idx - 1]
-                        val_ant = int(pivot.loc[d_ant, op]) if d_ant in pivot.index else 0
-                        diff = val_hoje - val_ant
-                        if diff > 0:
-                            cor_cell, seta_cell = "#22c55e", f"↑ +{diff}"
-                        elif diff < 0:
-                            cor_cell, seta_cell = "#ef4444", f"↓ {diff}"
-                        else:
-                            cor_cell, seta_cell = "#7a9cc7", "="
-                        evolucao_html += (
-                            f'<td style="text-align:center;padding:8px 10px;'
-                            f'border-bottom:1px solid #152a4a;">'
-                            f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
-                            f'<br><span style="color:{cor_cell};font-size:11px;">{seta_cell}</span>'
-                            f'</td>'
-                        )
-                evolucao_html += '</tr>'
+                        cor_cell, seta_cell = "#7a9cc7", "="
+                    evolucao_html += (
+                        f'<td style="text-align:center;padding:8px 10px;'
+                        f'border-bottom:1px solid #152a4a;">'
+                        f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
+                        f'<br><span style="color:{cor_cell};font-size:11px;">{seta_cell}</span>'
+                        f'</td>'
+                    )
+            evolucao_html += '</tr>'
 
-            evolucao_html += '</tbody></table></div>'
-            st.markdown(evolucao_html, unsafe_allow_html=True)
-        else:
-            st.info("Selecione ao menos 2 dias para ver a evolução diária.")
+        evolucao_html += '</tbody></table></div>'
+        st.markdown(evolucao_html, unsafe_allow_html=True)
+    else:
+        st.info("Selecione ao menos 2 dias para ver a evolução diária.")
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABAS
+# ══════════════════════════════════════════════════════════════════════════════
+with aba_visao:
+    render_visao_geral(df_todos)
+
+with aba_funil:
+    render_funil_rt()
+
+with aba_operadores:
+    render_operadores(df_todos)
+
+with aba_detalhamento:
+    render_detalhamento(df_todos)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ABA 5 — LEADS RECENTES (tempo real via fragment)
@@ -1472,14 +1504,8 @@ with aba_leads:
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center;color:#7a9cc7;font-size:12px;'>"
-    "Funil e Leads Recentes · atualização automática a cada 5s · demais abas a cada 10 min · O2 Solution"
+    "Hoje · atualização automática a cada 60s · demais seções via botão Atualizar · O2 Solution"
     "</div>",
     unsafe_allow_html=True
 )
 
-# Auto-refresh a cada 1 minuto
-st.markdown("""
-    <script>
-        setTimeout(function() { window.location.reload(); }, 600000);
-    </script>
-""", unsafe_allow_html=True)
