@@ -801,9 +801,13 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         "atualizado_em": "Última Atualização",
     }
 
+    df_show = df_tabela[list(col_map.keys())].copy()
+    df_show["_sort"] = pd.to_datetime(
+        df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+    )
     df_show = (
-        df_tabela[list(col_map.keys())]
-        .sort_values("atualizado_em", ascending=False)
+        df_show.sort_values("_sort", ascending=False)
+        .drop(columns=["_sort"])
         .rename(columns=col_map)
     )
     st.dataframe(df_show, use_container_width=True, hide_index=True, height=300)
@@ -847,7 +851,7 @@ def render_funil_rt():
 
     # ── Filtros independentes desta aba ────────────────────────────────────────
     st.markdown("#### 🔎 Filtros da Aba")
-    ff1, ff2, ff3, ff4, ff5 = st.columns([1.5, 1.5, 2.5, 2, 1.5])
+    ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1.2])
     with ff1:
         funil_de = st.date_input(
             "📅 De",
@@ -880,6 +884,13 @@ def render_funil_rt():
             ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
             key="filtro_temperatura"
         )
+    with ff6:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True):
+            fetch_leads_80dias.clear()
+            with st.spinner("Atualizando..."):
+                df, _ = merge_leads_longo()
+                st.session_state["df_funil"] = df
 
     # ── Aplica filtros ────────────────────────────────────────────────────────
     df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
@@ -1035,7 +1046,11 @@ def render_leads_rt():
         "criado_em":      "Cadastrado em",
         "atualizado_em":  "Última Atualização",
     }
-    df_show = df_rt.copy().sort_values("atualizado_em", ascending=False)
+    df_show = df_rt.copy()
+    df_show["_sort"] = pd.to_datetime(
+        df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+    )
+    df_show = df_show.sort_values("_sort", ascending=False).drop(columns=["_sort"])
     df_show["valor_proposta"] = df_show["valor_proposta"].apply(
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
