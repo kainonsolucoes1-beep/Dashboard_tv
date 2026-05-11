@@ -57,6 +57,35 @@ CORES_PERCEPTION = {
     "🧊 Frio":   "#4f8ef7",   # azul frio
 }
 
+# ── HORAS ÚTEIS (sem fins de semana e feriados BR) ────────────────────────────
+FERIADOS_BR = {
+    date(2025, 1, 1), date(2025, 4, 18), date(2025, 4, 21),
+    date(2025, 5, 1), date(2025, 6, 19), date(2025, 9, 7),
+    date(2025, 10, 12), date(2025, 11, 2), date(2025, 11, 15),
+    date(2025, 11, 20), date(2025, 12, 25),
+    date(2026, 1, 1), date(2026, 4, 3), date(2026, 4, 21),
+    date(2026, 5, 1), date(2026, 6, 4), date(2026, 9, 7),
+    date(2026, 10, 12), date(2026, 11, 2), date(2026, 11, 15),
+    date(2026, 11, 20), date(2026, 12, 25),
+}
+
+
+def horas_uteis(dt_inicio: datetime, dt_fim: datetime) -> float:
+    """Horas corridas entre dois datetimes, pulando fins de semana e feriados BR."""
+    if dt_fim <= dt_inicio:
+        return 0.0
+    total = 0.0
+    current = dt_inicio
+    while current < dt_fim:
+        next_day = (current + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        if current.weekday() < 5 and current.date() not in FERIADOS_BR:
+            total += (min(next_day, dt_fim) - current).total_seconds()
+        current = next_day
+    return total / 3600
+
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 def inject_css():
     st.markdown("""
@@ -377,19 +406,60 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             dt = _parse_dt(atualizado_em)
             if dt:
                 atualizado_em = dt.strftime("%d/%m/%Y %H:%M")
+
+        email    = (lead.get("contact") or {}).get("email", "") or ""
+        telefone = ((lead.get("contact") or {}).get("cellphone") or
+                    (lead.get("contact") or {}).get("phone", "")) or ""
+        int2     = ((lead.get("interests") or {}).get("interest_2") or {}).get("name", "") or ""
+        int3     = ((lead.get("interests") or {}).get("interest_3") or {}).get("name", "") or ""
+
+        last_inter = lead.get("last_interaction_at", "") or ""
+        last_inter_dt = None
+        if last_inter:
+            dt = _parse_dt(last_inter)
+            if dt:
+                last_inter_dt = dt
+                last_inter = dt.strftime("%d/%m/%Y %H:%M")
+
+        status_fechado = status_raw in ("sale_performed", "sale_not_performed")
+        em_atraso = False
+        if last_inter_dt and not status_fechado:
+            em_atraso = horas_uteis(last_inter_dt, datetime.now()) > 24
+
+        last_sched = lead.get("last_schedule") or {}
+        sched_data, sched_tipo, sched_status = "", "", ""
+        if isinstance(last_sched, dict) and last_sched:
+            _v = last_sched.get("date", "")
+            if _v:
+                _dt2 = _parse_dt(str(_v))
+                sched_data = _dt2.strftime("%d/%m/%Y %H:%M") if _dt2 else str(_v)
+            sched_tipo   = ((last_sched.get("reason") or {}).get("name", "")) or ""
+            sched_status = last_sched.get("status", "") or ""
+
         registros.append({
-            "id":             lead.get("id"),
-            "nome":           lead.get("name", ""),
-            "status":         status_pt,
-            "atendente":      atendente,
-            "origem":         origem,
-            "equipe":         equipe,
-            "interesse":      interesse,
-            "criado_em":      criado_em,
-            "data_obj":       data_obj,
-            "perception":     perception_pt,
-            "valor_proposta": float(valor_proposta),
-            "atualizado_em":  atualizado_em,
+            "id":                  lead.get("id"),
+            "nome":                lead.get("name", ""),
+            "status":              status_pt,
+            "atendente":           atendente,
+            "origem":              origem,
+            "equipe":              equipe,
+            "interesse":           interesse,
+            "criado_em":           criado_em,
+            "data_obj":            data_obj,
+            "perception":          perception_pt,
+            "valor_proposta":      float(valor_proposta),
+            "atualizado_em":       atualizado_em,
+            "email":               email,
+            "telefone":            telefone,
+            "interest_2":          int2,
+            "interest_3":          int3,
+            "last_interaction_at": last_inter,
+            "agendamento_data":    sched_data,
+            "agendamento_tipo":    sched_tipo,
+            "agendamento_status":  sched_status,
+            "first_interaction_at": last_inter,
+            "message_lead":        lead.get("message", "") or "",
+            "em_atraso":           em_atraso,
         })
     return pd.DataFrame(registros), None
 
@@ -410,6 +480,12 @@ def fetch_leads_80dias():
 def fetch_leads_criticos():
     """Últimos 4 dias por atualização · cache 60s · captura qualquer lead modificado."""
     return _fetch_leads_from_api(days=DIAS_CRITICOS, date_of="change")
+
+
+@st.cache_data(ttl=55, show_spinner=False)
+def fetch_leads_hoje():
+    """Leads criados nos últimos 2 dias por criação · cache 55s · para o painel Hoje."""
+    return _fetch_leads_from_api(days=2, date_of="creation")
 
 
 def _merge(df_hist, err1):
@@ -789,8 +865,13 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     df_tabela["Valor"] = df_tabela["valor_proposta"].apply(
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
+    if "em_atraso" in df_tabela.columns:
+        df_tabela["Atraso"] = df_tabela["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "")
+    else:
+        df_tabela["Atraso"] = ""
 
     col_map = {
+        "Atraso":        "Situação",
         "nome":          "Nome",
         "status":        "Status",
         "perception":    "Temperatura",
@@ -801,16 +882,171 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         "atualizado_em": "Última Atualização",
     }
 
-    df_show = df_tabela[list(col_map.keys())].copy()
-    df_show["_sort"] = pd.to_datetime(
-        df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+    df_sorted_orig = df_tabela.copy()
+    df_sorted_orig["_sort"] = pd.to_datetime(
+        df_sorted_orig["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
     )
-    df_show = (
-        df_show.sort_values("_sort", ascending=False)
+    df_sorted_orig = (
+        df_sorted_orig.sort_values("_sort", ascending=False)
         .drop(columns=["_sort"])
-        .rename(columns=col_map)
+        .reset_index(drop=True)
     )
-    st.dataframe(df_show, use_container_width=True, hide_index=True, height=300)
+    df_show = df_sorted_orig[list(col_map.keys())].rename(columns=col_map)
+
+    st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+    modal_key = f"modal_shown_{nome_atendente}"
+    evt = st.dataframe(
+        df_show,
+        use_container_width=True,
+        hide_index=True,
+        height=300,
+        selection_mode="single-row",
+        on_select="rerun",
+        key=f"tabela_{nome_atendente}",
+    )
+    sel = evt.selection.rows
+    if sel and st.session_state.get(modal_key) != sel[0]:
+        st.session_state[modal_key] = sel[0]
+        modal_lead(df_sorted_orig.iloc[sel[0]])
+    if not sel:
+        st.session_state.pop(modal_key, None)
+
+
+# ── MODAL DE DETALHES DO LEAD ─────────────────────────────────────────────────
+@st.dialog("📋 Detalhes do Lead", width="large")
+def modal_lead(lead: pd.Series):
+    nome    = lead.get("nome", "")    or ""
+    status  = lead.get("status", "")  or ""
+    temp    = lead.get("perception", "") or "Sem percepção"
+    canal   = lead.get("origem", "")  or ""
+    atend   = lead.get("atendente", "") or ""
+    intere  = lead.get("interesse", "") or ""
+    int2    = lead.get("interest_2", "") or ""
+    int3    = lead.get("interest_3", "") or ""
+    criado  = lead.get("criado_em", "")   or ""
+    atualiz = lead.get("atualizado_em", "") or ""
+    last_int= lead.get("last_interaction_at", "") or ""
+    email   = lead.get("email", "")   or ""
+    tel     = lead.get("telefone", "") or ""
+    valor   = float(lead.get("valor_proposta", 0) or 0)
+    ag_data   = lead.get("agendamento_data", "")   or ""
+    ag_tipo   = lead.get("agendamento_tipo", "")   or ""
+    ag_status = lead.get("agendamento_status", "") or ""
+    msg_lead  = lead.get("message_lead", "")       or ""
+    first_int = lead.get("first_interaction_at", "") or last_int
+
+    em_atraso_flag = bool(lead.get("em_atraso", False))
+    cor_s = CORES_STATUS.get(status, "#7a9cc7")
+    cor_t = CORES_PERCEPTION.get(temp, "#7a9cc7")
+
+    st.markdown(f"<h2 style='margin:0 0 8px;'>{nome}</h2>", unsafe_allow_html=True)
+    badges = (
+        f"<span style='background:{cor_s}22;color:{cor_s};border:1px solid {cor_s};"
+        f"border-radius:99px;padding:3px 14px;font-size:13px;font-weight:600;margin-right:8px;'>"
+        f"{status}</span>"
+        f"<span style='background:{cor_t}22;color:{cor_t};border:1px solid {cor_t};"
+        f"border-radius:99px;padding:3px 14px;font-size:13px;font-weight:600;margin-right:8px;'>"
+        f"{temp}</span>"
+        f"<span style='background:#152a4a;color:#7a9cc7;border:1px solid #152a4a;"
+        f"border-radius:99px;padding:3px 14px;font-size:13px;font-weight:600;margin-right:8px;'>"
+        f"📡 {canal}</span>"
+    )
+    if em_atraso_flag:
+        badges += (
+            "<span style='background:#ef444422;color:#ef4444;border:1px solid #ef4444;"
+            "border-radius:99px;padding:3px 14px;font-size:13px;font-weight:600;'>"
+            "🔴 Em atraso</span>"
+        )
+    st.markdown(badges, unsafe_allow_html=True)
+    st.markdown("---")
+
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+            "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>👤 Contato</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"**Atendente:** {atend}")
+        if email:
+            st.markdown(f"**E-mail:** {email}")
+        if tel:
+            st.markdown(f"**Telefone:** {tel}")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+            "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>🎯 Interesse</div>",
+            unsafe_allow_html=True,
+        )
+        interesses = [i for i in [intere, int2, int3] if i]
+        if interesses:
+            for i in interesses:
+                st.markdown(f"• {i}")
+        else:
+            st.markdown(
+                "<span style='color:#7a9cc7;font-size:13px;'>Não informado</span>",
+                unsafe_allow_html=True,
+            )
+
+    with col_b:
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+            "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>📅 Histórico</div>",
+            unsafe_allow_html=True,
+        )
+        for label, val in [
+            ("Cadastrado em",      criado),
+            ("Última atualização", atualiz),
+            ("Primeira interação", first_int),
+            ("Última interação",   last_int),
+        ]:
+            if val:
+                st.markdown(f"**{label}:** {val}")
+
+        if valor > 0:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+                "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>💰 Proposta</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div style='font-size:26px;font-weight:700;color:#22c55e;'>{fmt_brl(valor)}</div>",
+                unsafe_allow_html=True,
+            )
+
+    if ag_data or ag_tipo:
+        st.markdown("---")
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+            "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>📆 Último Agendamento</div>",
+            unsafe_allow_html=True,
+        )
+        ag1, ag2 = st.columns(2)
+        with ag1:
+            if ag_data:
+                st.markdown(f"**Data:** {ag_data}")
+            if ag_tipo:
+                st.markdown(f"**Motivo:** {ag_tipo}")
+        with ag2:
+            if ag_status:
+                status_ag_map = {"pending": "⏳ Pendente", "done": "✅ Realizado", "canceled": "❌ Cancelado"}
+                st.markdown(f"**Situação:** {status_ag_map.get(ag_status, ag_status)}")
+
+    if msg_lead:
+        st.markdown("---")
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+            "text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>📝 Campos do Lead</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='background:#060e1a;border:1px solid #152a4a;border-radius:8px;"
+            f"padding:10px 14px;font-size:13px;color:#e8eef8;'>{msg_lead}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # ── FRAGMENTS (abas de tempo real) ────────────────────────────────────────────
@@ -934,11 +1170,9 @@ def render_funil_rt():
         render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
-@st.fragment(run_every=60)
+@st.fragment
 def render_hoje_rt():
-    """Seção 'Hoje' com auto-refresh a cada 60s, independente do form de filtros."""
-    fetch_leads_criticos.clear()
-    df_base, _ = merge_leads_curto()
+    df_base, _ = fetch_leads_hoje()
     if df_base.empty:
         return
 
@@ -974,7 +1208,12 @@ def render_hoje_rt():
     pct_meta  = int(progresso * 100)
     cor_meta  = "#22c55e" if progresso >= 1.0 else "#f59e0b" if progresso >= 0.5 else "#ef4444"
 
-    st.markdown("#### 📅 Hoje")
+    hd_col, hd_btn = st.columns([5, 1])
+    with hd_col:
+        st.markdown("#### 📅 Hoje")
+    with hd_btn:
+        if st.button("🔄 Atualizar Hoje", key="hoje_refresh", use_container_width=True):
+            fetch_leads_hoje.clear()
     h1, h2 = st.columns(2)
 
     with h1:
@@ -1035,7 +1274,23 @@ def render_leads_rt():
         unsafe_allow_html=True
     )
 
+    df_sorted_orig = df_rt.copy()
+    df_sorted_orig["_sort"] = pd.to_datetime(
+        df_sorted_orig["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+    )
+    df_sorted_orig = (
+        df_sorted_orig.sort_values("_sort", ascending=False)
+        .drop(columns=["_sort"])
+        .reset_index(drop=True)
+        .head(100)
+    )
+    if "em_atraso" in df_sorted_orig.columns:
+        df_sorted_orig["Atraso"] = df_sorted_orig["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "")
+    else:
+        df_sorted_orig["Atraso"] = ""
+
     col_labels = {
+        "Atraso":         "Situação",
         "nome":           "Nome",
         "status":         "Status",
         "perception":     "Temperatura",
@@ -1046,16 +1301,28 @@ def render_leads_rt():
         "criado_em":      "Cadastrado em",
         "atualizado_em":  "Última Atualização",
     }
-    df_show = df_rt.copy()
-    df_show["_sort"] = pd.to_datetime(
-        df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
-    )
-    df_show = df_show.sort_values("_sort", ascending=False).drop(columns=["_sort"])
-    df_show["valor_proposta"] = df_show["valor_proposta"].apply(
+    df_display = df_sorted_orig.copy()
+    df_display["valor_proposta"] = df_display["valor_proposta"].apply(
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
-    df_show = df_show[list(col_labels.keys())].rename(columns=col_labels).head(100)
-    st.dataframe(df_show, use_container_width=True, hide_index=True, height=500)
+    df_display = df_display[list(col_labels.keys())].rename(columns=col_labels)
+
+    st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+    evt = st.dataframe(
+        df_display,
+        use_container_width=True,
+        hide_index=True,
+        height=500,
+        selection_mode="single-row",
+        on_select="rerun",
+        key="tabela_leads_rt",
+    )
+    sel = evt.selection.rows
+    if sel and st.session_state.get("modal_leads_rt") != sel[0]:
+        st.session_state["modal_leads_rt"] = sel[0]
+        modal_lead(df_sorted_orig.iloc[sel[0]])
+    if not sel:
+        st.session_state.pop("modal_leads_rt", None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1519,7 +1786,7 @@ with aba_leads:
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center;color:#7a9cc7;font-size:12px;'>"
-    "Hoje · atualização automática a cada 60s · demais seções via botão Atualizar · O2 Solution"
+    "Hoje · atualização manual via botão · demais seções via botão Atualizar · O2 Solution"
     "</div>",
     unsafe_allow_html=True
 )
