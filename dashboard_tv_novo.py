@@ -391,7 +391,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ",
                         "%Y-%m-%dT%H:%M:%S.%f+00:00", "%Y-%m-%dT%H:%M:%S+00:00"):
                 try:
-                    return datetime.strptime(s, fmt)
+                    return datetime.strptime(s, fmt) - timedelta(hours=3)
                 except ValueError:
                     continue
             return None
@@ -412,6 +412,13 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
                     (lead.get("contact") or {}).get("phone", "")) or ""
         int2     = ((lead.get("interests") or {}).get("interest_2") or {}).get("name", "") or ""
         int3     = ((lead.get("interests") or {}).get("interest_3") or {}).get("name", "") or ""
+
+        msg_raw = lead.get("message", "") or ""
+        base = ""
+        if msg_raw:
+            first_line = msg_raw.split("\n")[0]
+            if first_line.startswith("Base:"):
+                base = first_line[5:].strip()
 
         last_inter = lead.get("last_interaction_at", "") or ""
         last_inter_dt = None
@@ -459,6 +466,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             "agendamento_status":  sched_status,
             "first_interaction_at": last_inter,
             "message_lead":        lead.get("message", "") or "",
+            "base":                base,
             "em_atraso":           em_atraso,
         })
     return pd.DataFrame(registros), None
@@ -1368,12 +1376,13 @@ if df_todos.empty:
     st.stop()
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads = st.tabs([
+aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm = st.tabs([
     "📊 Visão Geral",
     "🔥 Funil de Vendas",
     "👤 Por Operador",
     "📆 Detalhamento por Dia",
     "📋 Leads Recentes",
+    "🗂️ CRM · Bases",
 ])
 
 
@@ -1642,6 +1651,84 @@ def render_detalhamento(df_todos: pd.DataFrame):
                 """, unsafe_allow_html=True)
 
     st.markdown("---")
+    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
+
+    tabela_display = pivot.copy()
+    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
+        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
+        .replace("Thu", "Qui").replace("Fri", "Sex")
+        .replace("Sat", "Sáb").replace("Sun", "Dom")
+        for d in tabela_display.index
+    ]
+    tabela_display.index.name = "Data"
+    tabela_display = tabela_display.reset_index()
+
+    linha_total = {"Data": "📊 TOTAL"}
+    for op in operadores_det:
+        linha_total[op] = int(pivot[op].sum())
+    linha_total["Total"] = int(pivot["Total"].sum())
+    tabela_display = pd.concat(
+        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
+    )
+    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
+
+    st.markdown("---")
+    st.markdown("#### 📋 Leads do Período")
+    st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+
+    df_det_sorted = df_det.copy()
+    df_det_sorted["_sort"] = pd.to_datetime(
+        df_det_sorted["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+    )
+    df_det_sorted = (
+        df_det_sorted.sort_values("_sort", ascending=False)
+        .drop(columns=["_sort"])
+        .reset_index(drop=True)
+    )
+    if "em_atraso" in df_det_sorted.columns:
+        df_det_sorted["Atraso"] = df_det_sorted["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "")
+    else:
+        df_det_sorted["Atraso"] = ""
+
+    col_labels_det = {
+        "Atraso":         "Situação",
+        "nome":           "Nome",
+        "status":         "Status",
+        "perception":     "Temperatura",
+        "valor_proposta": "Valor (R$)",
+        "atendente":      "Atendente",
+        "origem":         "Operador",
+        "base":           "Base",
+        "interesse":      "Interesse",
+        "criado_em":      "Cadastrado em",
+        "atualizado_em":  "Última Atualização",
+    }
+    df_det_display = df_det_sorted.copy()
+    df_det_display["valor_proposta"] = df_det_display["valor_proposta"].apply(
+        lambda v: fmt_brl(v) if v > 0 else "—"
+    )
+    cols_to_show = [c for c in col_labels_det if c in df_det_display.columns]
+    df_det_display = df_det_display[cols_to_show].rename(
+        columns={c: col_labels_det[c] for c in cols_to_show}
+    )
+
+    evt_det = st.dataframe(
+        df_det_display,
+        use_container_width=True,
+        hide_index=True,
+        height=500,
+        selection_mode="single-row",
+        on_select="rerun",
+        key="tabela_leads_det",
+    )
+    sel_det = evt_det.selection.rows
+    if sel_det and st.session_state.get("modal_leads_det") != sel_det[0]:
+        st.session_state["modal_leads_det"] = sel_det[0]
+        modal_lead(df_det_sorted.iloc[sel_det[0]])
+    if not sel_det:
+        st.session_state.pop("modal_leads_det", None)
+
+    st.markdown("---")
     st.markdown("#### 📊 Leads por Dia (todos os operadores)")
 
     fig_barras = go.Figure()
@@ -1670,93 +1757,389 @@ def render_detalhamento(df_todos: pd.DataFrame):
     )
     st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
 
-    st.markdown("---")
-    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
 
-    tabela_display = pivot.copy()
-    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
-        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
-        .replace("Thu", "Qui").replace("Fri", "Sex")
-        .replace("Sat", "Sáb").replace("Sun", "Dom")
-        for d in tabela_display.index
-    ]
-    tabela_display.index.name = "Data"
-    tabela_display = tabela_display.reset_index()
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 6 — CRM · BASES DE CLIENTES
+# ══════════════════════════════════════════════════════════════════════════════
+@st.fragment
+def render_crm():
+    df_todos, _ = merge_leads_curto()
 
-    linha_total = {"Data": "📊 TOTAL"}
-    for op in operadores_det:
-        linha_total[op] = int(pivot[op].sum())
-    linha_total["Total"] = int(pivot["Total"].sum())
-    tabela_display = pd.concat(
-        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
-    )
-    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
+    CORES_CRM = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
+    SEMANA_PT = {
+        "Monday": "Segunda-feira", "Tuesday": "Terça-feira", "Wednesday": "Quarta-feira",
+        "Thursday": "Quinta-feira", "Friday": "Sexta-feira",
+        "Saturday": "Sábado", "Sunday": "Domingo",
+    }
 
-    st.markdown("---")
-    st.markdown("#### 📈 Evolução Diária por Operador (Δ vs dia anterior)")
-    st.markdown(
-        "<p style='color:#7a9cc7;font-size:12px;margin-top:-8px;'>"
-        "↑ verde = captou mais que o dia anterior · ↓ vermelho = captou menos · = cinza = igual"
-        "</p>",
-        unsafe_allow_html=True
-    )
-
-    datas_sorted = sorted(pivot.index.tolist())
-    if len(datas_sorted) >= 2:
-        evolucao_html = (
-            '<div style="overflow-x:auto;">'
-            '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-            '<thead><tr>'
-            '<th style="text-align:left;padding:8px 12px;color:#7a9cc7;'
-            'border-bottom:1px solid #152a4a;white-space:nowrap;">Operador</th>'
+    crm_hd, crm_btn = st.columns([5, 1])
+    with crm_hd:
+        st.markdown("#### 🗂️ CRM · Base de Clientes")
+        st.markdown(
+            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+            "Gestão e análise das bases de clientes utilizadas na operação."
+            "</p>",
+            unsafe_allow_html=True
         )
-        for d in datas_sorted:
-            evolucao_html += (
-                f'<th style="text-align:center;padding:8px 10px;color:#7a9cc7;'
-                f'border-bottom:1px solid #152a4a;white-space:nowrap;">'
-                f'{d.strftime("%d/%m")}</th>'
-            )
-        evolucao_html += '</tr></thead><tbody>'
+    with crm_btn:
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Atualizar", key="crm_refresh", use_container_width=True):
+            fetch_leads_30dias.clear()
+            with st.spinner("Atualizando..."):
+                df_todos, _ = merge_leads_curto()
+    st.markdown("---")
 
-        for op in operadores_det:
-            cor_op = cor_por_op[op]
-            evolucao_html += (
-                f'<tr>'
-                f'<td style="padding:8px 12px;font-weight:600;color:{cor_op};'
-                f'border-bottom:1px solid #152a4a;white-space:nowrap;">👤 {op}</td>'
-            )
-            for idx, d in enumerate(datas_sorted):
-                val_hoje = int(pivot.loc[d, op]) if d in pivot.index else 0
-                if idx == 0:
-                    evolucao_html += (
-                        f'<td style="text-align:center;padding:8px 10px;'
-                        f'border-bottom:1px solid #152a4a;">'
-                        f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
-                        f'</td>'
-                    )
-                else:
-                    d_ant = datas_sorted[idx - 1]
-                    val_ant = int(pivot.loc[d_ant, op]) if d_ant in pivot.index else 0
-                    diff = val_hoje - val_ant
-                    if diff > 0:
-                        cor_cell, seta_cell = "#22c55e", f"↑ +{diff}"
-                    elif diff < 0:
-                        cor_cell, seta_cell = "#ef4444", f"↓ {diff}"
-                    else:
-                        cor_cell, seta_cell = "#7a9cc7", "="
-                    evolucao_html += (
-                        f'<td style="text-align:center;padding:8px 10px;'
-                        f'border-bottom:1px solid #152a4a;">'
-                        f'<span style="color:#e8eef8;font-weight:700;">{val_hoje}</span>'
-                        f'<br><span style="color:{cor_cell};font-size:11px;">{seta_cell}</span>'
-                        f'</td>'
-                    )
-            evolucao_html += '</tr>'
+    has_base = "base" in df_todos.columns
+    df_base_all = (
+        df_todos[df_todos["base"].notna() & (df_todos["base"] != "")].copy()
+        if has_base else pd.DataFrame()
+    )
 
-        evolucao_html += '</tbody></table></div>'
-        st.markdown(evolucao_html, unsafe_allow_html=True)
-    else:
-        st.info("Selecione ao menos 2 dias para ver a evolução diária.")
+    sub_dia, sub_ranking, sub_historico = st.tabs([
+        "📅 Por Data",
+        "🏆 Ranking de Conversão",
+        "🕐 Histórico de Bases",
+    ])
+
+    # ── SUB-ABA 1: POR DATA ───────────────────────────────────────────────────
+    with sub_dia:
+        data_crm = st.date_input(
+            "📅 Selecione a data",
+            value=date.today(),
+            format="DD/MM/YYYY",
+            key="crm_data",
+        )
+
+        df_crm = df_todos[df_todos["data_obj"].notna()].copy()
+        df_crm = df_crm[df_crm["data_obj"] == data_crm]
+
+        data_fmt  = data_crm.strftime("%d/%m/%Y")
+        dia_semana = SEMANA_PT.get(data_crm.strftime("%A"), data_crm.strftime("%A"))
+        st.markdown(
+            f"<h3 style='color:#e8eef8;margin-bottom:2px;'>{data_fmt}"
+            f"<span style='color:#7a9cc7;font-size:16px;font-weight:400;margin-left:12px;'>"
+            f"{dia_semana}</span></h3>",
+            unsafe_allow_html=True
+        )
+
+        if df_crm.empty:
+            st.info("Nenhum lead registrado nesta data.")
+        else:
+            df_com_base_dia = df_crm[df_crm["base"].notna() & (df_crm["base"] != "")] if has_base else pd.DataFrame()
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("Total de Leads", len(df_crm))
+            with m2:
+                st.metric("Bases Identificadas", df_com_base_dia["base"].nunique() if not df_com_base_dia.empty else 0)
+            with m3:
+                st.metric("Operadores Ativos", df_crm["origem"].nunique())
+            with m4:
+                st.metric("Vendas no Dia", int((df_crm["status"] == "Venda Realizada").sum()))
+
+            st.markdown("---")
+
+            if df_com_base_dia.empty:
+                st.warning(
+                    "Nenhum lead desta data possui base registrada. "
+                    "O campo **Base de Clientes** no formulário ainda não foi utilizado — "
+                    "os próximos leads cadastrados já aparecerão aqui automaticamente."
+                )
+            else:
+                st.markdown("#### 🗂️ Bases Utilizadas")
+                for i, base in enumerate(sorted(df_com_base_dia["base"].unique())):
+                    cor       = CORES_CRM[i % len(CORES_CRM)]
+                    df_b      = df_com_base_dia[df_com_base_dia["base"] == base]
+                    leads_b   = len(df_b)
+                    vendas_b  = int((df_b["status"] == "Venda Realizada").sum())
+                    valor_b   = df_b["valor_proposta"].sum()
+                    ops_b     = ", ".join(sorted(df_b["origem"].dropna().unique()))
+                    conv_b    = round(vendas_b / leads_b * 100, 1) if leads_b > 0 else 0
+                    st.markdown(f"""
+                    <div class="card-status" style="border-left:4px solid {cor};margin-bottom:16px;">
+                      <div style="display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;">
+                        <div style="min-width:220px;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;
+                                      letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Base de Clientes</div>
+                          <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{base}</div>
+                          <div style="margin-top:10px;font-size:13px;color:#7a9cc7;">
+                            <b style="color:#e8eef8;">Operadores:</b> {ops_b}</div>
+                        </div>
+                        <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
+                        <div style="display:flex;gap:28px;flex-wrap:wrap;padding-top:2px;">
+                          <div>
+                            <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Leads</div>
+                            <div style="font-size:32px;font-weight:700;color:#e8eef8;line-height:1.1;">{leads_b}</div>
+                          </div>
+                          <div>
+                            <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Vendas</div>
+                            <div style="font-size:32px;font-weight:700;color:#22c55e;line-height:1.1;">{vendas_b}</div>
+                            <div style="font-size:12px;color:#22c55e;">{conv_b}% conversão</div>
+                          </div>
+                          <div>
+                            <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Carteira (R$)</div>
+                            <div style="font-size:26px;font-weight:700;color:#f59e0b;line-height:1.1;">{fmt_brl(valor_b)}</div>
+                            <div style="font-size:12px;color:#7a9cc7;">em propostas</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("---")
+            st.markdown("#### 📋 Leads do Dia")
+            st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+
+            df_crm_sorted = df_crm.copy()
+            df_crm_sorted["_sort"] = pd.to_datetime(
+                df_crm_sorted["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+            )
+            df_crm_sorted = (
+                df_crm_sorted.sort_values("_sort", ascending=False)
+                .drop(columns=["_sort"])
+                .reset_index(drop=True)
+            )
+            if "em_atraso" in df_crm_sorted.columns:
+                df_crm_sorted["Atraso"] = df_crm_sorted["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "")
+            else:
+                df_crm_sorted["Atraso"] = ""
+
+            col_labels_crm = {
+                "Atraso": "Situação", "nome": "Nome", "status": "Status",
+                "perception": "Temperatura", "valor_proposta": "Valor (R$)",
+                "atendente": "Atendente", "origem": "Operador", "base": "Base",
+                "interesse": "Interesse", "atualizado_em": "Última Atualização",
+            }
+            df_crm_disp = df_crm_sorted.copy()
+            df_crm_disp["valor_proposta"] = df_crm_disp["valor_proposta"].apply(
+                lambda v: fmt_brl(v) if v > 0 else "—"
+            )
+            cols_crm = [c for c in col_labels_crm if c in df_crm_disp.columns]
+            df_crm_disp = df_crm_disp[cols_crm].rename(columns={c: col_labels_crm[c] for c in cols_crm})
+
+            evt_crm = st.dataframe(
+                df_crm_disp, use_container_width=True, hide_index=True, height=480,
+                selection_mode="single-row", on_select="rerun", key="tabela_leads_crm",
+            )
+            sel_crm = evt_crm.selection.rows
+            if sel_crm and st.session_state.get("modal_leads_crm") != sel_crm[0]:
+                st.session_state["modal_leads_crm"] = sel_crm[0]
+                modal_lead(df_crm_sorted.iloc[sel_crm[0]])
+            if not sel_crm:
+                st.session_state.pop("modal_leads_crm", None)
+
+    # ── SUB-ABA 2: RANKING DE CONVERSÃO ──────────────────────────────────────
+    with sub_ranking:
+        if df_base_all.empty:
+            st.info("Nenhuma base registrada ainda. Preencha o campo **Base de Clientes** no formulário para os dados aparecerem aqui.")
+        else:
+            MEDALHAS = {0: "🥇", 1: "🥈", 2: "🥉"}
+
+            ranking = (
+                df_base_all.groupby("base")
+                .agg(
+                    leads     =("id",           "count"),
+                    vendas    =("status",        lambda x: (x == "Venda Realizada").sum()),
+                    carteira  =("valor_proposta","sum"),
+                    dias      =("data_obj",      "nunique"),
+                )
+                .reset_index()
+            )
+            ranking["conv_pct"]    = (ranking["vendas"] / ranking["leads"] * 100).round(1)
+            ranking["ticket_medio"]= (ranking["carteira"] / ranking["vendas"].replace(0, float("nan"))).fillna(0)
+            ranking = ranking.sort_values("conv_pct", ascending=False).reset_index(drop=True)
+
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                st.metric("Bases no período", len(ranking))
+            with r2:
+                melhor = ranking.iloc[0]["base"] if len(ranking) > 0 else "—"
+                st.metric("Maior conversão", melhor)
+            with r3:
+                media_conv = round(ranking["conv_pct"].mean(), 1) if not ranking.empty else 0
+                st.metric("Conversão média", f"{media_conv}%")
+
+            st.markdown("---")
+            st.markdown("#### 🏆 Bases por Taxa de Conversão")
+
+            for idx, row in ranking.iterrows():
+                medalha   = MEDALHAS.get(idx, f"#{idx + 1}")
+                cor       = CORES_CRM[idx % len(CORES_CRM)]
+                conv_cor  = "#22c55e" if row["conv_pct"] >= media_conv else "#f59e0b"
+                bar_w     = min(int(row["conv_pct"] * 4), 100)
+
+                st.markdown(f"""
+                <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
+                  <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+                    <div style="font-size:34px;line-height:1;min-width:48px;text-align:center;padding-top:4px;">{medalha}</div>
+                    <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
+                    <div style="min-width:200px;flex:1;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:2px;">Base</div>
+                      <div style="font-size:18px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
+                      <div style="margin-top:8px;background:#152a4a;border-radius:99px;height:6px;width:100%;">
+                        <div style="background:{conv_cor};border-radius:99px;height:6px;width:{bar_w}%;"></div>
+                      </div>
+                      <div style="font-size:12px;color:{conv_cor};margin-top:3px;font-weight:600;">{row['conv_pct']}% conversão</div>
+                    </div>
+                    <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
+                    <div style="display:flex;gap:24px;flex-wrap:wrap;padding-top:4px;">
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Leads</div>
+                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['leads'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Vendas</div>
+                        <div style="font-size:26px;font-weight:700;color:#22c55e;">{int(row['vendas'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Carteira</div>
+                        <div style="font-size:22px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Ticket Médio</div>
+                        <div style="font-size:22px;font-weight:700;color:#4f8ef7;">{fmt_brl(row['ticket_medio'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Dias Usada</div>
+                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['dias'])}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
+            st.markdown("#### 📊 Comparativo Visual")
+            fig_rank = go.Figure()
+            bases_rank = ranking["base"].tolist()
+            fig_rank.add_trace(go.Bar(
+                name="Leads", x=bases_rank, y=ranking["leads"].tolist(),
+                marker_color="#4f8ef7",
+                hovertemplate="<b>%{x}</b><br>Leads: %{y}<extra></extra>",
+            ))
+            fig_rank.add_trace(go.Bar(
+                name="Vendas", x=bases_rank, y=ranking["vendas"].tolist(),
+                marker_color="#22c55e",
+                hovertemplate="<b>%{x}</b><br>Vendas: %{y}<extra></extra>",
+            ))
+            fig_rank.update_layout(
+                barmode="group", height=320,
+                margin=dict(t=10, b=20, l=10, r=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=13)),
+                xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
+                yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                           tickfont=dict(color="#e8eef8", size=12), zeroline=False),
+            )
+            st.plotly_chart(fig_rank, use_container_width=True, key="crm_rank_chart")
+
+    # ── SUB-ABA 3: HISTÓRICO DE BASES ────────────────────────────────────────
+    with sub_historico:
+        if df_base_all.empty:
+            st.info("Nenhuma base registrada ainda. Preencha o campo **Base de Clientes** no formulário para o histórico aparecer aqui.")
+        else:
+            historico = (
+                df_base_all.groupby("base")
+                .agg(
+                    leads_total  =("id",            "count"),
+                    vendas_total =("status",         lambda x: (x == "Venda Realizada").sum()),
+                    carteira_total=("valor_proposta","sum"),
+                    primeira_data=("data_obj",       "min"),
+                    ultima_data  =("data_obj",       "max"),
+                    dias_usada   =("data_obj",       "nunique"),
+                )
+                .reset_index()
+            )
+            historico["conv_pct"] = (
+                historico["vendas_total"] / historico["leads_total"] * 100
+            ).round(1)
+            historico = historico.sort_values("ultima_data", ascending=False).reset_index(drop=True)
+
+            h1, h2, h3 = st.columns(3)
+            with h1:
+                st.metric("Total de bases", len(historico))
+            with h2:
+                st.metric("Leads totais", int(historico["leads_total"].sum()))
+            with h3:
+                st.metric("Vendas totais", int(historico["vendas_total"].sum()))
+
+            st.markdown("---")
+            st.markdown("#### 🕐 Todas as Bases Utilizadas")
+
+            for idx, row in historico.iterrows():
+                cor      = CORES_CRM[idx % len(CORES_CRM)]
+                conv_cor = "#22c55e" if row["conv_pct"] >= historico["conv_pct"].mean() else "#f59e0b"
+                p_data   = row["primeira_data"].strftime("%d/%m/%Y") if pd.notna(row["primeira_data"]) else "—"
+                u_data   = row["ultima_data"].strftime("%d/%m/%Y")   if pd.notna(row["ultima_data"])   else "—"
+
+                st.markdown(f"""
+                <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
+                  <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+                    <div style="min-width:220px;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:2px;">Base</div>
+                      <div style="font-size:18px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
+                      <div style="margin-top:8px;display:flex;gap:16px;">
+                        <div>
+                          <div style="font-size:11px;color:#7a9cc7;">Primeiro uso</div>
+                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{p_data}</div>
+                        </div>
+                        <div>
+                          <div style="font-size:11px;color:#7a9cc7;">Último uso</div>
+                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{u_data}</div>
+                        </div>
+                        <div>
+                          <div style="font-size:11px;color:#7a9cc7;">Dias usada</div>
+                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{int(row['dias_usada'])}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
+                    <div style="display:flex;gap:24px;flex-wrap:wrap;padding-top:4px;">
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Leads</div>
+                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Vendas</div>
+                        <div style="font-size:26px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
+                        <div style="font-size:13px;font-weight:700;color:{conv_cor};">{row['conv_pct']}% conv.</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Carteira</div>
+                        <div style="font-size:22px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("---")
+            st.markdown("#### 📈 Evolução de Leads por Base ao Longo do Tempo")
+            por_dia_base = (
+                df_base_all.groupby(["data_obj", "base"])
+                .size()
+                .reset_index(name="leads")
+            )
+            fig_hist = go.Figure()
+            for i, base in enumerate(historico["base"].tolist()):
+                df_b = por_dia_base[por_dia_base["base"] == base].sort_values("data_obj")
+                fig_hist.add_trace(go.Scatter(
+                    name=base,
+                    x=[d.strftime("%d/%m") for d in df_b["data_obj"]],
+                    y=df_b["leads"].tolist(),
+                    mode="lines+markers",
+                    line=dict(color=CORES_CRM[i % len(CORES_CRM)], width=2),
+                    marker=dict(size=6),
+                    hovertemplate=f"<b>{base}</b><br>%{{x}}<br>%{{y}} leads<extra></extra>",
+                ))
+            fig_hist.update_layout(
+                height=340, margin=dict(t=10, b=20, l=10, r=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=12)),
+                xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
+                yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                           tickfont=dict(color="#e8eef8", size=12), zeroline=False),
+            )
+            st.plotly_chart(fig_hist, use_container_width=True, key="crm_hist_chart")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1780,6 +2163,9 @@ with aba_detalhamento:
 with aba_leads:
 
     render_leads_rt()
+
+with aba_crm:
+    render_crm()
 
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
