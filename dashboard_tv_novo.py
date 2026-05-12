@@ -519,6 +519,31 @@ def merge_leads_longo():
     return _merge(df_hist, err1)
 
 
+# ── BASE ALIASES ──────────────────────────────────────────────────────────────
+_ALIASES_PATH = os.path.join(SCRIPT_DIR, "base_aliases.json")
+
+def load_base_aliases() -> dict:
+    if os.path.exists(_ALIASES_PATH):
+        try:
+            import json
+            with open(_ALIASES_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_base_aliases(aliases: dict):
+    import json
+    with open(_ALIASES_PATH, "w", encoding="utf-8") as f:
+        json.dump(aliases, f, ensure_ascii=False, indent=2)
+
+def apply_base_aliases(df: pd.DataFrame, aliases: dict) -> pd.DataFrame:
+    if aliases and "base" in df.columns:
+        df = df.copy()
+        df["base"] = df["base"].apply(lambda b: aliases.get(b, b) if b else b)
+    return df
+
+
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def fmt_brl(valor: float) -> str:
     """Formata um número como moeda brasileira: R$ 1.234,56"""
@@ -642,21 +667,20 @@ def grafico_acumulado(df, operadores):
         por_dia = df_op.groupby("data_obj").size().reset_index(name="leads")
         por_dia = por_dia.sort_values("data_obj")
         por_dia["acumulado"] = por_dia["leads"].cumsum()
-        por_dia["data_fmt"]  = por_dia["data_obj"].apply(lambda d: d.strftime("%d/%m"))
         cor = CORES_OP[i % len(CORES_OP)]
         fig.add_trace(go.Scatter(
-            x=por_dia["data_fmt"].tolist(), y=por_dia["acumulado"].tolist(),
+            x=por_dia["data_obj"].tolist(), y=por_dia["acumulado"].tolist(),
             name=operador, mode="lines+markers",
             line=dict(color=cor, width=3),
             marker=dict(color=cor, size=8, symbol="circle"),
-            hovertemplate=f"<b>{operador}</b><br>%{{x}}<br>%{{y}} leads acumulados<extra></extra>",
+            hovertemplate=f"<b>{operador}</b><br>%{{x|%d/%m}}<br>%{{y}} leads acumulados<extra></extra>",
         ))
     fig.update_layout(
         margin=dict(t=20, b=20, l=10, r=20), height=320,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=13)),
         xaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                   tickfont=dict(color="#e8eef8", size=12)),
+                   tickformat="%d/%m", tickfont=dict(color="#e8eef8", size=12)),
         yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
                    tickfont=dict(color="#e8eef8", size=12), zeroline=False),
         hovermode="x unified",
@@ -1179,6 +1203,14 @@ def render_funil_rt():
 
 
 def render_hoje_rt():
+    hd_col, hd_btn = st.columns([5, 1])
+    with hd_col:
+        st.markdown("#### 📅 Hoje")
+    with hd_btn:
+        if st.button("🔄 Atualizar Hoje", key="hoje_refresh", use_container_width=True):
+            fetch_leads_hoje.clear()
+            st.rerun(scope="fragment")
+
     df_base, _ = fetch_leads_hoje()
     if df_base.empty:
         return
@@ -1214,13 +1246,6 @@ def render_hoje_rt():
     progresso = min(leads_hoje / META_DIARIA, 1.0)
     pct_meta  = int(progresso * 100)
     cor_meta  = "#22c55e" if progresso >= 1.0 else "#f59e0b" if progresso >= 0.5 else "#ef4444"
-
-    hd_col, hd_btn = st.columns([5, 1])
-    with hd_col:
-        st.markdown("#### 📅 Hoje")
-    with hd_btn:
-        if st.button("🔄 Atualizar Hoje", key="hoje_refresh", use_container_width=True):
-            fetch_leads_hoje.clear()
     h1, h2 = st.columns(2)
 
     with h1:
@@ -1352,6 +1377,7 @@ with col_btn:
         fetch_leads_30dias.clear()
         fetch_leads_80dias.clear()
         fetch_leads_criticos.clear()
+        fetch_leads_hoje.clear()
         st.session_state.pop("df_funil", None)
         st.rerun()
 
@@ -1381,7 +1407,7 @@ aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm = st.
     "👤 Por Operador",
     "📆 Detalhamento por Dia",
     "📋 Leads Recentes",
-    "🗂️ CRM · Bases",
+    "🗂️ CRM",
 ])
 
 
@@ -1412,9 +1438,6 @@ def render_visao_geral(df_todos: pd.DataFrame):
             st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
             submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
-    if submitted:
-        fetch_leads_hoje.clear()
 
     df = df_todos.copy()
     df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
@@ -1791,16 +1814,20 @@ def render_crm():
                 df_todos, _ = merge_leads_curto()
     st.markdown("---")
 
+    aliases = load_base_aliases()
+    df_todos = apply_base_aliases(df_todos, aliases)
+
     has_base = "base" in df_todos.columns
     df_base_all = (
         df_todos[df_todos["base"].notna() & (df_todos["base"] != "")].copy()
         if has_base else pd.DataFrame()
     )
 
-    sub_dia, sub_ranking, sub_historico = st.tabs([
+    sub_dia, sub_ranking, sub_historico, sub_aliases = st.tabs([
         "📅 Por Data",
         "🏆 Ranking de Conversão",
         "🕐 Histórico de Bases",
+        "✏️ Gerenciar Nomes",
     ])
 
     # ── SUB-ABA 1: POR DATA ───────────────────────────────────────────────────
@@ -1946,15 +1973,16 @@ def render_crm():
                 )
                 .reset_index()
             )
-            ranking["conv_pct"]    = (ranking["vendas"] / ranking["leads"] * 100).round(1)
+            ranking["conv_pct"]    = (ranking["vendas"] / ranking["leads"].replace(0, float("nan")) * 100).fillna(0).round(1)
             ranking["ticket_medio"]= (ranking["carteira"] / ranking["vendas"].replace(0, float("nan"))).fillna(0)
-            ranking = ranking.sort_values("conv_pct", ascending=False).reset_index(drop=True)
+            ranking = ranking.sort_values(["conv_pct", "leads"], ascending=[False, False]).reset_index(drop=True)
 
             r1, r2, r3 = st.columns(3)
             with r1:
                 st.metric("Bases no período", len(ranking))
             with r2:
-                melhor = ranking.iloc[0]["base"] if len(ranking) > 0 else "—"
+                ranking_com_venda = ranking[ranking["vendas"] > 0]
+                melhor = ranking_com_venda.iloc[0]["base"] if not ranking_com_venda.empty else "—"
                 st.metric("Maior conversão", melhor)
             with r3:
                 media_conv = round(ranking["conv_pct"].mean(), 1) if not ranking.empty else 0
@@ -2067,47 +2095,59 @@ def render_crm():
             st.markdown("---")
             st.markdown("#### 🕐 Todas as Bases Utilizadas")
 
+            total_leads_geral = int(historico["leads_total"].sum())
+
             for idx, row in historico.iterrows():
-                cor      = CORES_CRM[idx % len(CORES_CRM)]
-                conv_cor = "#22c55e" if row["conv_pct"] >= historico["conv_pct"].mean() else "#f59e0b"
-                p_data   = row["primeira_data"].strftime("%d/%m/%Y") if pd.notna(row["primeira_data"]) else "—"
-                u_data   = row["ultima_data"].strftime("%d/%m/%Y")   if pd.notna(row["ultima_data"])   else "—"
+                cor          = CORES_CRM[idx % len(CORES_CRM)]
+                conv_cor     = "#22c55e" if row["conv_pct"] >= historico["conv_pct"].mean() else "#f59e0b"
+                p_data       = row["primeira_data"].strftime("%d/%m/%Y") if pd.notna(row["primeira_data"]) else "—"
+                u_data       = row["ultima_data"].strftime("%d/%m/%Y")   if pd.notna(row["ultima_data"])   else "—"
+                captacao_pct = round(row["leads_total"] / total_leads_geral * 100, 1) if total_leads_geral > 0 else 0
+                bar_cap      = min(int(captacao_pct * 2), 100)
 
                 st.markdown(f"""
                 <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
                   <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
                     <div style="min-width:220px;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:2px;">Base</div>
-                      <div style="font-size:18px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
-                      <div style="margin-top:8px;display:flex;gap:16px;">
+                      <div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Base</div>
+                      <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
+                      <div style="margin-top:10px;display:flex;gap:20px;">
                         <div>
-                          <div style="font-size:11px;color:#7a9cc7;">Primeiro uso</div>
-                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{p_data}</div>
+                          <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Primeiro uso</div>
+                          <div style="font-size:15px;font-weight:700;color:#e8eef8;">{p_data}</div>
                         </div>
                         <div>
-                          <div style="font-size:11px;color:#7a9cc7;">Último uso</div>
-                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{u_data}</div>
+                          <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Último uso</div>
+                          <div style="font-size:15px;font-weight:700;color:#e8eef8;">{u_data}</div>
                         </div>
                         <div>
-                          <div style="font-size:11px;color:#7a9cc7;">Dias usada</div>
-                          <div style="font-size:13px;font-weight:600;color:#e8eef8;">{int(row['dias_usada'])}</div>
+                          <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Dias usada</div>
+                          <div style="font-size:15px;font-weight:700;color:#e8eef8;">{int(row['dias_usada'])}</div>
                         </div>
                       </div>
                     </div>
                     <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
-                    <div style="display:flex;gap:24px;flex-wrap:wrap;padding-top:4px;">
+                    <div style="display:flex;gap:36px;flex-wrap:wrap;padding-top:4px;">
                       <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Leads</div>
-                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
+                        <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Leads</div>
+                        <div style="font-size:28px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
                       </div>
                       <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Vendas</div>
-                        <div style="font-size:26px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
-                        <div style="font-size:13px;font-weight:700;color:{conv_cor};">{row['conv_pct']}% conv.</div>
+                        <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Vendas</div>
+                        <div style="font-size:28px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
+                        <div style="font-size:13px;font-weight:700;color:{conv_cor};margin-top:2px;">{row['conv_pct']}% conv.</div>
                       </div>
                       <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Carteira</div>
-                        <div style="font-size:22px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
+                        <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
+                        <div style="font-size:24px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
+                      </div>
+                      <div style="min-width:100px;">
+                        <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">% Captação</div>
+                        <div style="font-size:28px;font-weight:700;color:{cor};">{captacao_pct}%</div>
+                        <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;width:100%;">
+                          <div style="background:{cor};border-radius:99px;height:5px;width:{bar_cap}%;"></div>
+                        </div>
+                        <div style="font-size:11px;color:#7a9cc7;margin-top:3px;">do total do período</div>
                       </div>
                     </div>
                   </div>
@@ -2142,6 +2182,91 @@ def render_crm():
                            tickfont=dict(color="#e8eef8", size=12), zeroline=False),
             )
             st.plotly_chart(fig_hist, use_container_width=True, key="crm_hist_chart")
+
+    # ── SUB-ABA 4: GERENCIAR NOMES ────────────────────────────────────────────
+    with sub_aliases:
+        st.markdown("#### ✏️ Corrigir Nomes de Bases")
+        st.markdown(
+            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+            "Unifique variações de nomes escritos de forma diferente pelos operadores."
+            "</p>",
+            unsafe_allow_html=True
+        )
+        st.markdown("---")
+
+        aliases_atuais = load_base_aliases()
+
+        # ── Adicionar novo alias ───────────────────────────────────────────────
+        st.markdown("#### ➕ Adicionar Correção")
+        bases_existentes = sorted(
+            df_todos[df_todos["base"].notna() & (df_todos["base"] != "")]["base"].unique().tolist()
+        ) if has_base else []
+
+        with st.form("form_add_alias", border=False):
+            col_de, col_para, col_btn_a = st.columns([3, 3, 1])
+            with col_de:
+                base_de = st.selectbox(
+                    "Nome original (como foi digitado)",
+                    options=[""] + bases_existentes,
+                    key="alias_de"
+                )
+            with col_para:
+                base_para = st.text_input(
+                    "Corrigir para",
+                    placeholder="Ex: BASE AMIL",
+                    key="alias_para"
+                )
+            with col_btn_a:
+                st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                salvar = st.form_submit_button("✔ Salvar", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            if salvar:
+                if not base_de:
+                    st.warning("Selecione o nome original.")
+                elif not base_para.strip():
+                    st.warning("Preencha o nome corrigido.")
+                elif base_de == base_para.strip():
+                    st.warning("O nome original e o corrigido são iguais.")
+                else:
+                    aliases_atuais[base_de] = base_para.strip()
+                    save_base_aliases(aliases_atuais)
+                    st.success(f'"{base_de}" → "{base_para.strip()}" salvo.')
+                    st.rerun(scope="fragment")
+
+        st.markdown("---")
+
+        # ── Lista de aliases existentes ────────────────────────────────────────
+        st.markdown("#### 📋 Correções Ativas")
+        if not aliases_atuais:
+            st.info("Nenhuma correção cadastrada ainda.")
+        else:
+            for nome_original, nome_correto in list(aliases_atuais.items()):
+                col_orig, col_arr, col_corr, col_del = st.columns([3, 0.5, 3, 1])
+                with col_orig:
+                    st.markdown(
+                        f"<div style='background:#0d1f36;border:1px solid #152a4a;border-radius:8px;"
+                        f"padding:8px 12px;color:#ef4444;font-size:13px;font-weight:600;'>"
+                        f"{nome_original}</div>",
+                        unsafe_allow_html=True
+                    )
+                with col_arr:
+                    st.markdown(
+                        "<div style='text-align:center;padding-top:8px;color:#7a9cc7;font-size:18px;'>→</div>",
+                        unsafe_allow_html=True
+                    )
+                with col_corr:
+                    st.markdown(
+                        f"<div style='background:#0d1f36;border:1px solid #152a4a;border-radius:8px;"
+                        f"padding:8px 12px;color:#22c55e;font-size:13px;font-weight:600;'>"
+                        f"{nome_correto}</div>",
+                        unsafe_allow_html=True
+                    )
+                with col_del:
+                    if st.button("🗑️", key=f"del_alias_{nome_original}", use_container_width=True):
+                        del aliases_atuais[nome_original]
+                        save_base_aliases(aliases_atuais)
+                        st.rerun(scope="fragment")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
