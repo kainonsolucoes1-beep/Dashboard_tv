@@ -1178,7 +1178,6 @@ def render_funil_rt():
         render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
-@st.fragment
 def render_hoje_rt():
     df_base, _ = fetch_leads_hoje()
     if df_base.empty:
@@ -1411,8 +1410,11 @@ def render_visao_geral(df_todos: pd.DataFrame):
             )
         with col_btn_f:
             st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
-            st.form_submit_button("✔ Aplicar", use_container_width=True)
+            submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
+
+    if submitted:
+        fetch_leads_hoje.clear()
 
     df = df_todos.copy()
     df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
