@@ -70,6 +70,16 @@ FERIADOS_BR = {
 }
 
 
+def dias_uteis_lista(de: date, ate: date) -> list:
+    """Retorna lista de dias úteis (seg–sex, sem feriados BR) entre de e ate inclusive."""
+    dias, cur = [], de
+    while cur <= ate:
+        if cur.weekday() < 5 and cur not in FERIADOS_BR:
+            dias.append(cur)
+        cur += timedelta(days=1)
+    return dias
+
+
 def horas_uteis(dt_inicio: datetime, dt_fim: datetime) -> float:
     """Horas corridas entre dois datetimes, pulando fins de semana e feriados BR."""
     if dt_fim <= dt_inicio:
@@ -699,8 +709,6 @@ def grafico_funil_status(df_atendente):
         "Agendado",
         "Proposta Enviada",
         "Aguardando Pagamento",
-        "Venda Realizada",
-        "Venda não Realizada",
     ]
     contagens = df_atendente["status"].value_counts()
     labels = [s for s in ordem if s in contagens.index]
@@ -855,8 +863,14 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             </div>
             """, unsafe_allow_html=True)
 
-    # Card de leads sem percepção preenchida
-    sem_perc = int((df_atendente["perception"] == "Sem percepção").sum())
+    # Card de leads sem percepção preenchida — exclui fechados (Venda Realizada / não Realizada)
+    _status_fechados = {"Venda Realizada", "Venda não Realizada"}
+    sem_perc = int(
+        (
+            (df_atendente["perception"] == "Sem percepção") &
+            (~df_atendente["status"].isin(_status_fechados))
+        ).sum()
+    )
     with ct4:
         st.markdown(f"""
         <div class="card-status" style="border-left:4px solid #7a9cc7;">
@@ -1558,6 +1572,200 @@ def render_operadores(df_todos: pd.DataFrame):
     st.plotly_chart(grafico_origens(df_op_rank), use_container_width=True, key="origens_op")
 
 
+@st.dialog("👤 Detalhes do Operador", width="large")
+def modal_operador(op: str, df_op: pd.DataFrame, cor: str, de: date, ate: date):
+    st.markdown(
+        f"<h3 style='color:{cor};margin-bottom:4px;'>👤 {op}</h3>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("---")
+
+    total   = len(df_op)
+    vendas  = int((df_op["status"] == "Venda Realizada").sum())
+    conv    = round(vendas / total * 100, 1) if total > 0 else 0
+    valor   = df_op["valor_proposta"].sum()
+    lc_val  = int((df_op["valor_proposta"] > 0).sum())
+    ticket  = valor / lc_val if lc_val > 0 else 0
+    du_lista      = dias_uteis_lista(de, ate)
+    leads_por_dia = df_op[df_op["data_obj"].notna()].groupby("data_obj").size()
+    du            = len(du_lista)
+    media         = round(total / du, 1) if du > 0 else 0
+
+    # Tendência: média leads/dia útil — semana atual vs semana anterior (calendário real)
+    if du_lista:
+        _last_du     = max(du_lista)
+        _curr_mon    = _last_du - timedelta(days=_last_du.weekday())
+        _prev_mon    = _curr_mon - timedelta(weeks=1)
+        _curr_days   = [d for d in du_lista if d >= _curr_mon]
+        _prev_days   = [d for d in du_lista if _prev_mon <= d < _curr_mon]
+        _curr_leads  = sum(int(leads_por_dia.get(d, 0)) for d in _curr_days)
+        _prev_leads  = sum(int(leads_por_dia.get(d, 0)) for d in _prev_days)
+        _curr_avg    = round(_curr_leads / len(_curr_days), 1) if _curr_days else 0
+        _prev_avg    = round(_prev_leads / len(_prev_days), 1) if _prev_days else 0
+        if not _prev_days:
+            tend_label, tend_cor, tend_sub = "—", "#7a9cc7", "sem semana anterior"
+        elif _curr_avg > _prev_avg:
+            tend_label, tend_cor = "↑ Subindo", "#22c55e"
+            tend_sub = f"{_prev_avg} → {_curr_avg} leads/dia"
+        elif _curr_avg < _prev_avg:
+            tend_label, tend_cor = "↓ Caindo", "#ef4444"
+            tend_sub = f"{_prev_avg} → {_curr_avg} leads/dia"
+        else:
+            tend_label, tend_cor = "→ Estável", "#7a9cc7"
+            tend_sub = f"{_curr_avg} leads/dia"
+    else:
+        tend_label, tend_cor, tend_sub = "—", "#7a9cc7", ""
+
+    st.markdown(f"""
+    <div style="display:flex;gap:0;flex-wrap:wrap;background:#0a1628;border-radius:10px;
+                border:1px solid #152a4a;overflow:hidden;margin-bottom:8px;">
+      <div style="flex:1;min-width:90px;padding:14px 18px;border-right:1px solid #152a4a;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Leads</div>
+        <div style="font-size:26px;font-weight:700;color:#e8eef8;margin-top:2px;">{total}</div>
+      </div>
+      <div style="flex:1;min-width:90px;padding:14px 18px;border-right:1px solid #152a4a;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Dias úteis</div>
+        <div style="font-size:26px;font-weight:700;color:#e8eef8;margin-top:2px;">{du}</div>
+      </div>
+      <div style="flex:1;min-width:90px;padding:14px 18px;border-right:1px solid #152a4a;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Média/dia</div>
+        <div style="font-size:26px;font-weight:700;color:{cor};margin-top:2px;">{media}</div>
+      </div>
+      <div style="flex:1;min-width:110px;padding:14px 18px;border-right:1px solid #152a4a;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Carteira</div>
+        <div style="font-size:22px;font-weight:700;color:#f59e0b;margin-top:2px;">{fmt_brl(valor)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;padding:14px 18px;border-right:1px solid #152a4a;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Ticket Médio</div>
+        <div style="font-size:22px;font-weight:700;color:#4f8ef7;margin-top:2px;">{fmt_brl(ticket)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;padding:14px 18px;">
+        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;font-weight:600;">Tendência</div>
+        <div style="font-size:20px;font-weight:700;color:{tend_cor};margin-top:4px;">{tend_label}</div>
+        <div style="font-size:11px;color:#7a9cc7;margin-top:4px;">{tend_sub}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("#### 📈 Leads por Semana (dias úteis)")
+
+    # Base: todos os dias úteis do período, com 0 onde não houve leads
+    # du_lista e leads_por_dia já calculados acima
+    registros = [{"data_obj": d, "leads": int(leads_por_dia.get(d, 0))} for d in du_lista]
+    df_dia = pd.DataFrame(registros)
+
+    # Numerar semanas sequencialmente
+    semanas_ord = sorted(df_dia["data_obj"].apply(lambda d: d.isocalendar()[1]).unique())
+    semana_map  = {w: f"Semana {i+1}" for i, w in enumerate(semanas_ord)}
+    df_dia["semana"] = df_dia["data_obj"].apply(lambda d: semana_map[d.isocalendar()[1]])
+
+    por_semana = df_dia.groupby("semana", sort=False)["leads"].sum().reset_index()
+    por_semana["_ord"] = por_semana["semana"].map({v: k for k, v in enumerate(semana_map.values())})
+    por_semana = por_semana.sort_values("_ord").drop(columns="_ord")
+
+    fig_sem = go.Figure()
+    fig_sem.add_trace(go.Scatter(
+        x=por_semana["semana"].tolist(),
+        y=por_semana["leads"].tolist(),
+        mode="lines+markers+text",
+        text=por_semana["leads"].tolist(),
+        textposition="top center",
+        textfont=dict(color="#e8eef8", size=13, family="DM Sans"),
+        line=dict(color=cor, width=3),
+        marker=dict(color=cor, size=10),
+        hovertemplate="<b>%{x}</b><br>%{y} leads<extra></extra>",
+    ))
+    _max_sem = max(int(por_semana["leads"].max()), 1)
+    fig_sem.update_layout(
+        height=280,
+        margin=dict(t=70, b=20, l=10, r=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=13)),
+        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                   tickfont=dict(color="#e8eef8", size=12), zeroline=False,
+                   range=[0, _max_sem * 1.35]),
+    )
+    st.plotly_chart(fig_sem, use_container_width=True, key=f"modal_sem_{op}")
+
+    st.markdown("---")
+    st.markdown("#### 📅 Leads por Dia")
+
+    # Todos os dias do período: dias úteis (com 0 se sem leads) + fins de semana + feriados
+    _all_days_data = []
+    _cur = de
+    while _cur <= ate:
+        if _cur in FERIADOS_BR:
+            _tipo = "feriado"
+        elif _cur.weekday() >= 5:
+            _tipo = "fds"
+        else:
+            _tipo = "util"
+        _leads_d = int(leads_por_dia.get(_cur, 0)) if _tipo == "util" else 0
+        _all_days_data.append({"data_obj": _cur, "leads": _leads_d, "tipo": _tipo})
+        _cur += timedelta(days=1)
+    df_all_dias = pd.DataFrame(_all_days_data)
+
+    # Cor dimmed do operador (para dias úteis sem leads)
+    _HEX_RGB = {
+        "#4f8ef7": (79, 142, 247), "#22c55e": (34, 197, 94),
+        "#f59e0b": (245, 158, 11), "#8b5cf6": (139, 92, 246),
+        "#ef4444": (239, 68, 68),  "#f97316": (249, 115, 22),
+    }
+    _rgb    = _HEX_RGB.get(cor, (79, 142, 247))
+    _cor_dim = f"rgba({_rgb[0]},{_rgb[1]},{_rgb[2]},0.3)"
+    _COR_FDS = "rgba(100,120,160,0.35)"
+    _COR_FER = "rgba(245,158,11,0.45)"
+
+    _colors, _texts, _hovers = [], [], []
+    for _, _r in df_all_dias.iterrows():
+        _d = _r["data_obj"]
+        if _r["tipo"] == "util":
+            _colors.append(cor if _r["leads"] > 0 else _cor_dim)
+            _texts.append(str(int(_r["leads"])))
+            _hovers.append(f"{_d.strftime('%d/%m')}: {int(_r['leads'])} lead(s)")
+        elif _r["tipo"] == "fds":
+            _colors.append(_COR_FDS)
+            _texts.append("FDS")
+            _hovers.append(f"{_d.strftime('%d/%m')}: Final de Semana")
+        else:
+            _colors.append(_COR_FER)
+            _texts.append("Feriado")
+            _hovers.append(f"{_d.strftime('%d/%m')}: Feriado")
+
+    fig_dia = go.Figure()
+    fig_dia.add_trace(go.Bar(
+        x=df_all_dias["data_obj"].tolist(),
+        y=df_all_dias["leads"].tolist(),
+        text=_texts,
+        textposition="outside",
+        constraintext="none",
+        textfont=dict(color="#e8eef8", size=11),
+        marker_color=_colors,
+        customdata=_hovers,
+        hovertemplate="%{customdata}<extra></extra>",
+    ))
+    _tickvals = df_all_dias["data_obj"].tolist()
+    _ticktext = [d.strftime("%d/%m") for d in _tickvals]
+    _max_dia = max(int(df_all_dias["leads"].max()), 1)
+    fig_dia.update_layout(
+        height=260,
+        margin=dict(t=35, b=20, l=10, r=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            showgrid=False, color="#7a9cc7",
+            tickmode="array", tickvals=_tickvals, ticktext=_ticktext,
+            tickfont=dict(color="#e8eef8", size=11),
+        ),
+        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
+                   tickfont=dict(color="#e8eef8", size=11), zeroline=False,
+                   range=[0, _max_dia * 1.30]),
+    )
+    st.plotly_chart(fig_dia, use_container_width=True, key=f"modal_dia_{op}")
+
+
 @st.fragment
 def render_detalhamento(df_todos: pd.DataFrame):
     st.markdown("#### 📆 Detalhamento de Leads por Dia e Operador")
@@ -1621,28 +1829,14 @@ def render_detalhamento(df_todos: pd.DataFrame):
         cols_cards = st.columns(len(chunk))
         for col_c, op in zip(cols_cards, chunk):
             cor_op = cor_por_op[op]
-            total_op = int(pivot[op].sum())
-            dias_uteis = len(pivot)
-            media_op = round(total_op / dias_uteis, 1) if dias_uteis > 0 else 0
+            total_op   = int(pivot[op].sum())
+            dias_uteis = len(dias_uteis_lista(det_de, det_ate))
+            media_op   = round(total_op / dias_uteis, 1) if dias_uteis > 0 else 0
 
             df_op_det = df_det[df_det["origem"] == op]
             valor_op  = df_op_det["valor_proposta"].sum()
             leads_com_valor = int((df_op_det["valor_proposta"] > 0).sum())
             ticket_op = valor_op / leads_com_valor if leads_com_valor > 0 else 0
-
-            vals = pivot[op].tolist()
-            metade = len(vals) // 2
-            if metade > 0:
-                media_ini = sum(vals[:metade]) / metade
-                media_fim = sum(vals[metade:]) / max(len(vals[metade:]), 1)
-                if media_fim > media_ini:
-                    tendencia, cor_tend = "↑ Subindo", "#22c55e"
-                elif media_fim < media_ini:
-                    tendencia, cor_tend = "↓ Caindo", "#ef4444"
-                else:
-                    tendencia, cor_tend = "→ Estável", "#7a9cc7"
-            else:
-                tendencia, cor_tend = "→ Estável", "#7a9cc7"
 
             with col_c:
                 st.markdown(f"""
@@ -1653,9 +1847,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
                         <div class="card-label">{op}</div>
                         <div style="margin-top:10px;font-size:14px;color:#7a9cc7;">
                             Média: <b style="color:{cor_op};">{media_op}/dia</b>
-                        </div>
-                        <div style="margin-top:6px;font-size:15px;font-weight:700;color:{cor_tend};">
-                            {tendencia}
                         </div>
                     </div>
                     <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
@@ -1674,6 +1865,8 @@ def render_detalhamento(df_todos: pd.DataFrame):
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+                if st.button("📊 Ver detalhes", key=f"btn_det_{op}", use_container_width=True):
+                    modal_operador(op, df_op_det, cor_op, det_de, det_ate)
 
     st.markdown("---")
     st.markdown("#### 📋 Tabela de Leads por Data e Operador")
