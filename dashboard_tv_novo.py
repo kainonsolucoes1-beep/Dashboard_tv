@@ -29,7 +29,7 @@ STATUS_MAP = {
     "pending":            "Pendente",
     "scheduled":          "Agendado",
     "proposal_sent":      "Proposta Enviada",
-    "waiting_billing":    "Aguardando Pagamento",
+    "waiting_billing":    "Venda Realizada",
     "sale_performed":     "Venda Realizada",
     "sale_not_performed": "Venda não Realizada",
 }
@@ -396,7 +396,12 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
         perception_raw = lead.get("perception") or ""
         perception_pt  = PERCEPTION_MAP.get(perception_raw, perception_raw or "Sem percepção")
         last_proposal  = lead.get("last_proposal") or {}
-        valor_proposta = last_proposal.get("amount") or 0.0
+        finalization   = lead.get("finalization") or {}
+        valor_proposta = (
+            last_proposal.get("amount")
+            or finalization.get("amount")
+            or 0.0
+        )
         def _parse_dt(s):
             for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ",
                         "%Y-%m-%dT%H:%M:%S.%f+00:00", "%Y-%m-%dT%H:%M:%S+00:00"):
@@ -438,7 +443,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
                 last_inter_dt = dt
                 last_inter = dt.strftime("%d/%m/%Y %H:%M")
 
-        status_fechado = status_raw in ("sale_performed", "sale_not_performed")
+        status_fechado = status_raw in ("sale_performed", "sale_not_performed", "waiting_billing")
         em_atraso = False
         if last_inter_dt and not status_fechado:
             em_atraso = horas_uteis(last_inter_dt, datetime.now()) > 24
@@ -1221,7 +1226,7 @@ def render_funil_rt():
         )
     with ff4:
         funil_status = st.selectbox(
-            "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="funil_status"
+            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="funil_status"
         )
     with ff5:
         filtro_temp = st.selectbox(
@@ -1508,7 +1513,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
             )
         with col_st:
             filtro_status = st.selectbox(
-                "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="visao_status"
+                "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="visao_status"
             )
         with col_de:
             data_de = st.date_input(
@@ -1543,16 +1548,34 @@ def render_visao_geral(df_todos: pd.DataFrame):
     render_hoje_rt()
 
     st.markdown("---")
-    st.markdown("#### 📊 Visão Mensal")
+    st.markdown("#### 📊 Visão Mensal - SDR")
+
+    _ORIGENS_SDR = {"isaac", "julia", "leticia", "o2 solution"}
+    _REMAP_SDR   = {
+        "anny":        "O2 Solution",
+        "emilly":      "O2 Solution",
+        "o2 solution": "O2 Solution",  # canonicaliza qualquer capitalização
+    }
+    df_sdr = df.copy()
+    df_sdr["origem"] = df_sdr["origem"].apply(
+        lambda o: _REMAP_SDR.get(str(o).lower().strip(), o) if pd.notna(o) else o
+    )
+    df_sdr = df_sdr[df_sdr["origem"].str.lower().str.strip().isin(_ORIGENS_SDR)]
+
+    total_sdr    = len(df_sdr)
+    vendas_sdr   = int((df_sdr["status"] == "Venda Realizada").sum())
+    proposta_sdr = int((df_sdr["status"] == "Proposta Enviada").sum())
+    agendado_sdr = int((df_sdr["status"] == "Agendado").sum())
+    primeiro_sdr = int((df_sdr["status"] == "Pendente").sum())
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        linhas_total = linhas_por_operador(df, None, "#4f8ef7")
+        linhas_total = linhas_por_operador(df_sdr, None, "#4f8ef7")
         st.markdown(f"""
         <div class="card-total" style="display:flex;gap:16px;align-items:flex-start;">
             <div style="min-width:90px;">
                 <span class="card-icone">📋</span>
-                <div class="card-valor" style="color:#4f8ef7;">{total}</div>
+                <div class="card-valor" style="color:#4f8ef7;">{total_sdr}</div>
                 <div class="card-label">Total de Leads</div>
             </div>
             <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
@@ -1564,23 +1587,23 @@ def render_visao_geral(df_todos: pd.DataFrame):
         </div>
         """, unsafe_allow_html=True)
         if st.button("🔍 Ver leads", key="btn_total", use_container_width=True):
-            modal_leads_status(df, "Total de Leads", "#4f8ef7")
+            modal_leads_status(df_sdr, "Total de Leads", "#4f8ef7")
     with c2:
-        render_card("👋", primeiro, "Pendente", "#4f8ef7", df=df, status_filtro="Pendente")
+        render_card("👋", primeiro_sdr, "Pendente", "#4f8ef7", df=df_sdr, status_filtro="Pendente")
         if st.button("🔍 Ver leads", key="btn_prim", use_container_width=True):
-            modal_leads_status(df[df["status"] == "Pendente"], "Pendente", "#4f8ef7")
+            modal_leads_status(df_sdr[df_sdr["status"] == "Pendente"], "Pendente", "#4f8ef7")
     with c3:
-        render_card("📅", agendado, "Agendado", "#f59e0b", df=df, status_filtro="Agendado")
+        render_card("📅", agendado_sdr, "Agendado", "#f59e0b", df=df_sdr, status_filtro="Agendado")
         if st.button("🔍 Ver leads", key="btn_agend", use_container_width=True):
-            modal_leads_status(df[df["status"] == "Agendado"], "Agendado", "#f59e0b")
+            modal_leads_status(df_sdr[df_sdr["status"] == "Agendado"], "Agendado", "#f59e0b")
     with c4:
-        render_card("📄", proposta, "Proposta Enviada", "#8b5cf6", df=df, status_filtro="Proposta Enviada")
+        render_card("📄", proposta_sdr, "Proposta Enviada", "#8b5cf6", df=df_sdr, status_filtro="Proposta Enviada")
         if st.button("🔍 Ver leads", key="btn_proposta", use_container_width=True):
-            modal_leads_status(df[df["status"] == "Proposta Enviada"], "Proposta Enviada", "#8b5cf6")
+            modal_leads_status(df_sdr[df_sdr["status"] == "Proposta Enviada"], "Proposta Enviada", "#8b5cf6")
     with c5:
-        render_card("✅", vendas, "Venda Realizada", "#22c55e", df=df, status_filtro="Venda Realizada")
+        render_card("✅", vendas_sdr, "Venda Realizada", "#22c55e", df=df_sdr, status_filtro="Venda Realizada")
         if st.button("🔍 Ver leads", key="btn_venda", use_container_width=True):
-            modal_leads_status(df[df["status"] == "Venda Realizada"], "Venda Realizada", "#22c55e")
+            modal_leads_status(df_sdr[df_sdr["status"] == "Venda Realizada"], "Venda Realizada", "#22c55e")
 
     st.markdown("---")
     st.markdown("#### 👩 Acompanhamento · Giovanna & Rayanna")
@@ -1628,22 +1651,22 @@ def render_visao_geral(df_todos: pd.DataFrame):
         linhas_pote = ""
         for i, nome in enumerate(_ATENDENTES):
             df_p = df_pote_all[df_pote_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
+            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
             linhas_pote += (
                 f'<div style="{borda}">'
-                f'<div style="font-size:13px;font-weight:700;color:#e8eef8;margin-bottom:6px;">{nome}</div>'
-                '<div style="display:flex;gap:20px;">'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
-                f'<div style="font-size:22px;font-weight:700;color:#8b5cf6;">{len(df_p)}</div></div>'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
-                f'<div style="font-size:18px;font-weight:700;color:#f59e0b;">{fmt_brl(df_p["valor_proposta"].sum())}</div></div>'
+                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
+                '<div style="display:flex;gap:28px;">'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
+                f'<div style="font-size:30px;font-weight:700;color:#8b5cf6;line-height:1.1;">{len(df_p)}</div></div>'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
+                f'<div style="font-size:24px;font-weight:700;color:#f59e0b;line-height:1.1;">{fmt_brl(df_p["valor_proposta"].sum())}</div></div>'
                 '</div></div>'
             )
         st.markdown(
             '<div class="card-status">'
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
-            '<span style="font-size:16px;">💰</span>'
-            '<span style="color:#8b5cf6;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pote da Ganância</span>'
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+            '<span style="font-size:20px;">💰</span>'
+            '<span style="color:#8b5cf6;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pote da Ganância</span>'
             '</div>'
             f'{linhas_pote}'
             '</div>',
@@ -1656,22 +1679,22 @@ def render_visao_geral(df_todos: pd.DataFrame):
         linhas_esteira = ""
         for i, nome in enumerate(_ATENDENTES):
             df_e = df_esteira_all[df_esteira_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
+            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
             linhas_esteira += (
                 f'<div style="{borda}">'
-                f'<div style="font-size:13px;font-weight:700;color:#e8eef8;margin-bottom:6px;">{nome}</div>'
-                '<div style="display:flex;gap:20px;">'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
-                f'<div style="font-size:22px;font-weight:700;color:#ef4444;">{len(df_e)}</div></div>'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
-                f'<div style="font-size:18px;font-weight:700;color:#f59e0b;">{fmt_brl(df_e["valor_proposta"].sum())}</div></div>'
+                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
+                '<div style="display:flex;gap:28px;">'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
+                f'<div style="font-size:30px;font-weight:700;color:#ef4444;line-height:1.1;">{len(df_e)}</div></div>'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
+                f'<div style="font-size:24px;font-weight:700;color:#f59e0b;line-height:1.1;">{fmt_brl(df_e["valor_proposta"].sum())}</div></div>'
                 '</div></div>'
             )
         st.markdown(
             '<div class="card-status">'
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
-            '<span style="font-size:16px;">🔥</span>'
-            '<span style="color:#ef4444;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Propostas em Esteira</span>'
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+            '<span style="font-size:20px;">🔥</span>'
+            '<span style="color:#ef4444;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Propostas em Esteira</span>'
             '</div>'
             f'{linhas_esteira}'
             '</div>',
@@ -1684,22 +1707,22 @@ def render_visao_geral(df_todos: pd.DataFrame):
         linhas_vendas = ""
         for i, nome in enumerate(_ATENDENTES):
             df_v = df_vendas_all[df_vendas_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
+            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
             linhas_vendas += (
                 f'<div style="{borda}">'
-                f'<div style="font-size:13px;font-weight:700;color:#e8eef8;margin-bottom:6px;">{nome}</div>'
-                '<div style="display:flex;gap:20px;">'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Vendas</div>'
-                f'<div style="font-size:22px;font-weight:700;color:#22c55e;">{len(df_v)}</div></div>'
-                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Valor</div>'
-                f'<div style="font-size:18px;font-weight:700;color:#22c55e;">{fmt_brl(df_v["valor_proposta"].sum())}</div></div>'
+                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
+                '<div style="display:flex;gap:28px;">'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Vendas</div>'
+                f'<div style="font-size:30px;font-weight:700;color:#22c55e;line-height:1.1;">{len(df_v)}</div></div>'
+                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Valor</div>'
+                f'<div style="font-size:24px;font-weight:700;color:#22c55e;line-height:1.1;">{fmt_brl(df_v["valor_proposta"].sum())}</div></div>'
                 '</div></div>'
             )
         st.markdown(
             '<div class="card-status">'
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
-            '<span style="font-size:16px;">✅</span>'
-            '<span style="color:#22c55e;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Vendas Realizadas</span>'
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+            '<span style="font-size:20px;">✅</span>'
+            '<span style="color:#22c55e;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Vendas Realizadas</span>'
             '</div>'
             f'{linhas_vendas}'
             '</div>',
@@ -1740,7 +1763,7 @@ def render_operadores(df_todos: pd.DataFrame):
         )
     with op2:
         op_status = st.selectbox(
-            "📌 Status", ["Todos"] + list(STATUS_MAP.values()), key="op_status"
+            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="op_status"
         )
 
     st.markdown("---")
@@ -2504,17 +2527,24 @@ def render_crm():
                 historico["conv_pct"] = (
                     historico["vendas_total"] / historico["leads_total"] * 100
                 ).round(1)
+                historico["ticket_medio"] = historico.apply(
+                    lambda r: r["carteira_total"] / r["leads_total"] if r["leads_total"] > 0 else 0, axis=1
+                )
                 historico = historico.sort_values("ultima_data", ascending=False).reset_index(drop=True)
+
+                _tot_leads    = int(historico["leads_total"].sum())
+                _tot_carteira = historico["carteira_total"].sum()
+                _ticket_geral = fmt_brl(_tot_carteira / _tot_leads) if _tot_leads > 0 else "R$ 0"
 
                 h1, h2, h3, h4 = st.columns(4)
                 with h1:
                     st.metric("Total de bases", len(historico))
                 with h2:
-                    st.metric("Leads totais", int(historico["leads_total"].sum()))
+                    st.metric("Leads totais", _tot_leads)
                 with h3:
-                    st.metric("Vendas totais", int(historico["vendas_total"].sum()))
+                    st.metric("Carteira total", fmt_brl(_tot_carteira))
                 with h4:
-                    st.metric("Carteira total", fmt_brl(historico["carteira_total"].sum()))
+                    st.metric("Ticket médio", _ticket_geral)
 
                 st.markdown("---")
                 st.markdown("#### 🕐 Todas as Bases Utilizadas")
@@ -2523,17 +2553,21 @@ def render_crm():
 
                 for idx, row in historico.iterrows():
                     cor          = CORES_CRM[idx % len(CORES_CRM)]
-                    conv_cor     = "#22c55e" if row["conv_pct"] >= historico["conv_pct"].mean() else "#f59e0b"
                     p_data       = row["primeira_data"].strftime("%d/%m/%Y") if pd.notna(row["primeira_data"]) else "—"
                     u_data       = row["ultima_data"].strftime("%d/%m/%Y")   if pd.notna(row["ultima_data"])   else "—"
                     captacao_pct = round(row["leads_total"] / total_leads_geral * 100, 1) if total_leads_geral > 0 else 0
                     bar_cap      = min(int(captacao_pct * 2), 100)
+                    _carteira_f  = fmt_brl(float(row["carteira_total"] or 0))
+                    _ticket_f    = fmt_brl(float(row["ticket_medio"]  or 0))
+                    _base_nome   = str(row["base"])
+                    _leads_int   = int(row["leads_total"])
+                    _dias_int    = int(row["dias_usada"])
 
                     exp_label = (
-                        f"📦 {row['base']}  ·  "
-                        f"{int(row['leads_total'])} leads  ·  "
-                        f"{fmt_brl(row['carteira_total'])}  ·  "
-                        f"{row['conv_pct']}% conv."
+                        f"📦 {_base_nome}  ·  "
+                        f"{_leads_int} leads  ·  "
+                        f"{_carteira_f.replace('$', r'\$')}  ·  "
+                        f"ticket: {_ticket_f.replace('$', r'\$')}"
                     )
                     with st.expander(exp_label, expanded=False):
                         st.markdown(f"""
@@ -2541,7 +2575,7 @@ def render_crm():
                           <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
                             <div style="min-width:220px;">
                               <div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Base</div>
-                              <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
+                              <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{_base_nome}</div>
                               <div style="margin-top:10px;display:flex;gap:20px;">
                                 <div>
                                   <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Primeiro uso</div>
@@ -2553,7 +2587,7 @@ def render_crm():
                                 </div>
                                 <div>
                                   <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Dias usada</div>
-                                  <div style="font-size:15px;font-weight:700;color:#e8eef8;">{int(row['dias_usada'])}</div>
+                                  <div style="font-size:15px;font-weight:700;color:#e8eef8;">{_dias_int}</div>
                                 </div>
                               </div>
                             </div>
@@ -2561,24 +2595,23 @@ def render_crm():
                             <div style="display:flex;gap:36px;flex-wrap:wrap;padding-top:4px;">
                               <div>
                                 <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Leads</div>
-                                <div style="font-size:28px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
-                              </div>
-                              <div>
-                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Vendas</div>
-                                <div style="font-size:28px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
-                                <div style="font-size:13px;font-weight:700;color:{conv_cor};margin-top:2px;">{row['conv_pct']}% conv.</div>
+                                <div style="font-size:28px;font-weight:700;color:#e8eef8;">{_leads_int}</div>
                               </div>
                               <div>
                                 <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
-                                <div style="font-size:24px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
+                                <div style="font-size:24px;font-weight:700;color:#f59e0b;">{_carteira_f}</div>
+                              </div>
+                              <div>
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Ticket M&#233;dio</div>
+                                <div style="font-size:24px;font-weight:700;color:#4f8ef7;">{_ticket_f}</div>
                               </div>
                               <div style="min-width:100px;">
-                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">% Captação</div>
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">% Capta&#231;&#227;o</div>
                                 <div style="font-size:28px;font-weight:700;color:{cor};">{captacao_pct}%</div>
                                 <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;width:100%;">
                                   <div style="background:{cor};border-radius:99px;height:5px;width:{bar_cap}%;"></div>
                                 </div>
-                                <div style="font-size:11px;color:#7a9cc7;margin-top:3px;">do total do período</div>
+                                <div style="font-size:11px;color:#7a9cc7;margin-top:3px;">do total do per&#237;odo</div>
                               </div>
                             </div>
                           </div>
