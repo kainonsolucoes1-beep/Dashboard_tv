@@ -624,9 +624,32 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
 
 
 @st.dialog("Detalhamento de Leads", width="large")
-def modal_leads_status(df_modal, label, cor):
-    total = len(df_modal)
-    valor_total = df_modal["valor_proposta"].sum()
+def modal_leads_status(df_modal, label, cor, atendentes=None):
+    """
+    atendentes: lista de nomes para exibir filtro individual (ex: ["Giovanna", "Rayanna"]).
+                Se None, nenhum filtro de atendente é exibido.
+    """
+    if df_modal.empty:
+        st.info("Nenhum lead encontrado.")
+        return
+
+    # Filtro de atendente (opcional)
+    df_filtrado = df_modal.copy()
+    if atendentes:
+        opcoes = ["Todas"] + atendentes
+        escolha = st.radio(
+            "👤 Atendente",
+            opcoes,
+            horizontal=True,
+            key="modal_filtro_atendente",
+        )
+        if escolha != "Todas":
+            df_filtrado = df_filtrado[
+                df_filtrado["atendente"].str.contains(escolha, case=False, na=False)
+            ]
+
+    total       = len(df_filtrado)
+    valor_total = df_filtrado["valor_proposta"].sum()
 
     st.markdown(
         f"<div style='margin-bottom:4px;'>"
@@ -644,11 +667,7 @@ def modal_leads_status(df_modal, label, cor):
             unsafe_allow_html=True,
         )
 
-    if df_modal.empty:
-        st.info("Nenhum lead encontrado para este status.")
-        return
-
-    df_show = df_modal[["nome", "status", "origem", "atendente", "valor_proposta", "criado_em", "atualizado_em"]].copy()
+    df_show = df_filtrado[["nome", "status", "origem", "atendente", "valor_proposta", "criado_em", "atualizado_em"]].copy()
     df_show["_sort"] = pd.to_datetime(df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce")
     df_show = df_show.sort_values("_sort", ascending=False).drop(columns="_sort").reset_index(drop=True)
     df_show = df_show.rename(columns={
@@ -664,7 +683,7 @@ def modal_leads_status(df_modal, label, cor):
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
 
-    st.dataframe(df_show, use_container_width=True, hide_index=True, height=420)
+    st.dataframe(df_show, use_container_width=True, hide_index=True, height=400)
 
 
 # ── GRÁFICOS ──────────────────────────────────────────────────────────────────
@@ -1226,7 +1245,10 @@ def render_funil_rt():
         )]
         if funil_origem:
             df_funil = df_funil[df_funil["origem"].isin(funil_origem)]
-        if funil_status != "Todos":
+        _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
+        if funil_status == "Todos":
+            df_funil = df_funil[~df_funil["status"].isin(_STATUS_ENCERRADOS)]
+        else:
             df_funil = df_funil[df_funil["status"] == funil_status]
         if filtro_temp != "Todas":
             df_funil = df_funil[df_funil["perception"] == filtro_temp]
@@ -1439,7 +1461,9 @@ with col_btn:
         fetch_leads_80dias.clear()
         fetch_leads_criticos.clear()
         fetch_leads_hoje.clear()
-        st.session_state.pop("df_funil", None)
+        with st.spinner("Atualizando dados..."):
+            df_funil_novo, _ = merge_leads_longo()
+        st.session_state["df_funil"] = df_funil_novo
         st.rerun()
 
 st.markdown("---")
@@ -1474,18 +1498,7 @@ aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm = st.
 
 @st.fragment
 def render_visao_geral(df_todos: pd.DataFrame):
-    _hd_visao, _btn_visao = st.columns([5, 1])
-    with _hd_visao:
-        st.markdown("#### 🔎 Filtros da Aba")
-    with _btn_visao:
-        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="visao_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_80dias.clear()
-            fetch_leads_criticos.clear()
-            fetch_leads_hoje.clear()
-            st.session_state.pop("df_funil", None)
-            st.rerun()
+    st.markdown("#### 🔎 Filtros da Aba")
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
     with st.form("filtros_visao", border=False):
         col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
@@ -1573,13 +1586,18 @@ def render_visao_geral(df_todos: pd.DataFrame):
     st.markdown("#### 👩 Acompanhamento · Giovanna & Rayanna")
 
     _ATENDENTES = ["Giovanna", "Rayanna"]
-    df_at = df_todos.copy()
+    # Usa os 80 dias do Funil (session_state["df_funil"]) quando disponível,
+    # garantindo a mesma base de dados que o Funil de Vendas usa.
+    _base_at = st.session_state.get("df_funil", df_todos)
+    df_at = _base_at.copy()
     df_at = df_at[df_at["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
     if selecionados:
         df_at = df_at[df_at["origem"].isin(selecionados)]
-    df_at = df_at[df_at["atendente"].isin(_ATENDENTES)]
+    df_at = df_at[df_at["atendente"].apply(
+        lambda x: any(n.lower() in str(x).lower() for n in _ATENDENTES) if pd.notna(x) else False
+    )]
 
-    a1, a2, a3 = st.columns([1, 2, 2])
+    a1, a2, a3, a4 = st.columns([1, 2, 2, 2])
 
     with a1:
         total_at = len(df_at)
@@ -1593,14 +1611,51 @@ def render_visao_geral(df_todos: pd.DataFrame):
         </div>
         """, unsafe_allow_html=True)
 
+    _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
+
+    # Dataframes combinados (Giovanna + Rayanna) para cada card
+    df_pote_all    = df_at[
+        (df_at["perception"] != "🔥 Quente") &
+        (~df_at["status"].isin(_STATUS_ENCERRADOS))
+    ]
+    df_esteira_all = df_at[
+        (df_at["perception"] == "🔥 Quente") &
+        (~df_at["status"].isin(_STATUS_ENCERRADOS))
+    ]
+    df_vendas_all  = df_at[df_at["status"] == "Venda Realizada"]
+
     with a2:
+        linhas_pote = ""
+        for i, nome in enumerate(_ATENDENTES):
+            df_p = df_pote_all[df_pote_all["atendente"].str.contains(nome, case=False, na=False)]
+            borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
+            linhas_pote += (
+                f'<div style="{borda}">'
+                f'<div style="font-size:13px;font-weight:700;color:#e8eef8;margin-bottom:6px;">{nome}</div>'
+                '<div style="display:flex;gap:20px;">'
+                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
+                f'<div style="font-size:22px;font-weight:700;color:#8b5cf6;">{len(df_p)}</div></div>'
+                '<div><div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
+                f'<div style="font-size:18px;font-weight:700;color:#f59e0b;">{fmt_brl(df_p["valor_proposta"].sum())}</div></div>'
+                '</div></div>'
+            )
+        st.markdown(
+            '<div class="card-status">'
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
+            '<span style="font-size:16px;">💰</span>'
+            '<span style="color:#8b5cf6;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pote da Ganância</span>'
+            '</div>'
+            f'{linhas_pote}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("🔍 Ver leads", key="btn_acomp_pote", use_container_width=True):
+            modal_leads_status(df_pote_all, "Pote da Ganância", "#8b5cf6", atendentes=_ATENDENTES)
+
+    with a3:
         linhas_esteira = ""
         for i, nome in enumerate(_ATENDENTES):
-            df_e = df_at[
-                (df_at["atendente"] == nome) &
-                (df_at["perception"] == "🔥 Quente") &
-                (~df_at["status"].isin(["Venda Realizada", "Venda não Realizada"]))
-            ]
+            df_e = df_esteira_all[df_esteira_all["atendente"].str.contains(nome, case=False, na=False)]
             borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
             linhas_esteira += (
                 f'<div style="{borda}">'
@@ -1622,11 +1677,13 @@ def render_visao_geral(df_todos: pd.DataFrame):
             '</div>',
             unsafe_allow_html=True,
         )
+        if st.button("🔍 Ver leads", key="btn_acomp_esteira", use_container_width=True):
+            modal_leads_status(df_esteira_all, "Propostas em Esteira", "#ef4444", atendentes=_ATENDENTES)
 
-    with a3:
+    with a4:
         linhas_vendas = ""
         for i, nome in enumerate(_ATENDENTES):
-            df_v = df_at[(df_at["atendente"] == nome) & (df_at["status"] == "Venda Realizada")]
+            df_v = df_vendas_all[df_vendas_all["atendente"].str.contains(nome, case=False, na=False)]
             borda = "border-bottom:1px solid #152a4a;margin-bottom:10px;padding-bottom:10px;" if i < len(_ATENDENTES) - 1 else ""
             linhas_vendas += (
                 f'<div style="{borda}">'
@@ -1648,6 +1705,8 @@ def render_visao_geral(df_todos: pd.DataFrame):
             '</div>',
             unsafe_allow_html=True,
         )
+        if st.button("🔍 Ver leads", key="btn_acomp_vendas", use_container_width=True):
+            modal_leads_status(df_vendas_all, "Vendas Realizadas", "#22c55e", atendentes=_ATENDENTES)
 
     st.markdown("---")
     col_g1, col_g2 = st.columns(2)
@@ -2135,22 +2194,12 @@ def render_crm():
         "Saturday": "Sábado", "Sunday": "Domingo",
     }
 
-    crm_hd, crm_btn = st.columns([5, 1])
-    with crm_hd:
-        st.markdown("#### 🗂️ CRM · Base de Clientes")
-        st.markdown(
-            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-            "Gestão e análise das bases de clientes utilizadas na operação."
-            "</p>",
-            unsafe_allow_html=True
-        )
-    with crm_btn:
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    _, crm_btn_col = st.columns([5, 1])
+    with crm_btn_col:
         if st.button("🔄 Atualizar", key="crm_refresh", use_container_width=True):
             fetch_leads_30dias.clear()
             with st.spinner("Atualizando..."):
                 df_todos, _ = merge_leads_curto()
-    st.markdown("---")
 
     aliases = load_base_aliases()
     df_todos = apply_base_aliases(df_todos, aliases)
@@ -2480,54 +2529,83 @@ def render_crm():
                     captacao_pct = round(row["leads_total"] / total_leads_geral * 100, 1) if total_leads_geral > 0 else 0
                     bar_cap      = min(int(captacao_pct * 2), 100)
 
-                    st.markdown(f"""
-                    <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
-                      <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
-                        <div style="min-width:220px;">
-                          <div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Base</div>
-                          <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
-                          <div style="margin-top:10px;display:flex;gap:20px;">
-                            <div>
-                              <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Primeiro uso</div>
-                              <div style="font-size:15px;font-weight:700;color:#e8eef8;">{p_data}</div>
+                    exp_label = (
+                        f"📦 {row['base']}  ·  "
+                        f"{int(row['leads_total'])} leads  ·  "
+                        f"{fmt_brl(row['carteira_total'])}  ·  "
+                        f"{row['conv_pct']}% conv."
+                    )
+                    with st.expander(exp_label, expanded=False):
+                        st.markdown(f"""
+                        <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
+                          <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+                            <div style="min-width:220px;">
+                              <div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Base</div>
+                              <div style="font-size:20px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
+                              <div style="margin-top:10px;display:flex;gap:20px;">
+                                <div>
+                                  <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Primeiro uso</div>
+                                  <div style="font-size:15px;font-weight:700;color:#e8eef8;">{p_data}</div>
+                                </div>
+                                <div>
+                                  <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Último uso</div>
+                                  <div style="font-size:15px;font-weight:700;color:#e8eef8;">{u_data}</div>
+                                </div>
+                                <div>
+                                  <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Dias usada</div>
+                                  <div style="font-size:15px;font-weight:700;color:#e8eef8;">{int(row['dias_usada'])}</div>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Último uso</div>
-                              <div style="font-size:15px;font-weight:700;color:#e8eef8;">{u_data}</div>
-                            </div>
-                            <div>
-                              <div style="font-size:13px;color:#7a9cc7;font-weight:500;">Dias usada</div>
-                              <div style="font-size:15px;font-weight:700;color:#e8eef8;">{int(row['dias_usada'])}</div>
+                            <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
+                            <div style="display:flex;gap:36px;flex-wrap:wrap;padding-top:4px;">
+                              <div>
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Leads</div>
+                                <div style="font-size:28px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
+                              </div>
+                              <div>
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Vendas</div>
+                                <div style="font-size:28px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
+                                <div style="font-size:13px;font-weight:700;color:{conv_cor};margin-top:2px;">{row['conv_pct']}% conv.</div>
+                              </div>
+                              <div>
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
+                                <div style="font-size:24px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
+                              </div>
+                              <div style="min-width:100px;">
+                                <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">% Captação</div>
+                                <div style="font-size:28px;font-weight:700;color:{cor};">{captacao_pct}%</div>
+                                <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;width:100%;">
+                                  <div style="background:{cor};border-radius:99px;height:5px;width:{bar_cap}%;"></div>
+                                </div>
+                                <div style="font-size:11px;color:#7a9cc7;margin-top:3px;">do total do período</div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
-                        <div style="display:flex;gap:36px;flex-wrap:wrap;padding-top:4px;">
-                          <div>
-                            <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Leads</div>
-                            <div style="font-size:28px;font-weight:700;color:#e8eef8;">{int(row['leads_total'])}</div>
-                          </div>
-                          <div>
-                            <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Vendas</div>
-                            <div style="font-size:28px;font-weight:700;color:#22c55e;">{int(row['vendas_total'])}</div>
-                            <div style="font-size:13px;font-weight:700;color:{conv_cor};margin-top:2px;">{row['conv_pct']}% conv.</div>
-                          </div>
-                          <div>
-                            <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
-                            <div style="font-size:24px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira_total'])}</div>
-                          </div>
-                          <div style="min-width:100px;">
-                            <div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:4px;">% Captação</div>
-                            <div style="font-size:28px;font-weight:700;color:{cor};">{captacao_pct}%</div>
-                            <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;width:100%;">
-                              <div style="background:{cor};border-radius:99px;height:5px;width:{bar_cap}%;"></div>
-                            </div>
-                            <div style="font-size:11px;color:#7a9cc7;margin-top:3px;">do total do período</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+
+                        st.markdown("##### 📋 Leads desta base")
+                        df_leads_base = df_hist_filtrado[df_hist_filtrado["base"] == row["base"]].copy()
+                        df_leads_base = df_leads_base.sort_values("data_obj", ascending=False).reset_index(drop=True)
+                        _cols_base = {
+                            "criado_em":      "Data Captação",
+                            "nome":           "Nome",
+                            "origem":         "Origem",
+                            "atendente":      "Atendente",
+                            "status":         "Status",
+                            "perception":     "Temperatura",
+                            "valor_proposta": "Valor (R$)",
+                            "interesse":      "Interesse",
+                        }
+                        df_leads_disp = df_leads_base[[c for c in _cols_base if c in df_leads_base.columns]].copy()
+                        df_leads_disp.rename(columns=_cols_base, inplace=True)
+                        if "Valor (R$)" in df_leads_disp.columns:
+                            df_leads_disp["Valor (R$)"] = df_leads_base["valor_proposta"].apply(
+                                lambda v: fmt_brl(v) if v > 0 else "—"
+                            )
+                        altura = min(500, 40 + len(df_leads_disp) * 35)
+                        st.dataframe(df_leads_disp, use_container_width=True, hide_index=True, height=altura)
 
                 st.markdown("---")
                 st.markdown("#### 📈 Evolução de Leads por Base ao Longo do Tempo")
