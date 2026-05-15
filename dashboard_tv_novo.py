@@ -22,6 +22,7 @@ st.set_page_config(
 # ── RENOMEAÇÃO DE ORIGENS ─────────────────────────────────────────────────────
 ORIGEM_MAP = {
     "Livia": "O2 Solution",
+    "Anny":  "O2 Solution",
 }
 
 # ── MAPEAMENTO DE STATUS ───────────────────────────────────────────────────────
@@ -629,29 +630,48 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
 
 
 @st.dialog("Detalhamento de Leads", width="large")
-def modal_leads_status(df_modal, label, cor, atendentes=None):
+def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None):
     """
-    atendentes: lista de nomes para exibir filtro individual (ex: ["Giovanna", "Rayanna"]).
-                Se None, nenhum filtro de atendente é exibido.
+    atendentes: lista de nomes para filtro por atendente (ex: ["Giovanna", "Rayanna"]).
+    operadores: lista de nomes para filtro por origem/operador (ex: SDR).
     """
     if df_modal.empty:
         st.info("Nenhum lead encontrado.")
         return
 
-    # Filtro de atendente (opcional)
     df_filtrado = df_modal.copy()
-    if atendentes:
-        opcoes = ["Todas"] + atendentes
-        escolha = st.radio(
-            "👤 Atendente",
-            opcoes,
-            horizontal=True,
-            key="modal_filtro_atendente",
-        )
-        if escolha != "Todas":
-            df_filtrado = df_filtrado[
-                df_filtrado["atendente"].str.contains(escolha, case=False, na=False)
-            ]
+
+    _fcol1, _fcol2 = st.columns([3, 2])
+
+    with _fcol1:
+        if atendentes:
+            opcoes = ["Todas"] + atendentes
+            escolha = st.radio(
+                "👤 Atendente",
+                opcoes,
+                horizontal=True,
+                key="modal_filtro_atendente",
+            )
+            if escolha != "Todas":
+                df_filtrado = df_filtrado[
+                    df_filtrado["atendente"].str.contains(escolha, case=False, na=False)
+                ]
+        elif operadores:
+            opcoes = ["Todos"] + operadores
+            escolha = st.radio(
+                "👤 Operador",
+                opcoes,
+                horizontal=True,
+                key="modal_filtro_operador",
+            )
+            if escolha != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["origem"] == escolha]
+
+    with _fcol2:
+        _status_opts = ["Todos"] + sorted(df_modal["status"].dropna().unique().tolist())
+        _status_sel = st.selectbox("📊 Status", options=_status_opts, key="modal_filtro_status")
+        if _status_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["status"] == _status_sel]
 
     total       = len(df_filtrado)
     valor_total = df_filtrado["valor_proposta"].sum()
@@ -660,17 +680,12 @@ def modal_leads_status(df_modal, label, cor, atendentes=None):
         f"<div style='margin-bottom:4px;'>"
         f"<span style='color:{cor};font-size:18px;font-weight:700;'>{label}</span>"
         f"&nbsp;&nbsp;<span style='color:#7a9cc7;font-size:13px;'>"
-        f"{total} lead{'s' if total != 1 else ''}</span></div>",
+        f"{total} lead{'s' if total != 1 else ''}</span>"
+        f"&nbsp;·&nbsp;<span style='color:#7a9cc7;font-size:13px;'>"
+        f"Carteira: <strong style='color:{cor};'>{fmt_brl(valor_total)}</strong></span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
-
-    if valor_total > 0:
-        st.markdown(
-            f"<div style='color:#7a9cc7;font-size:13px;margin-bottom:12px;'>"
-            f"Valor total em carteira: "
-            f"<strong style='color:{cor};'>{fmt_brl(valor_total)}</strong></div>",
-            unsafe_allow_html=True,
-        )
 
     df_show = df_filtrado[["nome", "status", "origem", "atendente", "valor_proposta", "criado_em", "atualizado_em"]].copy()
     df_show["_sort"] = pd.to_datetime(df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce")
@@ -1468,6 +1483,9 @@ with col_btn:
         fetch_leads_hoje.clear()
         with st.spinner("Atualizando dados..."):
             df_funil_novo, _ = merge_leads_longo()
+            merge_leads_curto()
+            fetch_leads_criticos()
+            fetch_leads_hoje()
         st.session_state["df_funil"] = df_funil_novo
         st.rerun()
 
@@ -1554,7 +1572,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
     _REMAP_SDR   = {
         "anny":        "O2 Solution",
         "emilly":      "O2 Solution",
-        "o2 solution": "O2 Solution",  # canonicaliza qualquer capitalização
+        "o2 solution": "O2 Solution",
     }
     df_sdr = df.copy()
     df_sdr["origem"] = df_sdr["origem"].apply(
@@ -1562,51 +1580,47 @@ def render_visao_geral(df_todos: pd.DataFrame):
     )
     df_sdr = df_sdr[df_sdr["origem"].str.lower().str.strip().isin(_ORIGENS_SDR)]
 
-    total_sdr    = len(df_sdr)
-    vendas_sdr   = int((df_sdr["status"] == "Venda Realizada").sum())
-    proposta_sdr = int((df_sdr["status"] == "Proposta Enviada").sum())
-    agendado_sdr = int((df_sdr["status"] == "Agendado").sum())
-    primeiro_sdr = int((df_sdr["status"] == "Pendente").sum())
+    _ops_sdr = sorted(df_sdr["origem"].dropna().unique().tolist())
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        linhas_total = linhas_por_operador(df_sdr, None, "#4f8ef7")
+    _sdr_cols = st.columns(5)
+
+    # Card 1 – Total de Leads
+    with _sdr_cols[0]:
+        _linhas = linhas_por_operador(df_sdr, None, "#4f8ef7")
         st.markdown(f"""
         <div class="card-total" style="display:flex;gap:16px;align-items:flex-start;">
             <div style="min-width:90px;">
                 <span class="card-icone">📋</span>
-                <div class="card-valor" style="color:#4f8ef7;">{total_sdr}</div>
+                <div class="card-valor" style="color:#4f8ef7;">{len(df_sdr)}</div>
                 <div class="card-label">Total de Leads</div>
             </div>
             <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
                 <div style="color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;
                             letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
-                {linhas_total}
+                {_linhas}
             </div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("🔍 Ver leads", key="btn_total", use_container_width=True):
-            modal_leads_status(df_sdr, "Total de Leads", "#4f8ef7")
-    with c2:
-        render_card("👋", primeiro_sdr, "Pendente", "#4f8ef7", df=df_sdr, status_filtro="Pendente")
-        if st.button("🔍 Ver leads", key="btn_prim", use_container_width=True):
-            modal_leads_status(df_sdr[df_sdr["status"] == "Pendente"], "Pendente", "#4f8ef7")
-    with c3:
-        render_card("📅", agendado_sdr, "Agendado", "#f59e0b", df=df_sdr, status_filtro="Agendado")
-        if st.button("🔍 Ver leads", key="btn_agend", use_container_width=True):
-            modal_leads_status(df_sdr[df_sdr["status"] == "Agendado"], "Agendado", "#f59e0b")
-    with c4:
-        render_card("📄", proposta_sdr, "Proposta Enviada", "#8b5cf6", df=df_sdr, status_filtro="Proposta Enviada")
-        if st.button("🔍 Ver leads", key="btn_proposta", use_container_width=True):
-            modal_leads_status(df_sdr[df_sdr["status"] == "Proposta Enviada"], "Proposta Enviada", "#8b5cf6")
-    with c5:
-        render_card("✅", vendas_sdr, "Venda Realizada", "#22c55e", df=df_sdr, status_filtro="Venda Realizada")
-        if st.button("🔍 Ver leads", key="btn_venda", use_container_width=True):
-            modal_leads_status(df_sdr[df_sdr["status"] == "Venda Realizada"], "Venda Realizada", "#22c55e")
+            modal_leads_status(df_sdr, "Total de Leads", "#4f8ef7", operadores=_ops_sdr)
+
+    # Cards 2-5 – status fixos
+    _sdr_static = [
+        ("btn_prim",     "Pendente",         "👋", "#4f8ef7"),
+        ("btn_agend",    "Agendado",          "📅", "#f59e0b"),
+        ("btn_proposta", "Proposta Enviada",  "📄", "#8b5cf6"),
+        ("btn_venda",    "Venda Realizada",   "✅", "#22c55e"),
+    ]
+    for _i, (_btn_key, _status, _icone, _cor) in enumerate(_sdr_static):
+        _df_card = df_sdr[df_sdr["status"] == _status]
+        with _sdr_cols[_i + 1]:
+            render_card(_icone, len(_df_card), _status, _cor, df=_df_card, status_filtro=None)
+            if st.button("🔍 Ver leads", key=_btn_key, use_container_width=True):
+                modal_leads_status(_df_card, _status, _cor, operadores=_ops_sdr)
 
     st.markdown("---")
-    st.markdown("#### 👩 Acompanhamento · Giovanna & Rayanna")
+    st.markdown("#### 💰 Visão geral · Equipe Comercial")
 
     _ATENDENTES = ["Giovanna", "Rayanna"]
     # Usa os 80 dias do Funil (session_state["df_funil"]) quando disponível,
@@ -1626,7 +1640,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
         total_at = len(df_at)
         st.markdown(f"""
         <div class="card-status" style="text-align:center;padding:24px 12px;height:100%;">
-            <div style="font-size:32px;margin-bottom:4px;">👥</div>
+            <div style="font-size:32px;margin-bottom:4px;">🤝</div>
             <div style="font-size:40px;font-weight:700;color:#4f8ef7;line-height:1;">{total_at}</div>
             <div style="color:#7a9cc7;font-size:12px;font-weight:600;text-transform:uppercase;
                         letter-spacing:.7px;margin-top:6px;">Total de Leads</div>
@@ -1753,7 +1767,12 @@ def render_operadores(df_todos: pd.DataFrame):
             fetch_leads_80dias.clear()
             fetch_leads_criticos.clear()
             fetch_leads_hoje.clear()
-            st.session_state.pop("df_funil", None)
+            with st.spinner("Atualizando dados..."):
+                df_funil_novo, _ = merge_leads_longo()
+                merge_leads_curto()
+                fetch_leads_criticos()
+                fetch_leads_hoje()
+            st.session_state["df_funil"] = df_funil_novo
             st.rerun()
     origens_op_disp = sorted(df_todos["origem"].dropna().unique().tolist())
     op1, op2, _ = st.columns([3, 2, 3])
@@ -2000,7 +2019,12 @@ def render_detalhamento(df_todos: pd.DataFrame):
             fetch_leads_80dias.clear()
             fetch_leads_criticos.clear()
             fetch_leads_hoje.clear()
-            st.session_state.pop("df_funil", None)
+            with st.spinner("Atualizando dados..."):
+                df_funil_novo, _ = merge_leads_longo()
+                merge_leads_curto()
+                fetch_leads_criticos()
+                fetch_leads_hoje()
+            st.session_state["df_funil"] = df_funil_novo
             st.rerun()
 
     st.markdown("---")
@@ -2221,8 +2245,16 @@ def render_crm():
     with crm_btn_col:
         if st.button("🔄 Atualizar", key="crm_refresh", use_container_width=True):
             fetch_leads_30dias.clear()
-            with st.spinner("Atualizando..."):
-                df_todos, _ = merge_leads_curto()
+            fetch_leads_80dias.clear()
+            fetch_leads_criticos.clear()
+            fetch_leads_hoje.clear()
+            with st.spinner("Atualizando dados..."):
+                df_funil_novo, _ = merge_leads_longo()
+                merge_leads_curto()
+                fetch_leads_criticos()
+                fetch_leads_hoje()
+            st.session_state["df_funil"] = df_funil_novo
+            st.rerun(scope="fragment")
 
     aliases = load_base_aliases()
     df_todos = apply_base_aliases(df_todos, aliases)
@@ -2570,6 +2602,34 @@ def render_crm():
                         f"ticket: {_ticket_f.replace('$', r'\$')}"
                     )
                     with st.expander(exp_label, expanded=False):
+                        # percepção desta base
+                        _df_b_exp = df_hist_filtrado[df_hist_filtrado["base"] == row["base"]]
+                        _perc_cfg = [
+                            ("🔥", "Quente",        "#ef4444", "🔥 Quente"),
+                            ("🌡️", "Morno",         "#f97316", "🌡️ Morno"),
+                            ("🧊", "Frio",          "#4f8ef7", "🧊 Frio"),
+                            ("❓", "Sem percepção", "#475569", None),
+                        ]
+                        _perc_counts = _df_b_exp["perception"].value_counts()
+                        _badges = ""
+                        for _emoji, _label_p, _cor_p, _key_p in _perc_cfg:
+                            if _key_p:
+                                _cnt = int(_perc_counts.get(_key_p, 0))
+                            else:
+                                _cnt = int(len(_df_b_exp) - sum(
+                                    _perc_counts.get(k, 0)
+                                    for k in ["🔥 Quente", "🌡️ Morno", "🧊 Frio"]
+                                ))
+                            _badges += (
+                                f'<div style="background:#0d1f38;border:1px solid {_cor_p}44;'
+                                f'border-radius:10px;padding:10px 18px;text-align:center;min-width:90px;">'
+                                f'<div style="font-size:20px;line-height:1;">{_emoji}</div>'
+                                f'<div style="font-size:26px;font-weight:700;color:{_cor_p};line-height:1.2;">{_cnt}</div>'
+                                f'<div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;'
+                                f'letter-spacing:.6px;margin-top:3px;">{_label_p}</div>'
+                                f'</div>'
+                            )
+
                         st.markdown(f"""
                         <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
                           <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
@@ -2618,8 +2678,15 @@ def render_crm():
                         </div>
                         """, unsafe_allow_html=True)
 
+                        st.markdown(
+                            f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">'
+                            f'{_badges}'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+
                         st.markdown("##### 📋 Leads desta base")
-                        df_leads_base = df_hist_filtrado[df_hist_filtrado["base"] == row["base"]].copy()
+                        df_leads_base = _df_b_exp.copy()
                         df_leads_base = df_leads_base.sort_values("data_obj", ascending=False).reset_index(drop=True)
                         _cols_base = {
                             "criado_em":      "Data Captação",
