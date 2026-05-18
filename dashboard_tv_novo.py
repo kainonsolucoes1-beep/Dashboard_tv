@@ -556,7 +556,21 @@ def save_base_aliases(aliases: dict):
 def apply_base_aliases(df: pd.DataFrame, aliases: dict) -> pd.DataFrame:
     if aliases and "base" in df.columns:
         df = df.copy()
-        df["base"] = df["base"].apply(lambda b: aliases.get(b, b) if b else b)
+        # normaliza chaves para busca case-insensitive e sem espaços
+        aliases_norm = {k.strip().lower(): v for k, v in aliases.items()}
+        def _lookup(b):
+            if not b:
+                return b
+            if b in aliases:
+                return aliases[b]
+            return aliases_norm.get(b.strip().lower(), b)
+        # aplica em múltiplos passes para resolver encadeamentos
+        # (ex: "SulAmerica"→"Base SulAmerica"→"Nome Final")
+        for _ in range(5):
+            antes = df["base"].copy()
+            df["base"] = df["base"].apply(_lookup)
+            if df["base"].equals(antes):
+                break
     return df
 
 
@@ -630,10 +644,11 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
 
 
 @st.dialog("Detalhamento de Leads", width="large")
-def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None):
+def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None, show_perception=False):
     """
     atendentes: lista de nomes para filtro por atendente (ex: ["Giovanna", "Rayanna"]).
     operadores: lista de nomes para filtro por origem/operador (ex: SDR).
+    show_perception: exibe coluna Temperatura (morno/frio) e filtro correspondente.
     """
     if df_modal.empty:
         st.info("Nenhum lead encontrado.")
@@ -641,7 +656,10 @@ def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None):
 
     df_filtrado = df_modal.copy()
 
-    _fcol1, _fcol2 = st.columns([3, 2])
+    if show_perception:
+        _fcol1, _fcol2, _fcol3 = st.columns([3, 2, 2])
+    else:
+        _fcol1, _fcol2 = st.columns([3, 2])
 
     with _fcol1:
         if atendentes:
@@ -673,6 +691,13 @@ def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None):
         if _status_sel != "Todos":
             df_filtrado = df_filtrado[df_filtrado["status"] == _status_sel]
 
+    if show_perception:
+        with _fcol3:
+            _temp_opts = ["Todos", "🌡️ Morno", "🧊 Frio"]
+            _temp_sel = st.selectbox("🌡️ Temperatura", options=_temp_opts, key="modal_filtro_temp")
+            if _temp_sel != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["perception"] == _temp_sel]
+
     total       = len(df_filtrado)
     valor_total = df_filtrado["valor_proposta"].sum()
 
@@ -687,18 +712,26 @@ def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None):
         unsafe_allow_html=True,
     )
 
-    df_show = df_filtrado[["nome", "status", "origem", "atendente", "valor_proposta", "criado_em", "atualizado_em"]].copy()
+    if show_perception:
+        _cols = ["nome", "status", "origem", "atendente", "perception", "valor_proposta", "criado_em", "atualizado_em"]
+        _rename = {
+            "nome": "Nome", "status": "Status", "origem": "Operador",
+            "atendente": "Atendente", "perception": "Temperatura",
+            "valor_proposta": "Valor (R$)", "criado_em": "Cadastrado em",
+            "atualizado_em": "Última Atualização",
+        }
+    else:
+        _cols = ["nome", "status", "origem", "atendente", "valor_proposta", "criado_em", "atualizado_em"]
+        _rename = {
+            "nome": "Nome", "status": "Status", "origem": "Operador",
+            "atendente": "Atendente", "valor_proposta": "Valor (R$)",
+            "criado_em": "Cadastrado em", "atualizado_em": "Última Atualização",
+        }
+
+    df_show = df_filtrado[_cols].copy()
     df_show["_sort"] = pd.to_datetime(df_show["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce")
     df_show = df_show.sort_values("_sort", ascending=False).drop(columns="_sort").reset_index(drop=True)
-    df_show = df_show.rename(columns={
-        "nome":           "Nome",
-        "status":         "Status",
-        "origem":         "Operador",
-        "atendente":      "Atendente",
-        "valor_proposta": "Valor (R$)",
-        "criado_em":      "Cadastrado em",
-        "atualizado_em":  "Última Atualização",
-    })
+    df_show = df_show.rename(columns=_rename)
     df_show["Valor (R$)"] = df_show["Valor (R$)"].apply(
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
@@ -1509,13 +1542,14 @@ if df_todos.empty:
     st.stop()
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm = st.tabs([
+aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
     "📊 Visão Geral",
     "🔥 Funil de Vendas",
     "👤 Por Operador",
     "📆 Detalhamento por Dia",
     "📋 Leads Recentes",
     "🗂️ CRM",
+    "🚦 Estágio do Lead",
 ])
 
 
@@ -1634,10 +1668,12 @@ def render_visao_geral(df_todos: pd.DataFrame):
         lambda x: any(n.lower() in str(x).lower() for n in _ATENDENTES) if pd.notna(x) else False
     )]
 
+    _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
+
     a1, a2, a3, a4 = st.columns([1, 2, 2, 2])
 
     with a1:
-        total_at = len(df_at)
+        total_at = len(df_at[~df_at["status"].isin(_STATUS_ENCERRADOS)])
         st.markdown(f"""
         <div class="card-status" style="text-align:center;padding:24px 12px;height:100%;">
             <div style="font-size:32px;margin-bottom:4px;">🤝</div>
@@ -1647,8 +1683,6 @@ def render_visao_geral(df_todos: pd.DataFrame):
             <div style="color:#7a9cc7;font-size:11px;margin-top:4px;">Giovanna + Rayanna</div>
         </div>
         """, unsafe_allow_html=True)
-
-    _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
 
     # Dataframes combinados (Giovanna + Rayanna) para cada card
     df_pote_all    = df_at[
@@ -1661,85 +1695,83 @@ def render_visao_geral(df_todos: pd.DataFrame):
     ]
     df_vendas_all  = df_at[df_at["status"] == "Venda Realizada"]
 
+    def _bloco_atendente(df_sub, nome, qtd_cor, qtd_label, dir_label, dir_cor, separador=True):
+        borda_sep = "border-bottom:1px solid #152a4a;margin-bottom:16px;padding-bottom:16px;" if separador else ""
+        return (
+            f'<div style="{borda_sep}padding-top:2px;">'
+            f'<div style="font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;'
+            f'letter-spacing:.6px;margin-bottom:10px;">{nome}</div>'
+            '<div style="display:flex;gap:16px;align-items:flex-start;">'
+            f'<div style="min-width:72px;">'
+            f'<div style="font-size:40px;font-weight:700;color:{qtd_cor};line-height:1;">{len(df_sub)}</div>'
+            f'<div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">{qtd_label}</div>'
+            '</div>'
+            '<div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>'
+            '<div style="flex:1;min-width:0;padding-top:4px;padding-left:12px;">'
+            f'<div style="font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">{dir_label}</div>'
+            f'<div style="font-size:22px;font-weight:700;color:{dir_cor};line-height:1;">{fmt_brl(df_sub["valor_proposta"].sum())}</div>'
+            '</div>'
+            '</div></div>'
+        )
+
     with a2:
-        linhas_pote = ""
-        for i, nome in enumerate(_ATENDENTES):
-            df_p = df_pote_all[df_pote_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
-            linhas_pote += (
-                f'<div style="{borda}">'
-                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
-                '<div style="display:flex;gap:28px;">'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
-                f'<div style="font-size:30px;font-weight:700;color:#8b5cf6;line-height:1.1;">{len(df_p)}</div></div>'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
-                f'<div style="font-size:24px;font-weight:700;color:#f59e0b;line-height:1.1;">{fmt_brl(df_p["valor_proposta"].sum())}</div></div>'
-                '</div></div>'
+        linhas_pote = "".join(
+            _bloco_atendente(
+                df_pote_all[df_pote_all["atendente"].str.contains(n, case=False, na=False)],
+                n, "#8b5cf6", "leads", "Carteira", "#f59e0b",
+                separador=(i < len(_ATENDENTES) - 1),
             )
+            for i, n in enumerate(_ATENDENTES)
+        )
         st.markdown(
             '<div class="card-status">'
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
             '<span style="font-size:20px;">💰</span>'
             '<span style="color:#8b5cf6;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pote da Ganância</span>'
             '</div>'
-            f'{linhas_pote}'
-            '</div>',
+            f'{linhas_pote}</div>',
             unsafe_allow_html=True,
         )
         if st.button("🔍 Ver leads", key="btn_acomp_pote", use_container_width=True):
-            modal_leads_status(df_pote_all, "Pote da Ganância", "#8b5cf6", atendentes=_ATENDENTES)
+            modal_leads_status(df_pote_all, "Pote da Ganância", "#8b5cf6", atendentes=_ATENDENTES, show_perception=True)
 
     with a3:
-        linhas_esteira = ""
-        for i, nome in enumerate(_ATENDENTES):
-            df_e = df_esteira_all[df_esteira_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
-            linhas_esteira += (
-                f'<div style="{borda}">'
-                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
-                '<div style="display:flex;gap:28px;">'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Leads</div>'
-                f'<div style="font-size:30px;font-weight:700;color:#ef4444;line-height:1.1;">{len(df_e)}</div></div>'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Carteira</div>'
-                f'<div style="font-size:24px;font-weight:700;color:#f59e0b;line-height:1.1;">{fmt_brl(df_e["valor_proposta"].sum())}</div></div>'
-                '</div></div>'
+        linhas_esteira = "".join(
+            _bloco_atendente(
+                df_esteira_all[df_esteira_all["atendente"].str.contains(n, case=False, na=False)],
+                n, "#ef4444", "leads", "Carteira", "#f59e0b",
+                separador=(i < len(_ATENDENTES) - 1),
             )
+            for i, n in enumerate(_ATENDENTES)
+        )
         st.markdown(
             '<div class="card-status">'
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
             '<span style="font-size:20px;">🔥</span>'
             '<span style="color:#ef4444;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Propostas em Esteira</span>'
             '</div>'
-            f'{linhas_esteira}'
-            '</div>',
+            f'{linhas_esteira}</div>',
             unsafe_allow_html=True,
         )
         if st.button("🔍 Ver leads", key="btn_acomp_esteira", use_container_width=True):
             modal_leads_status(df_esteira_all, "Propostas em Esteira", "#ef4444", atendentes=_ATENDENTES)
 
     with a4:
-        linhas_vendas = ""
-        for i, nome in enumerate(_ATENDENTES):
-            df_v = df_vendas_all[df_vendas_all["atendente"].str.contains(nome, case=False, na=False)]
-            borda = "border-bottom:1px solid #152a4a;margin-bottom:14px;padding-bottom:14px;" if i < len(_ATENDENTES) - 1 else ""
-            linhas_vendas += (
-                f'<div style="{borda}">'
-                f'<div style="font-size:17px;font-weight:700;color:#e8eef8;margin-bottom:8px;">{nome}</div>'
-                '<div style="display:flex;gap:28px;">'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Vendas</div>'
-                f'<div style="font-size:30px;font-weight:700;color:#22c55e;line-height:1.1;">{len(df_v)}</div></div>'
-                '<div><div style="font-size:13px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;">Valor</div>'
-                f'<div style="font-size:24px;font-weight:700;color:#22c55e;line-height:1.1;">{fmt_brl(df_v["valor_proposta"].sum())}</div></div>'
-                '</div></div>'
+        linhas_vendas = "".join(
+            _bloco_atendente(
+                df_vendas_all[df_vendas_all["atendente"].str.contains(n, case=False, na=False)],
+                n, "#22c55e", "vendas", "Valor", "#22c55e",
+                separador=(i < len(_ATENDENTES) - 1),
             )
+            for i, n in enumerate(_ATENDENTES)
+        )
         st.markdown(
             '<div class="card-status">'
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
             '<span style="font-size:20px;">✅</span>'
             '<span style="color:#22c55e;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Vendas Realizadas</span>'
             '</div>'
-            f'{linhas_vendas}'
-            '</div>',
+            f'{linhas_vendas}</div>',
             unsafe_allow_html=True,
         )
         if st.button("🔍 Ver leads", key="btn_acomp_vendas", use_container_width=True):
@@ -2257,6 +2289,7 @@ def render_crm():
             st.rerun(scope="fragment")
 
     aliases = load_base_aliases()
+    df_todos_raw = df_todos.copy()  # nomes brutos da API, antes dos aliases
     df_todos = apply_base_aliases(df_todos, aliases)
 
     has_base = "base" in df_todos.columns
@@ -2750,23 +2783,30 @@ def render_crm():
         aliases_atuais = load_base_aliases()
 
         # ── Adicionar novo alias ───────────────────────────────────────────────
-        st.markdown("#### ➕ Adicionar Correção")
+        st.markdown("#### ➕ Agrupar Variações sob um Nome Único")
+        st.markdown(
+            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+            "Selecione <strong>todas</strong> as variações do mesmo nome e defina o nome final. "
+            "Isso garante que datas antigas também exibam o nome correto."
+            "</p>",
+            unsafe_allow_html=True
+        )
+        # nomes brutos da API (antes dos aliases) para cobrir variações antigas
         bases_existentes = sorted(
-            df_todos[df_todos["base"].notna() & (df_todos["base"] != "")]["base"].unique().tolist()
+            df_todos_raw[df_todos_raw["base"].notna() & (df_todos_raw["base"] != "")]["base"].unique().tolist()
         ) if has_base else []
 
         with st.form("form_add_alias", border=False):
-            col_de, col_para, col_btn_a = st.columns([3, 3, 1])
-            with col_de:
-                base_de = st.selectbox(
-                    "Nome original (como foi digitado)",
-                    options=[""] + bases_existentes,
-                    key="alias_de"
-                )
+            bases_de = st.multiselect(
+                "Variações a unificar (selecione uma ou mais)",
+                options=bases_existentes,
+                key="alias_de"
+            )
+            col_para, col_btn_a = st.columns([4, 1])
             with col_para:
                 base_para = st.text_input(
-                    "Corrigir para",
-                    placeholder="Ex: BASE AMIL",
+                    "Nome final (como deve aparecer em todo o histórico)",
+                    placeholder="Ex: Base SulAmérica",
                     key="alias_para"
                 )
             with col_btn_a:
@@ -2775,16 +2815,20 @@ def render_crm():
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if salvar:
-                if not base_de:
-                    st.warning("Selecione o nome original.")
+                if not bases_de:
+                    st.warning("Selecione ao menos uma variação.")
                 elif not base_para.strip():
-                    st.warning("Preencha o nome corrigido.")
-                elif base_de == base_para.strip():
-                    st.warning("O nome original e o corrigido são iguais.")
+                    st.warning("Preencha o nome final.")
+                elif bases_de == [base_para.strip()]:
+                    st.warning("O nome selecionado e o nome final são iguais.")
                 else:
-                    aliases_atuais[base_de] = base_para.strip()
+                    nome_final = base_para.strip()
+                    for variacao in bases_de:
+                        if variacao != nome_final:
+                            aliases_atuais[variacao] = nome_final
                     save_base_aliases(aliases_atuais)
-                    st.success(f'"{base_de}" → "{base_para.strip()}" salvo.')
+                    nomes_str = ", ".join(f'"{v}"' for v in bases_de)
+                    st.success(f'{nomes_str} → "{nome_final}" salvo(s).')
                     st.rerun(scope="fragment")
 
         st.markdown("---")
@@ -2821,6 +2865,266 @@ def render_crm():
                         save_base_aliases(aliases_atuais)
                         st.rerun(scope="fragment")
 
+        # ── Nomes sem mapeamento ───────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### ⚠️ Nomes Sem Mapeamento")
+        st.markdown(
+            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+            "Variações encontradas nos dados que ainda não têm correção definida. "
+            "Estes nomes podem aparecer no histórico quando você recua o filtro de data."
+            "</p>",
+            unsafe_allow_html=True
+        )
+        if has_base:
+            nomes_brutos = set(
+                df_todos_raw[df_todos_raw["base"].notna() & (df_todos_raw["base"] != "")]["base"].unique()
+            )
+            sem_mapa = sorted(nomes_brutos - set(aliases_atuais.keys()))
+            if sem_mapa:
+                for nome in sem_mapa:
+                    st.markdown(
+                        f"<div style='background:#1a1a2e;border:1px solid #3a2a0a;border-radius:8px;"
+                        f"padding:8px 12px;color:#f59e0b;font-size:13px;font-weight:600;margin-bottom:6px;'>"
+                        f"{nome}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.success("Todos os nomes encontrados nos dados têm mapeamento.")
+        else:
+            st.info("Nenhum dado de base disponível.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA — ESTÁGIO DO LEAD
+# ══════════════════════════════════════════════════════════════════════════════
+@st.fragment
+def render_estagio_lead():
+    df_todos, _ = merge_leads_curto()
+    if df_todos.empty:
+        st.info("Nenhum dado disponível.")
+        return
+
+    # ── Filtros ───────────────────────────────────────────────────────────────
+    origens_disp    = sorted(df_todos["origem"].dropna().unique().tolist())
+    atendentes_disp = sorted(df_todos["atendente"].dropna().unique().tolist())
+
+    # Lê valores atuais do session_state (persistem mesmo com expander fechado)
+    _default_de = date.today() - timedelta(days=30)
+    _default_ate = date.today()
+    sel_origem = st.session_state.get("est_origem", [])
+    sel_atend  = st.session_state.get("est_atend", [])
+    est_de     = st.session_state.get("est_de", _default_de)
+    est_ate    = st.session_state.get("est_ate", _default_ate)
+
+    with st.expander("🔍 Filtros — Origem/SDR · Atendente · Período", expanded=False):
+        with st.form("filtros_estagio", border=False):
+            fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 1.5, 1.5, 1])
+            with fc1:
+                sel_origem = st.multiselect(
+                    "🎯 Origem/SDR", options=origens_disp, default=sel_origem, key="est_origem"
+                )
+            with fc2:
+                sel_atend = st.multiselect(
+                    "🎧 Atendente", options=atendentes_disp, default=sel_atend, key="est_atend"
+                )
+            with fc3:
+                est_de = st.date_input(
+                    "📅 De", value=est_de, format="DD/MM/YYYY", key="est_de"
+                )
+            with fc4:
+                est_ate = st.date_input(
+                    "📅 Até", value=est_ate, format="DD/MM/YYYY", key="est_ate"
+                )
+            with fc5:
+                st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            if submitted:
+                sel_origem = st.session_state.get("est_origem", [])
+                sel_atend  = st.session_state.get("est_atend", [])
+                est_de     = st.session_state.get("est_de", _default_de)
+                est_ate    = st.session_state.get("est_ate", _default_ate)
+
+    df = df_todos.copy()
+    df = df[df["data_obj"].apply(lambda d: d is not None and est_de <= d <= est_ate)]
+    if sel_origem:
+        df = df[df["origem"].isin(sel_origem)]
+    if sel_atend:
+        df = df[df["atendente"].isin(sel_atend)]
+
+    if df.empty:
+        st.info("Nenhum lead no período/filtro selecionado.")
+        return
+
+    # ── Dias no status (criação → atualização) ────────────────────────────────
+    def _dias_entre(criado, atualizado):
+        try:
+            fmt = "%d/%m/%Y %H:%M"
+            diff = (datetime.strptime(atualizado, fmt) - datetime.strptime(criado, fmt)).total_seconds() / 86400
+            return max(round(diff, 1), 0)
+        except Exception:
+            return None
+
+    df = df.copy()
+    df["dias_no_status"] = df.apply(
+        lambda r: _dias_entre(r["criado_em"], r["atualizado_em"])
+        if r["criado_em"] and r["atualizado_em"] else None, axis=1,
+    )
+
+    # pipeline: (label, cor_hex, bg_escuro)
+    PIPELINE = [
+        ("Pendente",         "#4f8ef7", "#0c1c30"),
+        ("Agendado",         "#f59e0b", "#1c1400"),
+        ("Proposta Enviada", "#8b5cf6", "#130c25"),
+        ("Venda Realizada",  "#22c55e", "#0a1c10"),
+    ]
+    LOST = ("Venda não Realizada", "#ef4444", "#1c0a0a")
+    TODOS_STAGES = PIPELINE + [LOST]
+    STATUS_COR   = {s: c for s, c, _ in TODOS_STAGES}
+
+    total     = len(df)
+    vendas    = int((df["status"] == "Venda Realizada").sum())
+    conv_pct  = round(vendas / total * 100, 1) if total else 0
+    ciclo_med = df["dias_no_status"].dropna().mean()
+    ciclo_str = f"{ciclo_med:.1f}" if not pd.isna(ciclo_med) else "—"
+
+    # ── Métricas ──────────────────────────────────────────────────────────────
+    m1, m2, m3, m4 = st.columns(4)
+    for col, val, label in [
+        (m1, total,          "Total de leads"),
+        (m2, vendas,         "Vendas realizadas"),
+        (m3, f"{conv_pct}%", "Taxa de conversão"),
+        (m4, ciclo_str,      "Ciclo médio (dias)"),
+    ]:
+        with col:
+            st.markdown(
+                f"<div style='background:var(--bg-card);border:1px solid var(--border);"
+                f"border-radius:12px;padding:22px 18px;text-align:center;'>"
+                f"<div style='color:#7a9cc7;font-size:11px;font-weight:600;"
+                f"text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;'>{label}</div>"
+                f"<div style='color:#e8eef8;font-size:38px;font-weight:700;line-height:1;'>{val}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+    # ── Pipeline cards ────────────────────────────────────────────────────────
+    def _pipe_card(status, cor, bg, dashed=False):
+        sub     = df[df["status"] == status]
+        qtd     = len(sub)
+        med_val = sub["dias_no_status"].dropna().mean()
+        med_str = f"{med_val:.1f}d" if qtd and not pd.isna(med_val) else "—"
+        bar_pct = min(int(qtd / total * 100), 100) if total else 0
+        border  = f"1.5px dashed {cor}55" if dashed else f"1px solid {cor}44"
+        return (
+            f"<div style='background:{bg};border:{border};border-radius:14px;"
+            f"padding:26px 16px 22px;text-align:center;height:100%;box-sizing:border-box;'>"
+            f"<div style='width:30px;height:30px;border:2px solid {cor}88;border-radius:7px;"
+            f"margin:0 auto 14px;display:flex;align-items:center;justify-content:center;'>"
+            f"<div style='width:12px;height:12px;background:{cor};border-radius:3px;'></div></div>"
+            f"<div style='color:{cor};font-size:16px;font-weight:700;margin-bottom:14px;"
+            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{status}</div>"
+            f"<div style='color:#e8eef8;font-size:46px;font-weight:800;line-height:1;"
+            f"margin-bottom:8px;'>{qtd}</div>"
+            f"<div style='color:#7a9cc7;font-size:13px;margin-bottom:16px;'>média {med_str}</div>"
+            f"<div style='background:#152a4a;border-radius:99px;height:5px;overflow:hidden;'>"
+            f"<div style='background:{cor};width:{bar_pct}%;height:100%;border-radius:99px;'></div></div>"
+            f"</div>"
+        )
+
+    def _arrow_svg(cor):
+        return (
+            f"<div style='display:flex;align-items:center;justify-content:center;"
+            f"height:100%;padding:0 2px;'>"
+            f"<svg width='20' height='20' viewBox='0 0 24 24'>"
+            f"<path d='M8 4 L18 12 L8 20 Z' fill='{cor}'/></svg></div>"
+        )
+
+    # col widths: 4 cards, 3 arrows, 1 gap, 1 lost card
+    widths = [3, 0.3, 3, 0.3, 3, 0.3, 3, 0.25, 2.4]
+    pcols  = st.columns(widths)
+
+    for i, (status, cor, bg) in enumerate(PIPELINE):
+        with pcols[i * 2]:
+            st.markdown(_pipe_card(status, cor, bg), unsafe_allow_html=True)
+        if i < len(PIPELINE) - 1:
+            next_cor = PIPELINE[i + 1][1]
+            with pcols[i * 2 + 1]:
+                st.markdown(_arrow_svg(next_cor), unsafe_allow_html=True)
+
+    lost_s, lost_c, lost_bg = LOST
+    with pcols[8]:
+        st.markdown(_pipe_card(lost_s, lost_c, lost_bg, dashed=True), unsafe_allow_html=True)
+
+    st.markdown("<div style='height:36px'></div>", unsafe_allow_html=True)
+
+    # ── Leads por estágio (menus suspensos) ───────────────────────────────────
+    AVATAR_BG  = ["#0e2040","#0c2818","#28100e","#180e28","#281e0e","#0e2828"]
+    AVATAR_COR = ["#4f8ef7","#22c55e","#ef4444","#8b5cf6","#f59e0b","#22c5c5"]
+    STAGE_EMOJI = {
+        "Pendente":            "🔵",
+        "Agendado":            "🟡",
+        "Proposta Enviada":    "🟣",
+        "Venda Realizada":     "🟢",
+        "Venda não Realizada": "🔴",
+    }
+
+    st.markdown(
+        "<div style='color:#7a9cc7;font-size:13px;font-weight:600;"
+        "text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;'>"
+        "Leads por estágio</div>",
+        unsafe_allow_html=True,
+    )
+
+    df_sorted = df.sort_values("data_obj", ascending=False).reset_index(drop=True)
+
+    for status, cor, bg in TODOS_STAGES:
+        df_stage = df_sorted[df_sorted["status"] == status].reset_index(drop=True)
+        qtd  = len(df_stage)
+        icon = STAGE_EMOJI.get(status, "●")
+        with st.expander(f"{icon}  {status}  —  {qtd} lead{'s' if qtd != 1 else ''}", expanded=False):
+            if qtd == 0:
+                st.info("Nenhum lead neste estágio.")
+            else:
+                cards_html = ""
+                for i, row in df_stage.iterrows():
+                    nome      = str(row.get("nome", "") or "").strip() or "—"
+                    palavras  = [p for p in nome.split() if p]
+                    initials  = (palavras[0][0] + (palavras[1][0] if len(palavras) > 1 else "")).upper()
+                    av_bg     = AVATAR_BG[i % len(AVATAR_BG)]
+                    av_cor    = AVATAR_COR[i % len(AVATAR_COR)]
+                    status_v  = str(row.get("status", "") or "—")
+                    badge_cor = STATUS_COR.get(status_v, "#7a9cc7")
+                    interesse = str(row.get("interesse", "") or row.get("base", "") or "").strip()
+                    if not interesse or interesse == "nan":
+                        interesse = str(row.get("atendente", "") or "").strip() or "—"
+                    dias     = row.get("dias_no_status")
+                    dias_str = f"{int(dias)}d total" if dias is not None and not pd.isna(dias) else "—"
+                    cards_html += (
+                        f"<div style='background:var(--bg-card);border:1px solid var(--border);"
+                        f"border-radius:12px;padding:14px 18px;display:flex;align-items:center;"
+                        f"gap:14px;margin-bottom:8px;'>"
+                        f"<div style='width:44px;height:44px;border-radius:50%;background:{av_bg};"
+                        f"border:1.5px solid {av_cor}55;display:flex;align-items:center;"
+                        f"justify-content:center;flex-shrink:0;'>"
+                        f"<span style='color:{av_cor};font-weight:700;font-size:13px;'>{initials}</span></div>"
+                        f"<div style='flex:1;min-width:0;'>"
+                        f"<div style='color:#e8eef8;font-weight:600;font-size:14px;"
+                        f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{nome}</div>"
+                        f"<div style='color:#7a9cc7;font-size:12px;margin-top:2px;"
+                        f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{interesse}</div>"
+                        f"</div>"
+                        f"<div style='background:{badge_cor}1a;border:1px solid {badge_cor}44;"
+                        f"border-radius:99px;padding:5px 14px;flex-shrink:0;'>"
+                        f"<span style='color:{badge_cor};font-size:12px;font-weight:600;"
+                        f"white-space:nowrap;'>{status_v}</span></div>"
+                        f"<div style='color:#7a9cc7;font-size:13px;min-width:58px;"
+                        f"text-align:right;flex-shrink:0;'>{dias_str}</div>"
+                        f"</div>"
+                    )
+                st.markdown(cards_html, unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ABAS
@@ -2846,6 +3150,9 @@ with aba_leads:
 
 with aba_crm:
     render_crm()
+
+with aba_estagio:
+    render_estagio_lead()
 
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
