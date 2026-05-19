@@ -655,9 +655,9 @@ def linhas_por_operador(df, status_filtro, cor):
     for _, row in ranking.iterrows():
         html += (
             '<div style="display:flex;justify-content:space-between;align-items:center;'
-            'padding:3px 0;border-bottom:1px solid #152a4a;">'
-            f'<span style="color:#e8eef8;font-size:12px;">👤 {row["origem"]}</span>'
-            f'<span style="color:{cor};font-weight:700;font-size:13px;">{row["qtd"]}</span>'
+            'padding:6px 0;border-bottom:1px solid var(--border);">'
+            f'<span style="color:var(--text-main);font-size:14px;font-weight:500;">👤 {row["origem"]}</span>'
+            f'<span style="color:{cor};font-weight:700;font-size:20px;line-height:1;">{row["qtd"]}</span>'
             '</div>'
         )
     return html
@@ -668,16 +668,16 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
     if df is not None:
         linhas = linhas_por_operador(df, status_filtro, cor)
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid {cor};display:flex;gap:16px;align-items:flex-start;">
-            <div style="min-width:90px;">
+        <div class="card-status" style="border-left:4px solid {cor};display:flex;gap:20px;align-items:flex-start;">
+            <div style="min-width:100px;">
                 <span class="card-icone">{icone}</span>
                 <div class="card-valor" style="color:{cor};">{valor}</div>
                 <div class="card-label">{label}</div>
             </div>
-            <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>
+            <div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
-                <div style="color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;
-                            letter-spacing:.6px;margin-bottom:6px;">Por Operador</div>
+                <div style="color:var(--text-sub);font-size:12px;font-weight:600;text-transform:uppercase;
+                            letter-spacing:.7px;margin-bottom:8px;">Por Operador</div>
                 {linhas}
             </div>
         </div>
@@ -1446,27 +1446,27 @@ def render_hoje_rt():
         for _, row in operadores_hoje.iterrows():
             linhas_op += (
                 '<div style="display:flex;justify-content:space-between;align-items:center;'
-                'padding:4px 0;border-bottom:1px solid #152a4a;">'
-                f'<span style="color:#e8eef8;font-size:16px;">👤 {row["origem"]}</span>'
-                f'<span style="color:#4f8ef7;font-weight:700;font-size:14px;">{row["qtd"]}</span>'
+                'padding:8px 0;border-bottom:1px solid var(--border);">'
+                f'<span style="color:var(--text-main);font-size:18px;font-weight:500;">👤 {row["origem"]}</span>'
+                f'<span style="color:#4f8ef7;font-weight:700;font-size:26px;line-height:1;">{row["qtd"]}</span>'
                 '</div>'
             )
         if not linhas_op:
-            linhas_op = '<span style="color:#7a9cc7;font-size:13px;">Nenhum lead hoje</span>'
+            linhas_op = '<span style="color:var(--text-sub);font-size:15px;">Nenhum lead hoje</span>'
 
         st.markdown(
-            '<div class="card-total" style="display:flex;gap:24px;align-items:flex-start;">'
-            '<div style="min-width:120px;">'
+            '<div class="card-total" style="display:flex;gap:28px;align-items:flex-start;">'
+            '<div style="min-width:130px;">'
             '<span class="card-icone">🌅</span>'
             f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
             '<div class="card-label">Leads Captados Hoje</div>'
-            f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};">{seta}</div>'
-            f'<div style="font-size:11px;color:#7a9cc7;margin-top:2px;">Ontem: {leads_ontem} leads</div>'
+            f'<div style="margin-top:10px;font-size:15px;font-weight:600;color:{cor_seta};">{seta}</div>'
+            f'<div style="font-size:13px;color:var(--text-sub);margin-top:4px;">Ontem: {leads_ontem} leads</div>'
             '</div>'
             '<div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>'
-            '<div style="flex:1;min-width:0;">'
-            '<div style="color:#7a9cc7;font-size:14px;font-weight:600;text-transform:uppercase;'
-            'letter-spacing:.6px;margin-bottom:8px;">Por Operador</div>'
+            '<div style="flex:1;min-width:0;padding-top:4px;">'
+            '<div style="color:var(--text-sub);font-size:12px;font-weight:600;text-transform:uppercase;'
+            'letter-spacing:.7px;margin-bottom:10px;">Por Operador</div>'
             + linhas_op +
             '</div></div>',
             unsafe_allow_html=True
