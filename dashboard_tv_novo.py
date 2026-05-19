@@ -151,6 +151,11 @@ def inject_css():
         position: relative;
         overflow: hidden;
         box-shadow: 0 4px 20px rgba(0,0,0,.25);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .card-status:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0,0,0,.4);
     }
     .card-status::before {
         content: '';
@@ -174,6 +179,11 @@ def inject_css():
         padding: 24px 28px;
         margin-bottom: 8px;
         box-shadow: 0 4px 20px rgba(0,0,0,.25);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .card-total:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0,0,0,.4);
     }
     .card-taxa {
         background: var(--bg-card);
@@ -182,6 +192,11 @@ def inject_css():
         padding: 24px 28px;
         margin-bottom: 8px;
         box-shadow: 0 4px 20px rgba(0,0,0,.25);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .card-taxa:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0,0,0,.4);
     }
 
     /* Card de atendente no funil */
@@ -192,6 +207,11 @@ def inject_css():
         padding: 24px 28px;
         margin-bottom: 12px;
         box-shadow: 0 4px 20px rgba(0,0,0,.25);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .card-atendente:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0,0,0,.4);
     }
     .atendente-nome {
         font-size: 18px;
@@ -254,18 +274,25 @@ def inject_css():
     [data-testid="stDataFrame"] {
         background: var(--bg-card) !important;
         border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
     }
     [data-testid="stDataFrame"] thead tr th {
         background: var(--bg-input) !important;
-        color: var(--text-main) !important;
+        color: var(--text-sub) !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: .6px !important;
     }
     [data-testid="stDataFrame"] tbody tr td {
         background: var(--bg-card) !important;
         color: var(--text-main) !important;
+        font-size: 13px !important;
     }
     [data-testid="stDataFrame"] tbody tr:hover td {
-        background: var(--bg-input) !important;
+        background: rgba(59,130,246,.04) !important;
+        transition: background .15s !important;
     }
 
     /* Botão */
@@ -307,7 +334,21 @@ def inject_css():
         color: var(--text-main) !important;
     }
 
-    hr { border-color: var(--border) !important; }
+    hr {
+        border: none !important;
+        border-top: 1px solid var(--border) !important;
+        opacity: 0.5 !important;
+        margin: 20px 0 !important;
+    }
+
+    /* Micro-animação de entrada nos cards */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .card-status { animation: fadeInUp .25s ease both; }
+    .card-total  { animation: fadeInUp .25s ease both; }
+    .card-taxa   { animation: fadeInUp .25s ease both; }
 
     .update-time {
         color: var(--text-sub);
@@ -754,14 +795,21 @@ def grafico_rosca(df):
     values = counts.values.tolist()
     colors = [CORES_STATUS.get(l, "#aaa") for l in labels]
     fig = go.Figure(go.Pie(
-        labels=labels, values=values, hole=0.55,
-        marker=dict(colors=colors, line=dict(color="#050b14", width=2)),
-        textinfo="label+percent",
-        textfont=dict(size=12, color="#e8eef8"),
+        labels=labels, values=values, hole=0.68,
+        marker=dict(colors=colors, line=dict(color="rgba(0,0,0,0)", width=0)),
+        textinfo="percent",
+        textfont=dict(size=11, color="#e8eef8"),
         hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
     ))
     fig.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10), showlegend=False, height=280,
+        margin=dict(t=10, b=10, l=10, r=10),
+        showlegend=True,
+        legend=dict(
+            orientation="v", x=1.02, y=0.5,
+            font=dict(color="#e8eef8", size=11),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        height=280,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     )
     return fig
@@ -885,15 +933,20 @@ def grafico_temperatura_pizza(df_atendente):
     cores  = [CORES_PERCEPTION.get(l, "#7a9cc7") for l in labels]
 
     fig = go.Figure(go.Pie(
-        labels=labels, values=values, hole=0.5,
-        marker=dict(colors=cores, line=dict(color="#050b14", width=2)),
-        textinfo="label+value+percent",
-        textfont=dict(size=12, color="#e8eef8"),
+        labels=labels, values=values, hole=0.65,
+        marker=dict(colors=cores, line=dict(color="rgba(0,0,0,0)", width=0)),
+        textinfo="percent",
+        textfont=dict(size=11, color="#e8eef8"),
         hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
     ))
     fig.update_layout(
         margin=dict(t=10, b=10, l=10, r=10),
-        showlegend=False,
+        showlegend=True,
+        legend=dict(
+            orientation="v", x=1.02, y=0.5,
+            font=dict(color="#e8eef8", size=11),
+            bgcolor="rgba(0,0,0,0)",
+        ),
         height=280,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -920,15 +973,15 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     if foto_uri:
         avatar_html = (
             f'<img src="{foto_uri}" style="'
-            f'width:64px;height:64px;border-radius:50%;'
+            f'width:96px;height:96px;border-radius:50%;'
             f'border:3px solid {cor_atendente};object-fit:cover;flex-shrink:0;">'
         )
     else:
         avatar_html = (
-            f'<div style="width:64px;height:64px;border-radius:50%;'
-            f'border:3px solid {cor_atendente};background:{cor_atendente}22;'
+            f'<div style="width:96px;height:96px;border-radius:50%;'
+            f'border:3px solid {cor_atendente};background:{cor_atendente}18;'
             f'display:flex;align-items:center;justify-content:center;'
-            f'font-size:22px;font-weight:700;color:{cor_atendente};flex-shrink:0;">'
+            f'font-size:32px;font-weight:700;color:{cor_atendente};flex-shrink:0;">'
             f'{iniciais}</div>'
         )
 
@@ -937,25 +990,27 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     <div style="
         background: var(--bg-card);
         border: 2px solid {cor_atendente};
-        border-radius: 16px;
-        padding: 16px 24px;
-        margin-bottom: 16px;
+        border-radius: 20px;
+        padding: 28px 32px;
+        margin-bottom: 20px;
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 24px;
+        box-shadow: 0 4px 24px rgba(0,0,0,.3);
     ">
         {avatar_html}
-        <div>
-            <div style="font-size:20px;font-weight:700;color:{cor_atendente};">{nome_atendente}</div>
-            <div style="font-size:13px;color:#7a9cc7;margin-top:2px;">
-                <b>{total_at} leads no período · {vendas_at} vendas · {taxa_at} conversão</b>
+        <div style="flex:1;">
+            <div style="font-size:28px;font-weight:700;color:{cor_atendente};line-height:1.1;">{nome_atendente}</div>
+            <div style="font-size:13px;color:var(--text-sub);margin-top:8px;">
+                {total_at} leads no período &nbsp;·&nbsp; {vendas_at} vendas &nbsp;·&nbsp; {taxa_at} conversão
             </div>
         </div>
-        <div style="margin-left:auto;text-align:right;">
-            <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;">
-                <b>Valor total em carteira</b>
+        <div style="text-align:right;padding-left:28px;border-left:1px solid var(--border);">
+            <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+                Carteira Total
             </div>
-            <div style="font-size:24px;font-weight:700;color:#22c55e;">{fmt_brl(total_valor)}</div>
+            <div style="font-size:38px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
+            <div style="font-size:11px;color:var(--text-sub);margin-top:6px;">em propostas ativas</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -974,16 +1029,16 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         df_temp   = df_atendente[df_atendente["perception"] == temp_label]
         qtd       = len(df_temp)
         valor_sum = df_temp["valor_proposta"].sum()
+        nome_temp = temp_label.split(' ', 1)[1]
         with col:
             st.markdown(f"""
             <div class="card-status" style="border-left:4px solid {cfg['cor']};">
-                <span class="card-icone">{cfg['icone']}</span>
-                <div class="card-valor" style="color:{cfg['cor']};">{qtd}</div>
-                <div class="card-label">{temp_label.split(' ', 1)[1]}</div>
-                <div style="margin-top:8px;font-size:13px;font-weight:600;color:#22c55e;">
-                    {fmt_brl(valor_sum)}
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <span style="font-size:20px;">{cfg['icone']}</span>
+                    <span class="card-label" style="color:{cfg['cor']};">{nome_temp.upper()}</span>
                 </div>
-                <div style="font-size:11px;color:#7a9cc7;">em propostas</div>
+                <div class="card-valor" style="color:{cfg['cor']};font-size:44px;">{qtd}</div>
+                <div style="margin-top:8px;font-size:12px;color:var(--text-sub);">{fmt_brl(valor_sum)} em carteira</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -997,15 +1052,17 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     )
     with ct4:
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid #7a9cc7;">
-            <span class="card-icone">❓</span>
-            <div class="card-valor" style="color:#7a9cc7;">{sem_perc}</div>
-            <div class="card-label">Sem percepção</div>
-            <div style="margin-top:8px;font-size:11px;color:#7a9cc7;">não classificados</div>
+        <div class="card-status" style="border-left:4px solid var(--text-sub);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <span style="font-size:20px;">❓</span>
+                <span class="card-label" style="color:var(--text-sub);">SEM PERCEPÇÃO</span>
+            </div>
+            <div class="card-valor" style="color:var(--text-sub);font-size:44px;">{sem_perc}</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-sub);">não classificados</div>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
 
     # ── Funil + Pizza lado a lado ─────────────────────────────────────────────
     cg1, cg2 = st.columns(2)
@@ -1027,6 +1084,8 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             )
         else:
             st.info("Nenhum lead com percepção classificada ainda.")
+
+    st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     # ── Tabela de leads do atendente ──────────────────────────────────────────
     st.markdown("#### 📋 Leads em Carteira")
@@ -1404,7 +1463,7 @@ def render_hoje_rt():
             f'<div style="margin-top:10px;font-size:13px;font-weight:600;color:{cor_seta};">{seta}</div>'
             f'<div style="font-size:11px;color:#7a9cc7;margin-top:2px;">Ontem: {leads_ontem} leads</div>'
             '</div>'
-            '<div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>'
+            '<div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>'
             '<div style="flex:1;min-width:0;">'
             '<div style="color:#7a9cc7;font-size:14px;font-weight:600;text-transform:uppercase;'
             'letter-spacing:.6px;margin-bottom:8px;">Por Operador</div>'
@@ -1727,7 +1786,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
             f'<div style="font-size:40px;font-weight:700;color:{qtd_cor};line-height:1;">{len(df_sub)}</div>'
             f'<div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">{qtd_label}</div>'
             '</div>'
-            '<div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;"></div>'
+            '<div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>'
             '<div style="flex:1;min-width:0;padding-top:4px;padding-left:12px;">'
             f'<div style="font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">{dir_label}</div>'
             f'<div style="font-size:22px;font-weight:700;color:{dir_cor};line-height:1;">{fmt_brl(df_sub["valor_proposta"].sum())}</div>'
@@ -1838,7 +1897,7 @@ def render_operadores(df_todos: pd.DataFrame):
             "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="op_status"
         )
 
-    st.markdown("---")
+    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
     st.markdown("#### 📈 Acumulado de Leads por Operador no Mês")
 
     if op_selecionados:
@@ -1850,7 +1909,7 @@ def render_operadores(df_todos: pd.DataFrame):
     else:
         st.info("Selecione ao menos um operador para ver o acumulado.")
 
-    st.markdown("---")
+    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
     st.markdown("#### 🏆 Ranking de Vendas por Operador")
     df_op_rank = df_todos.copy()
     if op_selecionados:
