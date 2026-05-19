@@ -104,13 +104,13 @@ def inject_css():
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
     :root {
-        --bg-main:   #060e1a;
-        --bg-card:   #050b14;
-        --bg-input:  #060e1a;
-        --border:    #152a4a;
+        --bg-main:   #07111f;
+        --bg-card:   #0c1729;
+        --bg-input:  #07111f;
+        --border:    #1c2a3d;
         --text-main: #e8eef8;
         --text-sub:  #7a9cc7;
-        --accent:    #4f8ef7;
+        --accent:    #3b82f6;
         --green:     #22c55e;
         --red:       #ef4444;
     }
@@ -130,12 +130,12 @@ def inject_css():
     }
 
     h4 {
-        color: var(--accent) !important;
+        color: var(--text-main) !important;
         font-size: 13px !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: .7px;
-        border-left: 3px solid var(--accent);
+        border-left: 2px solid var(--accent);
         padding-left: 8px;
         margin-top: 8px !important;
         margin-bottom: 4px !important;
@@ -146,10 +146,11 @@ def inject_css():
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 20px 24px;
+        padding: 24px 28px;
         margin-bottom: 8px;
         position: relative;
         overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,.25);
     }
     .card-status::before {
         content: '';
@@ -159,26 +160,28 @@ def inject_css():
         height: 100%;
         border-radius: 16px 0 0 16px;
     }
-    .card-icone  { font-size: 30px; margin-bottom: 8px; display: block; }
-    .card-valor  { font-size: 42px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
+    .card-icone  { font-size: 26px; margin-bottom: 8px; display: block; }
+    .card-valor  { font-size: 48px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
     .card-label  {
-        font-size: 13px; font-weight: 600;
-        text-transform: uppercase; letter-spacing: .6px;
+        font-size: 11px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .7px;
         color: var(--text-sub);
     }
     .card-total {
         background: var(--bg-card);
-        border: 1px solid var(--accent);
+        border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 20px 24px;
+        padding: 24px 28px;
         margin-bottom: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.25);
     }
     .card-taxa {
         background: var(--bg-card);
-        border: 1px solid #22c55e;
+        border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 20px 24px;
+        padding: 24px 28px;
         margin-bottom: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.25);
     }
 
     /* Card de atendente no funil */
@@ -186,8 +189,9 @@ def inject_css():
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 20px 24px;
+        padding: 24px 28px;
         margin-bottom: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.25);
     }
     .atendente-nome {
         font-size: 18px;
@@ -289,7 +293,9 @@ def inject_css():
         color: var(--text-sub) !important;
         font-weight: 500 !important;
         border-radius: 8px !important;
-        padding: 8px 16px !important;
+        padding: 6px 12px !important;
+        font-size: 13px !important;
+        transition: background .15s, color .15s !important;
     }
     [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
         background: var(--bg-input) !important;
@@ -297,6 +303,7 @@ def inject_css():
         font-weight: 700 !important;
     }
     [data-testid="stTabs"] [role="tab"]:hover {
+        background: rgba(255,255,255,.05) !important;
         color: var(--text-main) !important;
     }
 
@@ -335,8 +342,9 @@ def inject_css():
 
     /* Multiselect tags */
     [data-baseweb="tag"] {
-        background: var(--bg-input) !important;
-        border: 1px solid var(--border) !important;
+        background: rgba(59,130,246,.12) !important;
+        border: 1px solid rgba(59,130,246,.3) !important;
+        border-radius: 6px !important;
     }
     [data-baseweb="tag"] span { color: var(--text-main) !important; }
     </style>
@@ -1406,15 +1414,27 @@ def render_hoje_rt():
         )
 
     with h2:
+        _circ    = 213.63
+        _offset  = _circ * (1 - progresso)
+        _rest    = max(0, META_DIARIA - leads_hoje)
+        _meta_txt = "Meta atingida!" if progresso >= 1.0 else f"{_rest} lead{'s' if _rest != 1 else ''} restante{'s' if _rest != 1 else ''}"
         st.markdown(f"""
         <div class="card-status" style="border-left:4px solid {cor_meta};">
-            <span class="card-icone">🎯</span>
-            <div class="card-valor" style="color:{cor_meta};">{leads_hoje} / {META_DIARIA}</div>
-            <div class="card-label">Meta Diária de Leads</div>
-            <div style="background:#152a4a;border-radius:99px;height:8px;margin-top:10px;overflow:hidden;">
-                <div style="background:{cor_meta};width:{pct_meta}%;height:100%;border-radius:99px;"></div>
+            <div style="display:flex;align-items:center;gap:20px;">
+                <svg width="84" height="84" viewBox="0 0 84 84" style="flex-shrink:0;">
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="#1c2a3d" stroke-width="7"/>
+                    <circle cx="42" cy="42" r="34" fill="none" stroke="{cor_meta}" stroke-width="7"
+                        stroke-dasharray="{_circ:.2f}" stroke-dashoffset="{_offset:.2f}"
+                        stroke-linecap="round" transform="rotate(-90 42 42)"/>
+                    <text x="42" y="47" text-anchor="middle" fill="{cor_meta}"
+                        font-size="15" font-weight="700" font-family="DM Sans,sans-serif">{pct_meta}%</text>
+                </svg>
+                <div>
+                    <div class="card-valor" style="color:{cor_meta};font-size:38px;">{leads_hoje} / {META_DIARIA}</div>
+                    <div class="card-label">Meta Diária de Leads</div>
+                    <div style="color:{cor_meta};font-size:12px;margin-top:8px;font-weight:600;">{_meta_txt}</div>
+                </div>
             </div>
-            <div style="color:{cor_meta};font-size:11px;margin-top:4px;">{pct_meta}% da meta</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1589,7 +1609,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
     if filtro_status != "Todos":
         df = df[df["status"] == filtro_status]
 
-    st.markdown("---")
+    st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     total     = len(df)
     vendas    = int((df["status"] == "Venda Realizada").sum())
@@ -1600,7 +1620,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     render_hoje_rt()
 
-    st.markdown("---")
+    st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
     st.markdown("#### 📊 Visão Mensal - SDR")
 
     _ORIGENS_SDR = {"isaac", "julia", "leticia", "o2 solution"}
@@ -1654,7 +1674,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
             if st.button("🔍 Ver leads", key=_btn_key, use_container_width=True):
                 modal_leads_status(_df_card, _status, _cor, operadores=_ops_sdr)
 
-    st.markdown("---")
+    st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
     st.markdown("#### 💰 Visão geral · Equipe Comercial")
 
     _ATENDENTES = ["Giovanna", "Rayanna"]
@@ -1778,7 +1798,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
         if st.button("🔍 Ver leads", key="btn_acomp_vendas", use_container_width=True):
             modal_leads_status(df_vendas_all, "Vendas Realizadas", "#22c55e", atendentes=_ATENDENTES)
 
-    st.markdown("---")
+    st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("#### 🍩 Distribuição por Status")
