@@ -434,7 +434,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
         if msg_raw:
             first_line = msg_raw.split("\n")[0]
             if first_line.startswith("Base:"):
-                base = first_line[5:].strip()
+                base = first_line[5:].strip().strip("|").strip()
 
         last_inter = lead.get("last_interaction_at", "") or ""
         last_inter_dt = None
@@ -1542,10 +1542,11 @@ if df_todos.empty:
     st.stop()
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
+aba_visao, aba_funil, aba_operadores, aba_funil_op, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
     "📊 Visão Geral",
     "🔥 Funil de Vendas",
     "👤 Por Operador",
+    "📈 Funil por Operador",
     "📆 Detalhamento por Dia",
     "📋 Leads Recentes",
     "🗂️ CRM",
@@ -2257,6 +2258,130 @@ def render_detalhamento(df_todos: pd.DataFrame):
         hovermode="x unified",
     )
     st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ABA 5b — FUNIL POR OPERADOR
+# ══════════════════════════════════════════════════════════════════════════════
+@st.fragment
+def render_funil_operadores():
+    CORES_OP = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
+
+    # Mesma lógica de lazy-load do Funil de Vendas (80 dias, sob demanda)
+    if "df_funil" not in st.session_state:
+        st.markdown(
+            "<div style='text-align:center;padding:48px 0 16px;color:#7a9cc7;font-size:14px;'>"
+            "Os dados do Funil cobrem 80 dias e são carregados sob demanda."
+            "</div>",
+            unsafe_allow_html=True
+        )
+        _, col_c, _ = st.columns([1, 2, 1])
+        with col_c:
+            if st.button("📊 Carregar Funil por Operador", use_container_width=True):
+                with st.spinner("Buscando 80 dias de dados..."):
+                    df, _ = merge_leads_longo()
+                    st.session_state["df_funil"] = df
+                st.rerun()
+        return
+
+    df_todos_rt = st.session_state["df_funil"]
+
+    # ── Filtros (idênticos ao Funil de Vendas) ────────────────────────────────
+    ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1.2])
+    with ff1:
+        fop_de = st.date_input(
+            "📅 De", value=date.today() - timedelta(days=30),
+            format="DD/MM/YYYY", key="fop_de"
+        )
+    with ff2:
+        fop_ate = st.date_input(
+            "📅 Até", value=date.today(),
+            format="DD/MM/YYYY", key="fop_ate"
+        )
+    with ff3:
+        ops_funil = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
+        fop_origem = st.multiselect(
+            "👤 Origem", options=ops_funil, default=ops_funil, key="fop_origem"
+        )
+    with ff4:
+        fop_status = st.selectbox(
+            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="fop_status"
+        )
+    with ff5:
+        fop_temp = st.selectbox(
+            "🌡️ Temperatura",
+            ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
+            key="fop_temperatura"
+        )
+    with ff6:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Atualizar", key="fop_refresh", use_container_width=True):
+            fetch_leads_80dias.clear()
+            with st.spinner("Atualizando..."):
+                df, _ = merge_leads_longo()
+                st.session_state["df_funil"] = df
+
+    # ── Aplica filtros (idêntico ao Funil de Vendas) ──────────────────────────
+    df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
+    if not df_funil.empty:
+        df_funil = df_funil[df_funil["data_obj"].apply(
+            lambda d: d is not None and fop_de <= d <= fop_ate
+        )]
+        if fop_origem:
+            df_funil = df_funil[df_funil["origem"].isin(fop_origem)]
+        _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
+        if fop_status == "Todos":
+            df_funil = df_funil[~df_funil["status"].isin(_STATUS_ENCERRADOS)]
+        else:
+            df_funil = df_funil[df_funil["status"] == fop_status]
+        if fop_temp != "Todas":
+            df_funil = df_funil[df_funil["perception"] == fop_temp]
+
+    st.markdown("---")
+
+    # ── Um painel por operador, 2 por linha (idêntico ao layout Giovanna/Rayanna) ──
+    operadores = sorted(df_funil["origem"].dropna().unique().tolist()) if not df_funil.empty else []
+
+    if not operadores:
+        st.info("Nenhum lead encontrado para os filtros selecionados.")
+    else:
+        for i in range(0, len(operadores), 2):
+            op_a = operadores[i]
+            op_b = operadores[i + 1] if i + 1 < len(operadores) else None
+            cor_a = CORES_OP[i % len(CORES_OP)]
+            df_a  = df_funil[df_funil["origem"] == op_a]
+
+            if op_b:
+                cor_b = CORES_OP[(i + 1) % len(CORES_OP)]
+                df_b  = df_funil[df_funil["origem"] == op_b]
+                col_a, col_sep, col_b_col = st.columns([1, 0.04, 1])
+                with col_a:
+                    render_painel_atendente(df_a, op_a, cor_a)
+                with col_b_col:
+                    render_painel_atendente(df_b, op_b, cor_b)
+            else:
+                render_painel_atendente(df_a, op_a, cor_a)
+
+            if i + 2 < len(operadores):
+                st.markdown("---")
+
+    # ── Consolidado (idêntico ao Funil de Vendas) ─────────────────────────────
+    st.markdown("---")
+    st.markdown("#### 📊 Consolidado dos Operadores")
+
+    total_carteira = df_funil["valor_proposta"].sum()
+    leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
+    ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
+
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
+    with rc2:
+        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
+    with rc3:
+        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
+    with rc4:
+        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3137,6 +3262,9 @@ with aba_funil:
 
 with aba_operadores:
     render_operadores(df_todos)
+
+with aba_funil_op:
+    render_funil_operadores()
 
 with aba_detalhamento:
     render_detalhamento(df_todos)
