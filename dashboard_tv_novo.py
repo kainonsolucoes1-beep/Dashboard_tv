@@ -176,8 +176,8 @@ def inject_css():
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 24px 28px;
-        margin-bottom: 8px;
+        padding: 28px 32px;
+        margin-bottom: 12px;
         box-shadow: 0 4px 20px rgba(0,0,0,.25);
         transition: transform .2s ease, box-shadow .2s ease;
     }
@@ -380,6 +380,11 @@ def inject_css():
         border: 1px solid var(--border) !important;
     }
     [data-baseweb="calendar"] * { color: var(--text-main) !important; }
+
+    /* Gap entre colunas */
+    [data-testid="stHorizontalBlock"] {
+        gap: 1.25rem !important;
+    }
 
     /* Multiselect tags */
     [data-baseweb="tag"] {
