@@ -2173,28 +2173,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
                     modal_operador(op, df_op_det, cor_op, det_de, det_ate)
 
     st.markdown("---")
-    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
-
-    tabela_display = pivot.copy()
-    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
-        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
-        .replace("Thu", "Qui").replace("Fri", "Sex")
-        .replace("Sat", "Sáb").replace("Sun", "Dom")
-        for d in tabela_display.index
-    ]
-    tabela_display.index.name = "Data"
-    tabela_display = tabela_display.reset_index()
-
-    linha_total = {"Data": "📊 TOTAL"}
-    for op in operadores_det:
-        linha_total[op] = int(pivot[op].sum())
-    linha_total["Total"] = int(pivot["Total"].sum())
-    tabela_display = pd.concat(
-        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
-    )
-    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
-
-    st.markdown("---")
     st.markdown("#### 📋 Leads do Período")
     st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
 
@@ -2247,6 +2225,28 @@ def render_detalhamento(df_todos: pd.DataFrame):
     if sel_det and st.session_state.get("modal_leads_det") != sel_det[0]:
         st.session_state["modal_leads_det"] = sel_det[0]
         modal_lead(df_det_sorted.iloc[sel_det[0]])
+
+    st.markdown("---")
+    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
+
+    tabela_display = pivot.copy()
+    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
+        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
+        .replace("Thu", "Qui").replace("Fri", "Sex")
+        .replace("Sat", "Sáb").replace("Sun", "Dom")
+        for d in tabela_display.index
+    ]
+    tabela_display.index.name = "Data"
+    tabela_display = tabela_display.reset_index()
+
+    linha_total = {"Data": "📊 TOTAL"}
+    for op in operadores_det:
+        linha_total[op] = int(pivot[op].sum())
+    linha_total["Total"] = int(pivot["Total"].sum())
+    tabela_display = pd.concat(
+        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
+    )
+    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
     if not sel_det:
         st.session_state.pop("modal_leads_det", None)
 
