@@ -2348,10 +2348,11 @@ def render_detalhamento(df_todos: pd.DataFrame):
 # ABA 5b — FUNIL POR OPERADOR
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
+@st.fragment
 def render_funil_operadores():
     CORES_OP = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
 
-    # Mesma lógica de lazy-load do Funil de Vendas (80 dias, sob demanda)
+    # ── Lazy-load (80 dias sob demanda) ────────────────────────────────────────
     if "df_funil" not in st.session_state:
         st.markdown(
             "<div style='text-align:center;padding:48px 0 16px;color:#7a9cc7;font-size:14px;'>"
@@ -2370,7 +2371,7 @@ def render_funil_operadores():
 
     df_todos_rt = st.session_state["df_funil"]
 
-    # ── Filtros (idênticos ao Funil de Vendas) ────────────────────────────────
+    # ── Filtros ────────────────────────────────────────────────────────────────
     ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1.2])
     with ff1:
         fop_de = st.date_input(
@@ -2405,7 +2406,7 @@ def render_funil_operadores():
                 df, _ = merge_leads_longo()
                 st.session_state["df_funil"] = df
 
-    # ── Aplica filtros (idêntico ao Funil de Vendas) ──────────────────────────
+    # ── Aplica filtros ────────────────────────────────────────────────────────
     df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
     if not df_funil.empty:
         df_funil = df_funil[df_funil["data_obj"].apply(
@@ -2423,49 +2424,118 @@ def render_funil_operadores():
 
     st.markdown("---")
 
-    # ── Um painel por operador, 2 por linha (idêntico ao layout Giovanna/Rayanna) ──
     operadores = sorted(df_funil["origem"].dropna().unique().tolist()) if not df_funil.empty else []
 
     if not operadores:
         st.info("Nenhum lead encontrado para os filtros selecionados.")
+        return
+
+    # ── Navegação overview ↔ detalhe ──────────────────────────────────────────
+    op_sel = st.session_state.get("fop_op_sel")
+
+    if op_sel and op_sel in operadores:
+        # ── MODO DETALHE: funil completo do operador selecionado ─────────────
+        idx = operadores.index(op_sel)
+        cor = CORES_OP[idx % len(CORES_OP)]
+        df_op = df_funil[df_funil["origem"] == op_sel]
+
+        col_back, _ = st.columns([2, 5])
+        with col_back:
+            if st.button("← Todos os Operadores", key="fop_voltar", use_container_width=True):
+                st.session_state.pop("fop_op_sel", None)
+                st.rerun(scope="fragment")
+
+        st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+        render_painel_atendente(df_op, op_sel, cor)
+
     else:
-        for i in range(0, len(operadores), 2):
-            op_a = operadores[i]
-            op_b = operadores[i + 1] if i + 1 < len(operadores) else None
-            cor_a = CORES_OP[i % len(CORES_OP)]
-            df_a  = df_funil[df_funil["origem"] == op_a]
+        # ── MODO OVERVIEW: grid de cards resumo ──────────────────────────────
+        n_cols = 3 if len(operadores) > 4 else 2
 
-            if op_b:
-                cor_b = CORES_OP[(i + 1) % len(CORES_OP)]
-                df_b  = df_funil[df_funil["origem"] == op_b]
-                col_a, col_sep, col_b_col = st.columns([1, 0.04, 1])
-                with col_a:
-                    render_painel_atendente(df_a, op_a, cor_a)
-                with col_b_col:
-                    render_painel_atendente(df_b, op_b, cor_b)
-            else:
-                render_painel_atendente(df_a, op_a, cor_a)
+        for i in range(0, len(operadores), n_cols):
+            batch = operadores[i : i + n_cols]
+            cols  = st.columns(n_cols)
+            for j, op in enumerate(batch):
+                cor      = CORES_OP[(i + j) % len(CORES_OP)]
+                df_op    = df_funil[df_funil["origem"] == op]
+                total    = len(df_op)
+                vendas   = int((df_op["status"] == "Venda Realizada").sum())
+                taxa     = f"{(vendas / total * 100):.1f}%" if total > 0 else "—"
+                carteira = df_op["valor_proposta"].sum()
+                quentes  = int((df_op["perception"] == "🔥 Quente").sum())
+                mornos   = int((df_op["perception"] == "🌡️ Morno").sum())
+                iniciais = "".join(p[0].upper() for p in op.split()[:2])
 
-            if i + 2 < len(operadores):
-                st.markdown("---")
+                with cols[j]:
+                    st.markdown(f"""
+                    <div class="card-status" style="border-top:3px solid {cor};padding:24px 24px 20px;margin-bottom:0;min-height:240px;">
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+                            <div style="
+                                width:52px;height:52px;border-radius:50%;
+                                background:{cor}22;border:2px solid {cor};
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:18px;font-weight:700;color:{cor};flex-shrink:0;
+                            ">{iniciais}</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:20px;font-weight:700;color:{cor};
+                                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{op}</div>
+                                <div style="font-size:12px;color:var(--text-sub);margin-top:3px;">
+                                    {total} leads &nbsp;·&nbsp; {vendas} vendas
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
+                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
+                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
+                                <div style="font-size:18px;font-weight:700;color:#22c55e;line-height:1;">{fmt_brl(carteira)}</div>
+                            </div>
+                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
+                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
+                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Conversão</div>
+                                <div style="font-size:18px;font-weight:700;color:{cor};line-height:1;">{taxa}</div>
+                            </div>
+                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
+                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
+                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">🔥 Quentes</div>
+                                <div style="font-size:18px;font-weight:700;color:#ef4444;line-height:1;">{quentes}</div>
+                            </div>
+                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
+                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
+                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">🌡️ Mornos</div>
+                                <div style="font-size:18px;font-weight:700;color:#f59e0b;line-height:1;">{mornos}</div>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-    # ── Consolidado (idêntico ao Funil de Vendas) ─────────────────────────────
-    st.markdown("---")
-    st.markdown("#### 📊 Consolidado dos Operadores")
+                    if st.button(
+                        f"📊 Ver Funil — {op}",
+                        key=f"fop_btn_{op}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["fop_op_sel"] = op
+                        st.rerun(scope="fragment")
 
-    total_carteira = df_funil["valor_proposta"].sum()
-    leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
-    ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
+            st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
 
-    rc1, rc2, rc3, rc4 = st.columns(4)
-    with rc1:
-        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
-    with rc2:
-        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
-    with rc3:
-        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
-    with rc4:
-        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
+        # ── Consolidado ───────────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### 📊 Consolidado dos Operadores")
+
+        total_carteira = df_funil["valor_proposta"].sum()
+        leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
+        ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
+
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
+        with rc2:
+            render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
+        with rc3:
+            render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
+        with rc4:
+            render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
