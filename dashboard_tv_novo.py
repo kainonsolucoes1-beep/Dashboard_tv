@@ -472,10 +472,12 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             if dt:
                 data_obj  = dt.date()
                 criado_em = dt.strftime("%d/%m/%Y %H:%M")
+        atualizado_obj = None
         if atualizado_em:
             dt = _parse_dt(atualizado_em)
             if dt:
-                atualizado_em = dt.strftime("%d/%m/%Y %H:%M")
+                atualizado_obj = dt.date()
+                atualizado_em  = dt.strftime("%d/%m/%Y %H:%M")
 
         email    = (lead.get("contact") or {}).get("email", "") or ""
         telefone = ((lead.get("contact") or {}).get("cellphone") or
@@ -518,6 +520,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             "nome":                lead.get("name", ""),
             "status":              status_pt,
             "atendente":           atendente,
+            "atualizado_obj":      atualizado_obj,
             "origem":              origem,
             "equipe":              equipe,
             "interesse":           interesse,
@@ -544,8 +547,8 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_leads_30dias():
-    """30 dias por criação · cache 30 min · abas de visão geral."""
-    return _fetch_leads_from_api(days=30, date_of="creation")
+    """60 dias por criação · cache 30 min · abas de visão geral."""
+    return _fetch_leads_from_api(days=60, date_of="creation")
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -1640,31 +1643,44 @@ aba_visao, aba_funil, aba_operadores, aba_funil_op, aba_detalhamento, aba_leads,
 
 @st.fragment
 def render_visao_geral(df_todos: pd.DataFrame):
-    st.markdown("#### 🔎 Filtros da Aba")
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
-    with st.form("filtros_visao", border=False):
-        col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
-        with col_op:
-            selecionados = st.multiselect(
-                "👤 Origem", options=origens_disp, default=origens_disp, key="visao_origem"
-            )
-        with col_st:
-            filtro_status = st.selectbox(
-                "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="visao_status"
-            )
-        with col_de:
-            data_de = st.date_input(
-                "📅 De", value=date.today() - timedelta(days=30),
-                format="DD/MM/YYYY", key="visao_de"
-            )
-        with col_ate:
-            data_ate = st.date_input(
-                "📅 Até", value=date.today(), format="DD/MM/YYYY", key="visao_ate"
-            )
-        with col_btn_f:
-            st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
-            submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+
+    _default_de  = date.today() - timedelta(days=30)
+    _default_ate = date.today()
+    selecionados  = st.session_state.get("visao_origem", origens_disp)
+    filtro_status = st.session_state.get("visao_status", "Todos")
+    data_de       = st.session_state.get("visao_de",  _default_de)
+    data_ate      = st.session_state.get("visao_ate", _default_ate)
+
+    with st.expander("🔎 Filtros da Aba", expanded=False):
+        with st.form("filtros_visao", border=False):
+            col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
+            with col_op:
+                selecionados = st.multiselect(
+                    "👤 Origem", options=origens_disp, default=selecionados, key="visao_origem"
+                )
+            with col_st:
+                filtro_status = st.selectbox(
+                    "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="visao_status"
+                )
+            with col_de:
+                data_de = st.date_input(
+                    "📅 De", value=data_de,
+                    format="DD/MM/YYYY", key="visao_de"
+                )
+            with col_ate:
+                data_ate = st.date_input(
+                    "📅 Até", value=data_ate, format="DD/MM/YYYY", key="visao_ate"
+                )
+            with col_btn_f:
+                st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            if submitted:
+                selecionados  = st.session_state.get("visao_origem", origens_disp)
+                filtro_status = st.session_state.get("visao_status", "Todos")
+                data_de       = st.session_state.get("visao_de",  _default_de)
+                data_ate      = st.session_state.get("visao_ate", _default_ate)
 
     df = df_todos.copy()
     df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
@@ -1745,10 +1761,49 @@ def render_visao_geral(df_todos: pd.DataFrame):
     # Usa os 80 dias do Funil (session_state["df_funil"]) quando disponível,
     # garantindo a mesma base de dados que o Funil de Vendas usa.
     _base_at = st.session_state.get("df_funil", df_todos)
+
+    # Default acompanha a janela da base: 80 dias se df_funil carregado, 30 se não
+    _ec_default_days = 80 if "df_funil" in st.session_state else 30
+    _ec_default_de   = date.today() - timedelta(days=_ec_default_days)
+    _ec_default_ate  = date.today()
+    ec_de      = st.session_state.get("ec_de",     _ec_default_de)
+    ec_ate     = st.session_state.get("ec_ate",    _ec_default_ate)
+
+    # Origens derivadas da base real (df_funil ou df_todos), não apenas dos 30 dias
+    _origens_disp_ec = sorted(_base_at["origem"].dropna().unique().tolist())
+    ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
+    # Garante que valores salvos no session_state ainda válidos na base atual
+    ec_origens = [o for o in ec_origens if o in _origens_disp_ec] or _origens_disp_ec
+
+    with st.expander("📅 Período · Origem", expanded=False):
+        with st.form("filtros_ec", border=False):
+            _ec1, _ec2, _ec3, _ec4 = st.columns([2, 2, 3, 1])
+            with _ec1:
+                ec_de = st.date_input("De", value=ec_de, format="DD/MM/YYYY", key="ec_de")
+            with _ec2:
+                ec_ate = st.date_input("Até", value=ec_ate, format="DD/MM/YYYY", key="ec_ate")
+            with _ec3:
+                ec_origens = st.multiselect(
+                    "🎯 Origem", options=_origens_disp_ec, default=ec_origens, key="ec_origens"
+                )
+            with _ec4:
+                st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                _ec_sub = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            if _ec_sub:
+                ec_de      = st.session_state.get("ec_de",     _ec_default_de)
+                ec_ate     = st.session_state.get("ec_ate",    _ec_default_ate)
+                ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
     df_at = _base_at.copy()
-    df_at = df_at[df_at["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
-    if selecionados:
-        df_at = df_at[df_at["origem"].isin(selecionados)]
+    # Usa atualizado_obj (quando disponível) para capturar vendas fechadas em leads antigos;
+    # fallback para data_obj caso updated_at não venha da API
+    df_at = df_at[df_at.apply(
+        lambda r: (r["atualizado_obj"] or r["data_obj"]) is not None
+                  and ec_de <= (r["atualizado_obj"] or r["data_obj"]) <= ec_ate,
+        axis=1
+    )]
+    if ec_origens:
+        df_at = df_at[df_at["origem"].isin(ec_origens)]
     df_at = df_at[df_at["atendente"].apply(
         lambda x: any(n.lower() in str(x).lower() for n in _ATENDENTES) if pd.notna(x) else False
     )]
