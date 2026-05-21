@@ -1323,47 +1323,61 @@ def render_funil_rt():
     df_todos_rt = st.session_state["df_funil"]
 
     # ── Filtros independentes desta aba ────────────────────────────────────────
-    st.markdown("#### 🔎 Filtros da Aba")
-    ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1.2])
-    with ff1:
-        funil_de = st.date_input(
-            "📅 De",
-            value=date.today() - timedelta(days=30),
-            format="DD/MM/YYYY",
-            key="funil_de"
-        )
-    with ff2:
-        funil_ate = st.date_input(
-            "📅 Até",
-            value=date.today(),
-            format="DD/MM/YYYY",
-            key="funil_ate"
-        )
-    with ff3:
-        ops_funil = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
-        funil_origem = st.multiselect(
-            "👤 Origem",
-            options=ops_funil,
-            default=ops_funil,
-            key="funil_origem"
-        )
-    with ff4:
-        funil_status = st.selectbox(
-            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="funil_status"
-        )
-    with ff5:
-        filtro_temp = st.selectbox(
-            "🌡️ Temperatura",
-            ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
-            key="filtro_temperatura"
-        )
-    with ff6:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    ops_funil = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
+
+    _default_funil_de  = date.today() - timedelta(days=30)
+    _default_funil_ate = date.today()
+    funil_de     = st.session_state.get("funil_de",           _default_funil_de)
+    funil_ate    = st.session_state.get("funil_ate",          _default_funil_ate)
+    funil_origem = st.session_state.get("funil_origem",       ops_funil)
+    funil_status = st.session_state.get("funil_status",       "Todos")
+    filtro_temp  = st.session_state.get("filtro_temperatura", "Todas")
+    funil_origem = [o for o in funil_origem if o in ops_funil] or ops_funil
+
+    _fh, _fb = st.columns([5, 1])
+    with _fb:
         if st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True):
             fetch_leads_80dias.clear()
             with st.spinner("Atualizando..."):
                 df, _ = merge_leads_longo()
                 st.session_state["df_funil"] = df
+
+    with st.expander("🔎 Filtros da Aba", expanded=False):
+        with st.form("filtros_funil", border=False):
+            ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1])
+            with ff1:
+                funil_de = st.date_input(
+                    "📅 De", value=funil_de, format="DD/MM/YYYY", key="funil_de"
+                )
+            with ff2:
+                funil_ate = st.date_input(
+                    "📅 Até", value=funil_ate, format="DD/MM/YYYY", key="funil_ate"
+                )
+            with ff3:
+                funil_origem = st.multiselect(
+                    "👤 Origem", options=ops_funil, default=funil_origem, key="funil_origem"
+                )
+            with ff4:
+                funil_status = st.selectbox(
+                    "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())),
+                    key="funil_status"
+                )
+            with ff5:
+                filtro_temp = st.selectbox(
+                    "🌡️ Temperatura",
+                    ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
+                    key="filtro_temperatura"
+                )
+            with ff6:
+                st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                submitted_funil = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            if submitted_funil:
+                funil_de     = st.session_state.get("funil_de",           _default_funil_de)
+                funil_ate    = st.session_state.get("funil_ate",          _default_funil_ate)
+                funil_origem = st.session_state.get("funil_origem",       ops_funil)
+                funil_status = st.session_state.get("funil_status",       "Todos")
+                filtro_temp  = st.session_state.get("filtro_temperatura", "Todas")
 
     # ── Aplica filtros ────────────────────────────────────────────────────────
     df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
@@ -1505,6 +1519,32 @@ def render_hoje_rt():
         </div>
         """, unsafe_allow_html=True)
 
+    if progresso >= 1.0:
+        _today_str = str(date.today())
+        if st.session_state.get("meta_rocket_date") != _today_str:
+            st.session_state["meta_rocket_date"] = _today_str
+            st.markdown("""
+            <style>
+            @keyframes foguete-voo {
+                0%   { transform: translate(0, 0) rotate(-45deg);           opacity: 1; }
+                70%  { transform: translate(-65vw, -38vh) rotate(-45deg);   opacity: 1; }
+                100% { transform: translate(-130vw, -60vh) rotate(-45deg);  opacity: 0; }
+            }
+            #foguete-meta {
+                position: fixed;
+                right: -140px;
+                bottom: 18vh;
+                font-size: 110px;
+                pointer-events: none;
+                z-index: 99999;
+                animation: foguete-voo 3.8s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+                filter: drop-shadow(0 0 30px rgba(245, 158, 11, 0.9))
+                        drop-shadow(0 0 60px rgba(245, 158, 11, 0.4));
+            }
+            </style>
+            <span id="foguete-meta">🚀</span>
+            """, unsafe_allow_html=True)
+
 
 @st.fragment
 def render_leads_rt():
@@ -1629,11 +1669,10 @@ if df_todos.empty:
     st.stop()
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_funil_op, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
+aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
     "📊 Visão Geral",
     "🔥 Funil de Vendas",
     "👤 Por Operador",
-    "📈 Funil por Operador",
     "📆 Detalhamento por Dia",
     "📋 Leads Recentes",
     "🗂️ CRM",
@@ -1703,7 +1742,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
     st.markdown("#### 📊 Visão Mensal - SDR")
 
-    _ORIGENS_SDR = {"isaac", "julia", "leticia", "o2 solution"}
+    _ORIGENS_SDR = {"isaac", "julia", "leticia", "rodolfo", "o2 solution"}
     _REMAP_SDR   = {
         "anny":        "O2 Solution",
         "emilly":      "O2 Solution",
@@ -1946,8 +1985,17 @@ def render_operadores(df_todos: pd.DataFrame):
                 fetch_leads_hoje()
             st.session_state["df_funil"] = df_funil_novo
             st.rerun()
+    _default_op_de  = date.today() - timedelta(days=30)
+    _default_op_ate = date.today()
+    op_de  = st.session_state.get("op_de",  _default_op_de)
+    op_ate = st.session_state.get("op_ate", _default_op_ate)
+
     origens_op_disp = sorted(df_todos["origem"].dropna().unique().tolist())
-    op1, op2, _ = st.columns([3, 2, 3])
+    op_de_col, op_ate_col, op1, op2, _ = st.columns([1.5, 1.5, 2.5, 2, 1])
+    with op_de_col:
+        op_de = st.date_input("📅 De", value=op_de, format="DD/MM/YYYY", key="op_de")
+    with op_ate_col:
+        op_ate = st.date_input("📅 Até", value=op_ate, format="DD/MM/YYYY", key="op_ate")
     with op1:
         op_selecionados = st.multiselect(
             "👤 Origem", options=origens_op_disp, default=origens_op_disp, key="op_origem"
@@ -1956,6 +2004,8 @@ def render_operadores(df_todos: pd.DataFrame):
         op_status = st.selectbox(
             "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="op_status"
         )
+
+    df_todos = df_todos[df_todos["data_obj"].apply(lambda d: d is not None and op_de <= d <= op_ate)]
 
     st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
     st.markdown("#### 📈 Acumulado de Leads por Operador no Mês")
@@ -2400,200 +2450,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABA 5b — FUNIL POR OPERADOR
-# ══════════════════════════════════════════════════════════════════════════════
-@st.fragment
-@st.fragment
-def render_funil_operadores():
-    CORES_OP = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
-
-    # ── Lazy-load (80 dias sob demanda) ────────────────────────────────────────
-    if "df_funil" not in st.session_state:
-        st.markdown(
-            "<div style='text-align:center;padding:48px 0 16px;color:#7a9cc7;font-size:14px;'>"
-            "Os dados do Funil cobrem 80 dias e são carregados sob demanda."
-            "</div>",
-            unsafe_allow_html=True
-        )
-        _, col_c, _ = st.columns([1, 2, 1])
-        with col_c:
-            if st.button("📊 Carregar Funil por Operador", use_container_width=True):
-                with st.spinner("Buscando 80 dias de dados..."):
-                    df, _ = merge_leads_longo()
-                    st.session_state["df_funil"] = df
-                st.rerun()
-        return
-
-    df_todos_rt = st.session_state["df_funil"]
-
-    # ── Filtros ────────────────────────────────────────────────────────────────
-    ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1.2])
-    with ff1:
-        fop_de = st.date_input(
-            "📅 De", value=date.today() - timedelta(days=30),
-            format="DD/MM/YYYY", key="fop_de"
-        )
-    with ff2:
-        fop_ate = st.date_input(
-            "📅 Até", value=date.today(),
-            format="DD/MM/YYYY", key="fop_ate"
-        )
-    with ff3:
-        ops_funil = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
-        fop_origem = st.multiselect(
-            "👤 Origem", options=ops_funil, default=ops_funil, key="fop_origem"
-        )
-    with ff4:
-        fop_status = st.selectbox(
-            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="fop_status"
-        )
-    with ff5:
-        fop_temp = st.selectbox(
-            "🌡️ Temperatura",
-            ["Todas", "🔥 Quente", "🌡️ Morno", "🧊 Frio", "Sem percepção"],
-            key="fop_temperatura"
-        )
-    with ff6:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="fop_refresh", use_container_width=True):
-            fetch_leads_80dias.clear()
-            with st.spinner("Atualizando..."):
-                df, _ = merge_leads_longo()
-                st.session_state["df_funil"] = df
-
-    # ── Aplica filtros ────────────────────────────────────────────────────────
-    df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
-    if not df_funil.empty:
-        df_funil = df_funil[df_funil["data_obj"].apply(
-            lambda d: d is not None and fop_de <= d <= fop_ate
-        )]
-        if fop_origem:
-            df_funil = df_funil[df_funil["origem"].isin(fop_origem)]
-        _STATUS_ENCERRADOS = {"Venda Realizada", "Venda não Realizada"}
-        if fop_status == "Todos":
-            df_funil = df_funil[~df_funil["status"].isin(_STATUS_ENCERRADOS)]
-        else:
-            df_funil = df_funil[df_funil["status"] == fop_status]
-        if fop_temp != "Todas":
-            df_funil = df_funil[df_funil["perception"] == fop_temp]
-
-    st.markdown("---")
-
-    operadores = sorted(df_funil["origem"].dropna().unique().tolist()) if not df_funil.empty else []
-
-    if not operadores:
-        st.info("Nenhum lead encontrado para os filtros selecionados.")
-        return
-
-    # ── Navegação overview ↔ detalhe ──────────────────────────────────────────
-    op_sel = st.session_state.get("fop_op_sel")
-
-    if op_sel and op_sel in operadores:
-        # ── MODO DETALHE: funil completo do operador selecionado ─────────────
-        idx = operadores.index(op_sel)
-        cor = CORES_OP[idx % len(CORES_OP)]
-        df_op = df_funil[df_funil["origem"] == op_sel]
-
-        col_back, _ = st.columns([2, 5])
-        with col_back:
-            if st.button("← Todos os Operadores", key="fop_voltar", use_container_width=True):
-                st.session_state.pop("fop_op_sel", None)
-                st.rerun(scope="fragment")
-
-        st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
-        render_painel_atendente(df_op, op_sel, cor)
-
-    else:
-        # ── MODO OVERVIEW: grid de cards resumo ──────────────────────────────
-        n_cols = 3 if len(operadores) > 4 else 2
-
-        for i in range(0, len(operadores), n_cols):
-            batch = operadores[i : i + n_cols]
-            cols  = st.columns(n_cols)
-            for j, op in enumerate(batch):
-                cor      = CORES_OP[(i + j) % len(CORES_OP)]
-                df_op    = df_funil[df_funil["origem"] == op]
-                total    = len(df_op)
-                vendas   = int((df_op["status"] == "Venda Realizada").sum())
-                taxa     = f"{(vendas / total * 100):.1f}%" if total > 0 else "—"
-                carteira = df_op["valor_proposta"].sum()
-                quentes  = int((df_op["perception"] == "🔥 Quente").sum())
-                mornos   = int((df_op["perception"] == "🌡️ Morno").sum())
-                iniciais = "".join(p[0].upper() for p in op.split()[:2])
-
-                with cols[j]:
-                    st.markdown(f"""
-                    <div class="card-status" style="border-top:3px solid {cor};padding:24px 24px 20px;margin-bottom:0;min-height:240px;">
-                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
-                            <div style="
-                                width:52px;height:52px;border-radius:50%;
-                                background:{cor}22;border:2px solid {cor};
-                                display:flex;align-items:center;justify-content:center;
-                                font-size:18px;font-weight:700;color:{cor};flex-shrink:0;
-                            ">{iniciais}</div>
-                            <div style="flex:1;min-width:0;">
-                                <div style="font-size:20px;font-weight:700;color:{cor};
-                                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{op}</div>
-                                <div style="font-size:12px;color:var(--text-sub);margin-top:3px;">
-                                    {total} leads &nbsp;·&nbsp; {vendas} vendas
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
-                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
-                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Carteira</div>
-                                <div style="font-size:18px;font-weight:700;color:#22c55e;line-height:1;">{fmt_brl(carteira)}</div>
-                            </div>
-                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
-                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
-                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">Conversão</div>
-                                <div style="font-size:18px;font-weight:700;color:{cor};line-height:1;">{taxa}</div>
-                            </div>
-                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
-                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
-                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">🔥 Quentes</div>
-                                <div style="font-size:18px;font-weight:700;color:#ef4444;line-height:1;">{quentes}</div>
-                            </div>
-                            <div style="background:var(--bg-main);border-radius:10px;padding:12px;">
-                                <div style="font-size:9px;color:var(--text-sub);text-transform:uppercase;
-                                            letter-spacing:.8px;font-weight:600;margin-bottom:4px;">🌡️ Mornos</div>
-                                <div style="font-size:18px;font-weight:700;color:#f59e0b;line-height:1;">{mornos}</div>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    if st.button(
-                        f"📊 Ver Funil — {op}",
-                        key=f"fop_btn_{op}",
-                        use_container_width=True,
-                    ):
-                        st.session_state["fop_op_sel"] = op
-                        st.rerun(scope="fragment")
-
-            st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-
-        # ── Consolidado ───────────────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("#### 📊 Consolidado dos Operadores")
-
-        total_carteira = df_funil["valor_proposta"].sum()
-        leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
-        ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
-
-        rc1, rc2, rc3, rc4 = st.columns(4)
-        with rc1:
-            render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
-        with rc2:
-            render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
-        with rc3:
-            render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
-        with rc4:
-            render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # ABA 6 — CRM · BASES DE CLIENTES
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
@@ -2876,21 +2732,34 @@ def render_crm():
         if df_base_all.empty:
             st.info("Nenhuma base registrada ainda. Preencha o campo **Base de Clientes** no formulário para o histórico aparecer aqui.")
         else:
-            col_f1, col_f2, col_f3 = st.columns([2, 2, 4])
-            with col_f1:
-                hist_data_ini = st.date_input(
-                    "📅 Data inicial",
-                    value=df_base_all["data_obj"].min(),
-                    format="DD/MM/YYYY",
-                    key="hist_data_ini",
-                )
-            with col_f2:
-                hist_data_fim = st.date_input(
-                    "📅 Data final",
-                    value=date.today(),
-                    format="DD/MM/YYYY",
-                    key="hist_data_fim",
-                )
+            _default_hist_ini = df_base_all["data_obj"].min()
+            _default_hist_fim = date.today()
+            hist_data_ini = st.session_state.get("hist_data_ini", _default_hist_ini)
+            hist_data_fim = st.session_state.get("hist_data_fim", _default_hist_fim)
+
+            with st.form("filtros_historico", border=False):
+                col_f1, col_f2, col_f3 = st.columns([2, 2, 1])
+                with col_f1:
+                    hist_data_ini = st.date_input(
+                        "📅 Data inicial",
+                        value=hist_data_ini,
+                        format="DD/MM/YYYY",
+                        key="hist_data_ini",
+                    )
+                with col_f2:
+                    hist_data_fim = st.date_input(
+                        "📅 Data final",
+                        value=hist_data_fim,
+                        format="DD/MM/YYYY",
+                        key="hist_data_fim",
+                    )
+                with col_f3:
+                    st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                    submitted_hist = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                if submitted_hist:
+                    hist_data_ini = st.session_state.get("hist_data_ini", _default_hist_ini)
+                    hist_data_fim = st.session_state.get("hist_data_fim", _default_hist_fim)
 
             df_hist_filtrado = df_base_all[
                 df_base_all["data_obj"].notna() &
@@ -3051,6 +2920,28 @@ def render_crm():
                             f'</div>',
                             unsafe_allow_html=True,
                         )
+
+                        # ── Breakdown de origens ─────────────────────────────
+                        _orig_counts = _df_b_exp["origem"].value_counts()
+                        if not _orig_counts.empty:
+                            st.markdown("##### 👤 Origens desta base")
+                            _orig_html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">'
+                            for _orig_nome, _orig_qtd in _orig_counts.items():
+                                _orig_pct = round(_orig_qtd / len(_df_b_exp) * 100, 1)
+                                _orig_html += (
+                                    f'<div style="background:#0d1f38;border:1px solid #1c2a3d;'
+                                    f'border-radius:10px;padding:8px 16px;min-width:100px;text-align:center;">'
+                                    f'<div style="font-size:13px;color:#7a9cc7;font-weight:600;'
+                                    f'text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">'
+                                    f'{_orig_nome}</div>'
+                                    f'<div style="font-size:26px;font-weight:700;color:{cor};line-height:1;">'
+                                    f'{_orig_qtd}</div>'
+                                    f'<div style="font-size:11px;color:#7a9cc7;margin-top:2px;">'
+                                    f'{_orig_pct}%</div>'
+                                    f'</div>'
+                                )
+                            _orig_html += '</div>'
+                            st.markdown(_orig_html, unsafe_allow_html=True)
 
                         st.markdown("##### 📋 Leads desta base")
                         df_leads_base = _df_b_exp.copy()
@@ -3367,29 +3258,74 @@ def render_estagio_lead():
             f"</div>"
         )
 
-    def _arrow_svg(cor):
+    # ── Contagens e % de passagem ─────────────────────────────────────────────
+    n_pend    = int((df["status"] == "Pendente").sum())
+    n_agend   = int((df["status"] == "Agendado").sum())
+    n_prop    = int((df["status"] == "Proposta Enviada").sum())
+    n_perdido = int((df["status"] == "Venda não Realizada").sum())
+
+    atingiram_agend = n_agend + n_prop + vendas + n_perdido
+    atingiram_prop  = n_prop + vendas + n_perdido
+
+    pct_pend_agend   = round(atingiram_agend  / total           * 100, 1) if total           else 0
+    pct_agend_prop   = round(atingiram_prop   / atingiram_agend * 100, 1) if atingiram_agend else 0
+    pct_prop_venda   = round(vendas           / atingiram_prop  * 100, 1) if atingiram_prop  else 0
+    pct_prop_perdido = round(n_perdido        / atingiram_prop  * 100, 1) if atingiram_prop  else 0
+
+    def _arrow_pct(pct, cor, label="passaram"):
         return (
-            f"<div style='display:flex;align-items:center;justify-content:center;"
-            f"height:100%;padding:0 2px;'>"
-            f"<svg width='20' height='20' viewBox='0 0 24 24'>"
-            f"<path d='M8 4 L18 12 L8 20 Z' fill='{cor}'/></svg></div>"
+            f"<div style='display:flex;flex-direction:column;align-items:center;"
+            f"justify-content:center;padding:0 10px;flex-shrink:0;min-width:80px;gap:5px;'>"
+            f"<div style='color:{cor};font-size:15px;font-weight:800;line-height:1;'>{pct}%</div>"
+            f"<div style='color:#7a9cc7;font-size:10px;text-transform:uppercase;"
+            f"letter-spacing:.5px;'>{label}</div>"
+            f"<svg width='42' height='14' viewBox='0 0 42 14'>"
+            f"<line x1='0' y1='7' x2='33' y2='7' stroke='{cor}' stroke-width='2'/>"
+            f"<polygon points='29,2 40,7 29,12' fill='{cor}'/>"
+            f"</svg>"
+            f"</div>"
         )
 
-    # col widths: 4 cards, 3 arrows, 1 gap, 1 lost card
-    widths = [3, 0.3, 3, 0.3, 3, 0.3, 3, 0.25, 2.4]
-    pcols  = st.columns(widths)
+    _h_pend  = _pipe_card("Pendente",            "#4f8ef7", "#0c1c30")
+    _h_agend = _pipe_card("Agendado",            "#f59e0b", "#1c1400")
+    _h_prop  = _pipe_card("Proposta Enviada",    "#8b5cf6", "#130c25")
+    _h_venda = _pipe_card("Venda Realizada",     "#22c55e", "#0a1c10")
+    _h_perd  = _pipe_card("Venda não Realizada", "#ef4444", "#1c0a0a", dashed=True)
 
-    for i, (status, cor, bg) in enumerate(PIPELINE):
-        with pcols[i * 2]:
-            st.markdown(_pipe_card(status, cor, bg), unsafe_allow_html=True)
-        if i < len(PIPELINE) - 1:
-            next_cor = PIPELINE[i + 1][1]
-            with pcols[i * 2 + 1]:
-                st.markdown(_arrow_svg(next_cor), unsafe_allow_html=True)
+    _fork_col = (
+        f"<div style='display:flex;flex-direction:column;align-items:center;"
+        f"justify-content:center;padding:0 10px;flex-shrink:0;min-width:86px;gap:4px;'>"
+        f"<div style='color:#22c55e;font-size:15px;font-weight:800;line-height:1;'>{pct_prop_venda}%</div>"
+        f"<div style='color:#7a9cc7;font-size:10px;text-transform:uppercase;letter-spacing:.5px;'>vendas</div>"
+        f"<svg width='42' height='14' viewBox='0 0 42 14'>"
+        f"<line x1='0' y1='7' x2='33' y2='7' stroke='#22c55e' stroke-width='2'/>"
+        f"<polygon points='29,2 40,7 29,12' fill='#22c55e'/>"
+        f"</svg>"
+        f"<div style='height:22px;border-left:1.5px dashed #7a9cc755;margin:2px 0;'></div>"
+        f"<svg width='42' height='14' viewBox='0 0 42 14'>"
+        f"<line x1='0' y1='7' x2='33' y2='7' stroke='#ef4444' stroke-width='1.5' stroke-dasharray='5,3'/>"
+        f"<polygon points='29,2 40,7 29,12' fill='#ef4444'/>"
+        f"</svg>"
+        f"<div style='color:#7a9cc7;font-size:10px;text-transform:uppercase;letter-spacing:.5px;'>perdidos</div>"
+        f"<div style='color:#ef4444;font-size:15px;font-weight:800;line-height:1;'>{pct_prop_perdido}%</div>"
+        f"</div>"
+    )
 
-    lost_s, lost_c, lost_bg = LOST
-    with pcols[8]:
-        st.markdown(_pipe_card(lost_s, lost_c, lost_bg, dashed=True), unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='display:flex;align-items:stretch;gap:0;'>"
+        f"  <div style='flex:1;'>{_h_pend}</div>"
+        f"  {_arrow_pct(pct_pend_agend, '#4f8ef7')}"
+        f"  <div style='flex:1;'>{_h_agend}</div>"
+        f"  {_arrow_pct(pct_agend_prop, '#8b5cf6')}"
+        f"  <div style='flex:1;'>{_h_prop}</div>"
+        f"  {_fork_col}"
+        f"  <div style='flex:1;display:flex;flex-direction:column;gap:10px;'>"
+        f"    <div style='flex:1;'>{_h_venda}</div>"
+        f"    <div style='flex:1;'>{_h_perd}</div>"
+        f"  </div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<div style='height:36px'></div>", unsafe_allow_html=True)
 
@@ -3471,9 +3407,6 @@ with aba_funil:
 
 with aba_operadores:
     render_operadores(df_todos)
-
-with aba_funil_op:
-    render_funil_operadores()
 
 with aba_detalhamento:
     render_detalhamento(df_todos)
