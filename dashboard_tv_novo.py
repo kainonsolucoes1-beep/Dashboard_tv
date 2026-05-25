@@ -394,40 +394,28 @@ def inject_css():
     }
     [data-baseweb="tag"] span { color: var(--text-main) !important; }
 
-    /* ── Barra de navegação horizontal ────────────────────────────── */
+    /* ── Nav bar horizontal (st.radio) ─────────────────────────────── */
     div[data-testid="stRadio"] > div { gap: 0 !important; }
     div[data-testid="stRadio"] [role="radiogroup"] {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 6px !important;
-        background: var(--bg-card) !important;
-        padding: 8px 10px !important;
-        border-radius: 12px !important;
-        border: 1px solid var(--border) !important;
+        display: flex !important; flex-wrap: wrap !important; gap: 6px !important;
+        background: var(--bg-card) !important; padding: 8px 10px !important;
+        border-radius: 12px !important; border: 1px solid var(--border) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label {
-        padding: 7px 15px !important;
-        border-radius: 8px !important;
-        color: var(--text-sub) !important;
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        cursor: pointer !important;
-        border: 1px solid transparent !important;
-        white-space: nowrap !important;
+        padding: 7px 15px !important; border-radius: 8px !important;
+        color: var(--text-sub) !important; font-size: 13px !important;
+        font-weight: 500 !important; cursor: pointer !important;
+        border: 1px solid transparent !important; white-space: nowrap !important;
         transition: background .15s, color .15s, border-color .15s !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-        background: rgba(79,142,247,.1) !important;
-        color: var(--text-main) !important;
+        background: rgba(79,142,247,.1) !important; color: var(--text-main) !important;
         border-color: rgba(79,142,247,.35) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-        background: rgba(79,142,247,.18) !important;
-        color: #4f8ef7 !important;
-        border-color: rgba(79,142,247,.55) !important;
-        font-weight: 600 !important;
+        background: rgba(79,142,247,.18) !important; color: #4f8ef7 !important;
+        border-color: rgba(79,142,247,.55) !important; font-weight: 600 !important;
     }
-    /* Esconde círculo do radio */
     div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -654,14 +642,22 @@ def fetch_leads_criticos():
 @st.cache_data(ttl=55, show_spinner=False)
 def fetch_leads_hoje():
     """
-    Leads criados nos últimos 2 dias.
-    Prioriza o cache em disco do updater.py.
+    Leads criados nos últimos 5 dias (garante que a sexta-feira aparece na segunda).
+    Prioriza o cache em disco do updater.py, mas valida se o último dia útil está presente.
     """
     if _cache_disco_disponivel(CACHE_HOJE_PATH):
         df, _ = _ler_cache_disco(CACHE_HOJE_PATH)
-        if not df.empty:
+        if not df.empty and "data_obj" in df.columns:
+            # Calcula o último dia útil pulando fins de semana
+            _ult = date.today() - timedelta(days=1)
+            while _ult.weekday() >= 5:
+                _ult -= timedelta(days=1)
+            if (df["data_obj"] == _ult).any():
+                return df, None
+            # Cache não cobre o último dia útil — chama API diretamente
+        elif not df.empty:
             return df, None
-    return _fetch_leads_from_api(days=2, date_of="creation")
+    return _fetch_leads_from_api(days=5, date_of="creation")
 
 
 def _merge(df_hist, err1):
@@ -1521,6 +1517,35 @@ def render_funil_rt():
         render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
 
 
+def _ultimo_dia_util(referencia: date) -> date:
+    """
+    Retorna o último dia útil anterior à data de referência,
+    pulando finais de semana e feriados nacionais do Brasil.
+    """
+    feriados_fixos = {
+        (1,  1),   # Confraternização Universal
+        (4,  21),  # Tiradentes
+        (5,  1),   # Dia do Trabalho
+        (9,  7),   # Independência
+        (10, 12),  # Nossa Senhora Aparecida
+        (11, 2),   # Finados
+        (11, 15),  # Proclamação da República
+        (12, 25),  # Natal
+    }
+
+    def _is_util(d: date) -> bool:
+        if d.weekday() >= 5:          # sábado=5, domingo=6
+            return False
+        if (d.month, d.day) in feriados_fixos:
+            return False
+        return True
+
+    candidato = referencia - timedelta(days=1)
+    while not _is_util(candidato):
+        candidato -= timedelta(days=1)
+    return candidato
+
+
 def render_hoje_rt():
     st.markdown("#### 📅 Hoje")
     df_base, _ = fetch_leads_hoje()
@@ -1528,14 +1553,18 @@ def render_hoje_rt():
         return
 
     selecionados = st.session_state.get("visao_origem", [])
-    hoje  = date.today()
-    ontem = hoje - timedelta(days=1)
+    hoje            = date.today()
+    ultimo_util     = _ultimo_dia_util(hoje)
+
+    # Nome amigável para exibir na seta (ex: "sexta-feira" na segunda)
+    nomes_dia = {0:"segunda",1:"terça",2:"quarta",3:"quinta",4:"sexta"}
+    nome_util = nomes_dia.get(ultimo_util.weekday(), str(ultimo_util))
 
     df_base_hoje = df_base.copy()
     if selecionados:
         df_base_hoje = df_base_hoje[df_base_hoje["origem"].isin(selecionados)]
 
-    df_ontem_v = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == ontem)]
+    df_ontem_v = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == ultimo_util)]
     df_hoje_v  = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == hoje)]
 
     leads_hoje  = len(df_hoje_v)
@@ -1543,11 +1572,11 @@ def render_hoje_rt():
     diferenca   = leads_hoje - leads_ontem
 
     if diferenca > 0:
-        seta, cor_seta = f"↑ +{diferenca} que ontem", "#22c55e"
+        seta, cor_seta = f"↑ +{diferenca} que {nome_util}", "#22c55e"
     elif diferenca < 0:
-        seta, cor_seta = f"↓ {diferenca} que ontem", "#ef4444"
+        seta, cor_seta = f"↓ {diferenca} que {nome_util}", "#ef4444"
     else:
-        seta, cor_seta = "= igual a ontem", "#7a9cc7"
+        seta, cor_seta = f"= igual a {nome_util}", "#7a9cc7"
 
     if df_hoje_v.empty or "origem" not in df_hoje_v.columns:
         operadores_hoje = pd.DataFrame(columns=["origem", "qtd"])
@@ -1583,7 +1612,7 @@ def render_hoje_rt():
             f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
             '<div class="card-label">Leads Captados Hoje</div>'
             f'<div style="margin-top:10px;font-size:15px;font-weight:600;color:{cor_seta};">{seta}</div>'
-            f'<div style="font-size:13px;color:var(--text-sub);margin-top:4px;">Ontem: {leads_ontem} leads</div>'
+            f'<div style="font-size:13px;color:var(--text-sub);margin-top:4px;">{nome_util.capitalize()}: {leads_ontem} leads</div>'
             '</div>'
             '<div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>'
             '<div style="flex:1;min-width:0;padding-top:4px;">'
@@ -1768,7 +1797,7 @@ if df_todos.empty:
 # na seção mensal — garante consistência entre seção Hoje e seção Mensal
 st.session_state["df_curto"] = df_todos
 
-# ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────────
+# ── NAV BAR ───────────────────────────────────────────────────────────────────
 aba_ativa = st.radio(
     "nav",
     options=[
@@ -1829,7 +1858,6 @@ def render_visao_geral(df_todos: pd.DataFrame):
                 filtro_status = st.session_state.get("visao_status", "Todos")
                 data_de       = st.session_state.get("visao_de",  _default_de)
                 data_ate      = st.session_state.get("visao_ate", _default_ate)
-
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
         if st.button("🔄 Atualizar", key="visao_refresh", use_container_width=True):
             fetch_leads_30dias.clear()
@@ -3503,7 +3531,7 @@ def render_estagio_lead():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CONTEÚDO DA ABA ATIVA
+# ABAS
 # ══════════════════════════════════════════════════════════════════════════════
 if "Visão Geral" in aba_ativa:
     render_visao_geral(df_todos)
