@@ -1382,10 +1382,10 @@ def modal_lead(lead: pd.Series):
 # ── FRAGMENTS (abas de tempo real) ────────────────────────────────────────────
 def _df_com_filtros_globais(df_base: pd.DataFrame) -> pd.DataFrame:
     """Aplica os filtros globais (período, origem, status) a qualquer dataframe."""
-    data_de      = st.session_state.get("visao_de",     date.today() - timedelta(days=30))
-    data_ate     = st.session_state.get("visao_ate",    date.today())
-    selecionados = st.session_state.get("visao_origem", [])
-    f_status     = st.session_state.get("visao_status", "Todos")
+    data_de      = st.session_state.get("_fv_de",      date.today() - timedelta(days=30))
+    data_ate     = st.session_state.get("_fv_ate",     date.today())
+    selecionados = st.session_state.get("_fv_origem",  [])
+    f_status     = st.session_state.get("_fv_status",  "Todos")
     df = df_base[df_base["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
     if selecionados:
         df = df[df["origem"].isin(selecionados)]
@@ -1420,11 +1420,11 @@ def render_funil_rt():
 
     _default_funil_de  = date.today() - timedelta(days=30)
     _default_funil_ate = date.today()
-    funil_de     = st.session_state.get("funil_de",           _default_funil_de)
-    funil_ate    = st.session_state.get("funil_ate",          _default_funil_ate)
-    funil_origem = st.session_state.get("funil_origem",       ops_funil)
-    funil_status = st.session_state.get("funil_status",       "Todos")
-    filtro_temp  = st.session_state.get("filtro_temperatura", "Todas")
+    funil_de     = st.session_state.get("_fv_funil_de",     _default_funil_de)
+    funil_ate    = st.session_state.get("_fv_funil_ate",    _default_funil_ate)
+    funil_origem = st.session_state.get("_fv_funil_origem", ops_funil)
+    funil_status = st.session_state.get("_fv_funil_status", "Todos")
+    filtro_temp  = st.session_state.get("_fv_funil_temp",   "Todas")
     funil_origem = [o for o in funil_origem if o in ops_funil] or ops_funil
 
     _fh, _fb = st.columns([5, 1])
@@ -1473,6 +1473,11 @@ def render_funil_rt():
                 funil_origem = st.session_state.get("funil_origem",       ops_funil)
                 funil_status = st.session_state.get("funil_status",       "Todos")
                 filtro_temp  = st.session_state.get("filtro_temperatura", "Todas")
+                st.session_state["_fv_funil_de"]     = funil_de
+                st.session_state["_fv_funil_ate"]    = funil_ate
+                st.session_state["_fv_funil_origem"] = funil_origem
+                st.session_state["_fv_funil_status"] = funil_status
+                st.session_state["_fv_funil_temp"]   = filtro_temp
 
     # ── Aplica filtros ────────────────────────────────────────────────────────
     df_funil = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
@@ -1825,29 +1830,32 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     _default_de  = date.today() - timedelta(days=30)
     _default_ate = date.today()
-    selecionados  = st.session_state.get("visao_origem", origens_disp)
-    filtro_status = st.session_state.get("visao_status", "Todos")
-    data_de       = st.session_state.get("visao_de",  _default_de)
-    data_ate      = st.session_state.get("visao_ate", _default_ate)
+
+    # Chaves persistentes — não são apagadas quando a aba some da tela
+    selecionados  = st.session_state.get("_fv_origem",  origens_disp)
+    filtro_status = st.session_state.get("_fv_status",  "Todos")
+    data_de       = st.session_state.get("_fv_de",      _default_de)
+    data_ate      = st.session_state.get("_fv_ate",     _default_ate)
 
     with st.expander("🔎 Filtros da Aba", expanded=False):
         with st.form("filtros_visao", border=False):
             col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
             with col_op:
-                selecionados = st.multiselect(
+                _w_orig = st.multiselect(
                     "👤 Origem", options=origens_disp, default=selecionados, key="visao_origem"
                 )
             with col_st:
-                filtro_status = st.selectbox(
-                    "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="visao_status"
+                _status_opts = ["Todos"] + list(dict.fromkeys(STATUS_MAP.values()))
+                _st_idx = _status_opts.index(filtro_status) if filtro_status in _status_opts else 0
+                _w_status = st.selectbox(
+                    "📌 Status", _status_opts, index=_st_idx, key="visao_status"
                 )
             with col_de:
-                data_de = st.date_input(
-                    "📅 De", value=data_de,
-                    format="DD/MM/YYYY", key="visao_de"
+                _w_de = st.date_input(
+                    "📅 De", value=data_de, format="DD/MM/YYYY", key="visao_de"
                 )
             with col_ate:
-                data_ate = st.date_input(
+                _w_ate = st.date_input(
                     "📅 Até", value=data_ate, format="DD/MM/YYYY", key="visao_ate"
                 )
             with col_btn_f:
@@ -1855,10 +1863,14 @@ def render_visao_geral(df_todos: pd.DataFrame):
                 submitted = st.form_submit_button("✔ Aplicar", use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             if submitted:
-                selecionados  = st.session_state.get("visao_origem", origens_disp)
-                filtro_status = st.session_state.get("visao_status", "Todos")
-                data_de       = st.session_state.get("visao_de",  _default_de)
-                data_ate      = st.session_state.get("visao_ate", _default_ate)
+                selecionados  = _w_orig
+                filtro_status = _w_status
+                data_de       = _w_de
+                data_ate      = _w_ate
+                st.session_state["_fv_origem"] = selecionados
+                st.session_state["_fv_status"] = filtro_status
+                st.session_state["_fv_de"]     = data_de
+                st.session_state["_fv_ate"]    = data_ate
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
         if st.button("🔄 Atualizar", key="visao_refresh", use_container_width=True):
             fetch_leads_30dias.clear()
@@ -2127,10 +2139,15 @@ def render_operadores(df_todos: pd.DataFrame):
         st.rerun(scope="fragment")
     _default_op_de  = date.today() - timedelta(days=30)
     _default_op_ate = date.today()
-    op_de  = st.session_state.get("op_de",  _default_op_de)
-    op_ate = st.session_state.get("op_ate", _default_op_ate)
+    op_de  = st.session_state.get("_fv_op_de",  _default_op_de)
+    op_ate = st.session_state.get("_fv_op_ate", _default_op_ate)
 
     origens_op_disp = sorted(df_todos["origem"].dropna().unique().tolist())
+    _op_orig_def    = [o for o in st.session_state.get("_fv_op_orig", origens_op_disp) if o in origens_op_disp] or origens_op_disp
+    _op_status_opts = ["Todos"] + list(dict.fromkeys(STATUS_MAP.values()))
+    _op_status_def  = st.session_state.get("_fv_op_status", "Todos")
+    _op_status_idx  = _op_status_opts.index(_op_status_def) if _op_status_def in _op_status_opts else 0
+
     op_de_col, op_ate_col, op1, op2, _ = st.columns([1.5, 1.5, 2.5, 2, 1])
     with op_de_col:
         op_de = st.date_input("📅 De", value=op_de, format="DD/MM/YYYY", key="op_de")
@@ -2138,12 +2155,18 @@ def render_operadores(df_todos: pd.DataFrame):
         op_ate = st.date_input("📅 Até", value=op_ate, format="DD/MM/YYYY", key="op_ate")
     with op1:
         op_selecionados = st.multiselect(
-            "👤 Origem", options=origens_op_disp, default=origens_op_disp, key="op_origem"
+            "👤 Origem", options=origens_op_disp, default=_op_orig_def, key="op_origem"
         )
     with op2:
         op_status = st.selectbox(
-            "📌 Status", ["Todos"] + list(dict.fromkeys(STATUS_MAP.values())), key="op_status"
+            "📌 Status", _op_status_opts, index=_op_status_idx, key="op_status"
         )
+
+    # Persiste valores para sobreviver à troca de aba
+    st.session_state["_fv_op_de"]     = op_de
+    st.session_state["_fv_op_ate"]    = op_ate
+    st.session_state["_fv_op_orig"]   = op_selecionados
+    st.session_state["_fv_op_status"] = op_status
 
     df_todos = df_todos[df_todos["data_obj"].apply(lambda d: d is not None and op_de <= d <= op_ate)]
 
@@ -2384,22 +2407,33 @@ def render_detalhamento(df_todos: pd.DataFrame):
 
     st.markdown("---")
     st.markdown("#### 🔎 Filtros da Aba")
+    _default_det_de  = date.today().replace(day=1)
+    _default_det_ate = date.today()
+    ops_disp_det     = sorted(df_todos["origem"].dropna().unique().tolist())
+    _det_de_val  = st.session_state.get("_fv_det_de",  _default_det_de)
+    _det_ate_val = st.session_state.get("_fv_det_ate", _default_det_ate)
+    _det_ops_val = [o for o in st.session_state.get("_fv_det_ops", ops_disp_det) if o in ops_disp_det] or ops_disp_det
+
     fd1, fd2, fd3 = st.columns([1.5, 1.5, 3])
     with fd1:
         det_de = st.date_input(
-            "📅 De", value=date.today().replace(day=1),
+            "📅 De", value=_det_de_val,
             format="DD/MM/YYYY", key="det_de"
         )
     with fd2:
         det_ate = st.date_input(
-            "📅 Até", value=date.today(),
+            "📅 Até", value=_det_ate_val,
             format="DD/MM/YYYY", key="det_ate"
         )
     with fd3:
-        ops_disp_det = sorted(df_todos["origem"].dropna().unique().tolist())
         det_ops = st.multiselect(
-            "👤 Origem", options=ops_disp_det, default=ops_disp_det, key="det_ops"
+            "👤 Origem", options=ops_disp_det, default=_det_ops_val, key="det_ops"
         )
+
+    # Persiste valores para sobreviver à troca de aba
+    st.session_state["_fv_det_de"]  = det_de
+    st.session_state["_fv_det_ate"] = det_ate
+    st.session_state["_fv_det_ops"] = det_ops
 
     st.markdown("---")
 
