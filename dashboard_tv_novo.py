@@ -104,9 +104,9 @@ def inject_css():
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
     :root {
-        --bg-main:   #07111f;
-        --bg-card:   #0c1729;
-        --bg-input:  #07111f;
+        --bg-main:   #0a0a0a;
+        --bg-card:   #141414;
+        --bg-input:  #0a0a0a;
         --border:    #1c2a3d;
         --text-main: #e8eef8;
         --text-sub:  #7a9cc7;
@@ -393,12 +393,76 @@ def inject_css():
         border-radius: 6px !important;
     }
     [data-baseweb="tag"] span { color: var(--text-main) !important; }
+
+    /* ── Barra de navegação horizontal ────────────────────────────── */
+    div[data-testid="stRadio"] > div { gap: 0 !important; }
+    div[data-testid="stRadio"] [role="radiogroup"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        background: var(--bg-card) !important;
+        padding: 8px 10px !important;
+        border-radius: 12px !important;
+        border: 1px solid var(--border) !important;
+    }
+    div[data-testid="stRadio"] [role="radiogroup"] label {
+        padding: 7px 15px !important;
+        border-radius: 8px !important;
+        color: var(--text-sub) !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        border: 1px solid transparent !important;
+        white-space: nowrap !important;
+        transition: background .15s, color .15s, border-color .15s !important;
+    }
+    div[data-testid="stRadio"] [role="radiogroup"] label:hover {
+        background: rgba(79,142,247,.1) !important;
+        color: var(--text-main) !important;
+        border-color: rgba(79,142,247,.35) !important;
+    }
+    div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
+        background: rgba(79,142,247,.18) !important;
+        color: #4f8ef7 !important;
+        border-color: rgba(79,142,247,.55) !important;
+        font-weight: 600 !important;
+    }
+    /* Esconde círculo do radio */
+    div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
 
 # ── BUSCA DE DADOS ─────────────────────────────────────────────────────────────
 DIAS_CRITICOS = 4  # últimos N dias considerados tempo-real
+
+# Caminhos dos arquivos de cache em disco gerados pelo updater.py
+CACHE_30_PATH   = os.path.join(SCRIPT_DIR, "cache_30dias.pkl")
+CACHE_80_PATH   = os.path.join(SCRIPT_DIR, "cache_80dias.pkl")
+CACHE_HOJE_PATH     = os.path.join(SCRIPT_DIR, "cache_hoje.pkl")
+CACHE_CRITICOS_PATH = os.path.join(SCRIPT_DIR, "cache_criticos.pkl")
+
+
+def _ler_cache_disco(path: str):
+    """
+    Lê um arquivo de cache gerado pelo updater.py.
+    Retorna (DataFrame, datetime_atualizacao) ou (DataFrame vazio, None) se não existir.
+    """
+    try:
+        with open(path, "rb") as f:
+            import pickle
+            payload = pickle.load(f)
+        return payload["df"], payload["atualizado"]
+    except Exception:
+        return pd.DataFrame(), None
+
+
+def _cache_disco_disponivel(path: str) -> bool:
+    """Retorna True se o arquivo de cache existe e tem menos de 10 minutos."""
+    if not os.path.exists(path):
+        return False
+    idade = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).seconds
+    return idade < 600  # 10 minutos de tolerância
 
 
 def _fetch_leads_from_api(days: int, date_of: str = "creation"):
@@ -547,25 +611,56 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_leads_30dias():
-    """60 dias por criação · cache 30 min · abas de visão geral."""
+    """
+    60 dias por criação.
+    Prioriza o cache em disco do updater.py (quase instantâneo).
+    Só vai à API se o arquivo não existir ou estiver desatualizado.
+    """
+    if _cache_disco_disponivel(CACHE_30_PATH):
+        df, _ = _ler_cache_disco(CACHE_30_PATH)
+        if not df.empty:
+            return df, None
     return _fetch_leads_from_api(days=60, date_of="creation")
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_leads_80dias():
-    """80 dias por criação · cache 30 min · funil de atendentes."""
+    """
+    80 dias por criação.
+    Prioriza o cache em disco do updater.py (quase instantâneo).
+    Só vai à API se o arquivo não existir ou estiver desatualizado.
+    """
+    if _cache_disco_disponivel(CACHE_80_PATH):
+        df, _ = _ler_cache_disco(CACHE_80_PATH)
+        if not df.empty:
+            return df, None
     return _fetch_leads_from_api(days=80, date_of="creation")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_leads_criticos():
-    """Últimos 4 dias por atualização · cache 60s · captura qualquer lead modificado."""
+    """
+    Últimos 4 dias por atualização.
+    Prioriza o cache em disco do updater.py.
+    Só vai à API se o arquivo não existir ou estiver desatualizado.
+    """
+    if _cache_disco_disponivel(CACHE_CRITICOS_PATH):
+        df, _ = _ler_cache_disco(CACHE_CRITICOS_PATH)
+        if not df.empty:
+            return df, None
     return _fetch_leads_from_api(days=DIAS_CRITICOS, date_of="change")
 
 
 @st.cache_data(ttl=55, show_spinner=False)
 def fetch_leads_hoje():
-    """Leads criados nos últimos 2 dias por criação · cache 55s · para o painel Hoje."""
+    """
+    Leads criados nos últimos 2 dias.
+    Prioriza o cache em disco do updater.py.
+    """
+    if _cache_disco_disponivel(CACHE_HOJE_PATH):
+        df, _ = _ler_cache_disco(CACHE_HOJE_PATH)
+        if not df.empty:
+            return df, None
     return _fetch_leads_from_api(days=2, date_of="creation")
 
 
@@ -1336,11 +1431,13 @@ def render_funil_rt():
 
     _fh, _fb = st.columns([5, 1])
     with _fb:
-        if st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True):
-            fetch_leads_80dias.clear()
-            with st.spinner("Atualizando..."):
-                df, _ = merge_leads_longo()
-                st.session_state["df_funil"] = df
+        _funil_atualizar = st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True)
+    if _funil_atualizar:
+        fetch_leads_80dias.clear()
+        fetch_leads_criticos.clear()
+        df, _ = merge_leads_longo()
+        st.session_state["df_funil"] = df
+        st.rerun(scope="fragment")
 
     with st.expander("🔎 Filtros da Aba", expanded=False):
         with st.form("filtros_funil", border=False):
@@ -1452,10 +1549,13 @@ def render_hoje_rt():
     else:
         seta, cor_seta = "= igual a ontem", "#7a9cc7"
 
-    operadores_hoje = (
-        df_hoje_v.groupby("origem").size()
-        .reset_index(name="qtd").sort_values("qtd", ascending=False)
-    )
+    if df_hoje_v.empty or "origem" not in df_hoje_v.columns:
+        operadores_hoje = pd.DataFrame(columns=["origem", "qtd"])
+    else:
+        operadores_hoje = (
+            df_hoje_v.groupby("origem").size()
+            .reset_index(name="qtd").sort_values("qtd", ascending=False)
+        )
 
     META_DIARIA = 10
     progresso = min(leads_hoje / META_DIARIA, 1.0)
@@ -1562,12 +1662,13 @@ def render_leads_rt():
         )
     with _btn_leads:
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="leads_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_80dias.clear()
-            fetch_leads_criticos.clear()
-            fetch_leads_hoje.clear()
-            st.rerun(scope="fragment")
+        _leads_atualizar = st.button("🔄 Atualizar", key="leads_refresh", use_container_width=True)
+    if _leads_atualizar:
+        fetch_leads_30dias.clear()
+        fetch_leads_80dias.clear()
+        fetch_leads_criticos.clear()
+        fetch_leads_hoje.clear()
+        st.rerun(scope="fragment")
 
     df_sorted_orig = df_rt.copy()
     df_sorted_orig["_sort"] = pd.to_datetime(
@@ -1636,18 +1737,13 @@ with col_hora:
         unsafe_allow_html=True
     )
 with col_btn:
-    if st.button("🔄 Atualizar", key="refresh"):
+    if st.button("🚀", key="refresh"):
+        # Limpa cache e reroda o script inteiro — recarrega tudo do disco
         fetch_leads_30dias.clear()
         fetch_leads_80dias.clear()
         fetch_leads_criticos.clear()
         fetch_leads_hoje.clear()
-        with st.spinner("Atualizando dados..."):
-            df_funil_novo, _ = merge_leads_longo()
-            merge_leads_curto()
-            fetch_leads_criticos()
-            fetch_leads_hoje()
-        st.session_state["df_funil"] = df_funil_novo
-        st.rerun()
+        st.rerun()  # rerun global: reroda o script completo
 
 st.markdown("---")
 
@@ -1668,20 +1764,33 @@ if df_todos.empty:
     st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
     st.stop()
 
-# ── ABAS ──────────────────────────────────────────────────────────────────────
-aba_visao, aba_funil, aba_operadores, aba_detalhamento, aba_leads, aba_crm, aba_estagio = st.tabs([
-    "📊 Visão Geral",
-    "🔥 Funil de Vendas",
-    "👤 Por Operador",
-    "📆 Detalhamento por Dia",
-    "📋 Leads Recentes",
-    "🗂️ CRM",
-    "🚦 Estágio do Lead",
-])
+# Mantém df_curto atualizado no session_state para o render_visao_geral usar
+# na seção mensal — garante consistência entre seção Hoje e seção Mensal
+st.session_state["df_curto"] = df_todos
+
+# ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────────
+aba_ativa = st.radio(
+    "nav",
+    options=[
+        "📊 Visão Geral",
+        "🔥 Funil de Vendas",
+        "👤 Por Operador",
+        "📆 Detalhamento por Dia",
+        "📋 Leads Recentes",
+        "🗂️ CRM",
+        "🚦 Estágio do Lead",
+    ],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="aba_ativa",
+)
 
 
 @st.fragment
 def render_visao_geral(df_todos: pd.DataFrame):
+    # Sempre relê do disco via session_state atualizado pelo script principal
+    df_todos = st.session_state.get("df_curto", df_todos)
+
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
 
     _default_de  = date.today() - timedelta(days=30)
@@ -1720,6 +1829,15 @@ def render_visao_geral(df_todos: pd.DataFrame):
                 filtro_status = st.session_state.get("visao_status", "Todos")
                 data_de       = st.session_state.get("visao_de",  _default_de)
                 data_ate      = st.session_state.get("visao_ate", _default_ate)
+
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        if st.button("🔄 Atualizar", key="visao_refresh", use_container_width=True):
+            fetch_leads_30dias.clear()
+            fetch_leads_hoje.clear()
+            fetch_leads_criticos.clear()
+            df_novo, _ = merge_leads_curto()
+            st.session_state["df_curto"] = df_novo
+            st.rerun(scope="fragment")
 
     df = df_todos.copy()
     df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
@@ -1973,18 +2091,11 @@ def render_operadores(df_todos: pd.DataFrame):
         st.markdown("#### 🔎 Filtros da Aba")
     with _btn_op:
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="op_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_80dias.clear()
-            fetch_leads_criticos.clear()
-            fetch_leads_hoje.clear()
-            with st.spinner("Atualizando dados..."):
-                df_funil_novo, _ = merge_leads_longo()
-                merge_leads_curto()
-                fetch_leads_criticos()
-                fetch_leads_hoje()
-            st.session_state["df_funil"] = df_funil_novo
-            st.rerun()
+        _op_atualizar = st.button("🔄 Atualizar", key="op_refresh", use_container_width=True)
+    if _op_atualizar:
+        fetch_leads_30dias.clear()
+        fetch_leads_criticos.clear()
+        st.rerun(scope="fragment")
     _default_op_de  = date.today() - timedelta(days=30)
     _default_op_ate = date.today()
     op_de  = st.session_state.get("op_de",  _default_op_de)
@@ -2236,18 +2347,11 @@ def render_detalhamento(df_todos: pd.DataFrame):
         )
     with _btn_det:
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="det_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_80dias.clear()
-            fetch_leads_criticos.clear()
-            fetch_leads_hoje.clear()
-            with st.spinner("Atualizando dados..."):
-                df_funil_novo, _ = merge_leads_longo()
-                merge_leads_curto()
-                fetch_leads_criticos()
-                fetch_leads_hoje()
-            st.session_state["df_funil"] = df_funil_novo
-            st.rerun()
+        _det_atualizar = st.button("🔄 Atualizar", key="det_refresh", use_container_width=True)
+    if _det_atualizar:
+        fetch_leads_30dias.clear()
+        fetch_leads_criticos.clear()
+        st.rerun(scope="fragment")
 
     st.markdown("---")
     st.markdown("#### 🔎 Filtros da Aba")
@@ -2465,18 +2569,11 @@ def render_crm():
 
     _, crm_btn_col = st.columns([5, 1])
     with crm_btn_col:
-        if st.button("🔄 Atualizar", key="crm_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_80dias.clear()
-            fetch_leads_criticos.clear()
-            fetch_leads_hoje.clear()
-            with st.spinner("Atualizando dados..."):
-                df_funil_novo, _ = merge_leads_longo()
-                merge_leads_curto()
-                fetch_leads_criticos()
-                fetch_leads_hoje()
-            st.session_state["df_funil"] = df_funil_novo
-            st.rerun(scope="fragment")
+        _crm_atualizar = st.button("🔄 Atualizar", key="crm_refresh", use_container_width=True)
+    if _crm_atualizar:
+        fetch_leads_30dias.clear()
+        fetch_leads_criticos.clear()
+        st.rerun(scope="fragment")
 
     aliases = load_base_aliases()
     df_todos_raw = df_todos.copy()  # nomes brutos da API, antes dos aliases
@@ -3124,6 +3221,15 @@ def render_crm():
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
 def render_estagio_lead():
+    # ── Botão Atualizar da aba ────────────────────────────────────────────────
+    _est_h, _est_btn = st.columns([5, 1])
+    with _est_btn:
+        _est_atualizar = st.button("🔄 Atualizar", key="estagio_refresh", use_container_width=True)
+    if _est_atualizar:
+        fetch_leads_30dias.clear()
+        fetch_leads_criticos.clear()
+        st.rerun(scope="fragment")
+
     df_todos, _ = merge_leads_curto()
     if df_todos.empty:
         st.info("Nenhum dado disponível.")
@@ -3397,31 +3503,21 @@ def render_estagio_lead():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ABAS
+# CONTEÚDO DA ABA ATIVA
 # ══════════════════════════════════════════════════════════════════════════════
-with aba_visao:
+if "Visão Geral" in aba_ativa:
     render_visao_geral(df_todos)
-
-with aba_funil:
+elif "Funil" in aba_ativa:
     render_funil_rt()
-
-with aba_operadores:
+elif "Por Operador" in aba_ativa:
     render_operadores(df_todos)
-
-with aba_detalhamento:
+elif "Detalhamento" in aba_ativa:
     render_detalhamento(df_todos)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ABA 5 — LEADS RECENTES (tempo real via fragment)
-# ══════════════════════════════════════════════════════════════════════════════
-with aba_leads:
-
+elif "Leads Recentes" in aba_ativa:
     render_leads_rt()
-
-with aba_crm:
+elif "CRM" in aba_ativa:
     render_crm()
-
-with aba_estagio:
+elif "Estágio" in aba_ativa:
     render_estagio_lead()
 
 
