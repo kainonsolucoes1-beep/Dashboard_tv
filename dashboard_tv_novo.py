@@ -895,6 +895,7 @@ def grafico_rosca(df):
     colors = [CORES_STATUS.get(l, "#aaa") for l in labels]
     fig = go.Figure(go.Pie(
         labels=labels, values=values, hole=0.68,
+        domain=dict(x=[0, 0.58]),
         marker=dict(colors=colors, line=dict(color="rgba(0,0,0,0)", width=0)),
         textinfo="percent",
         textfont=dict(size=11, color="#e8eef8"),
@@ -904,7 +905,8 @@ def grafico_rosca(df):
         margin=dict(t=10, b=10, l=10, r=10),
         showlegend=True,
         legend=dict(
-            orientation="v", x=1.02, y=0.5,
+            orientation="v", x=0.61, y=0.5,
+            xanchor="left", yanchor="middle",
             font=dict(color="#e8eef8", size=11),
             bgcolor="rgba(0,0,0,0)",
         ),
@@ -1807,7 +1809,6 @@ aba_ativa = st.radio(
         "📆 Detalhamento por Dia",
         "📋 Leads Recentes",
         "🗂️ CRM",
-        "🚦 Estágio do Lead",
     ],
     horizontal=True,
     label_visibility="collapsed",
@@ -3545,8 +3546,6 @@ elif "Leads Recentes" in aba_ativa:
     render_leads_rt()
 elif "CRM" in aba_ativa:
     render_crm()
-elif "Estágio" in aba_ativa:
-    render_estagio_lead()
 
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
