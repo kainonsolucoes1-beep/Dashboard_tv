@@ -453,6 +453,27 @@ def _cache_disco_disponivel(path: str) -> bool:
     return idade < 600  # 10 minutos de tolerância
 
 
+@st.fragment(run_every=30)
+def _watcher_pkl():
+    """Detecta quando o updater.py salva novos pkl e recarrega o dashboard automaticamente."""
+    _pkls = {
+        CACHE_30_PATH:       "mtime_30",
+        CACHE_80_PATH:       "mtime_80",
+        CACHE_HOJE_PATH:     "mtime_hoje",
+        CACHE_CRITICOS_PATH: "mtime_criticos",
+    }
+    for path, key in _pkls.items():
+        if os.path.exists(path):
+            mtime = os.path.getmtime(path)
+            if st.session_state.get(key, 0) < mtime:
+                st.session_state[key] = mtime
+                fetch_leads_30dias.clear()
+                fetch_leads_80dias.clear()
+                fetch_leads_criticos.clear()
+                fetch_leads_hoje.clear()
+                st.rerun()
+
+
 def _fetch_leads_from_api(days: int, date_of: str = "creation"):
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
     todos_leads = []
@@ -1780,6 +1801,8 @@ with col_btn:
         fetch_leads_criticos.clear()
         fetch_leads_hoje.clear()
         st.rerun()  # rerun global: reroda o script completo
+
+_watcher_pkl()
 
 st.markdown("---")
 
