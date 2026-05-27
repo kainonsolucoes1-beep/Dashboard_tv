@@ -1207,6 +1207,12 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
                 <div style="text-align:center;padding:0 20px;">
+                    <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Carteira Total</div>
+                    <div style="font-size:30px;font-weight:700;color:var(--green);">{fmt_brl(total_valor)}</div>
+                    <div style="font-size:10px;color:var(--text-sub);margin-top:3px;">{leads_abertos} ativas</div>
+                </div>
+                <div style="width:1px;height:36px;background:var(--border);"></div>
+                <div style="text-align:center;padding:0 20px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Ticket Médio</div>
                     <div style="font-size:30px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
                 </div>
@@ -1216,13 +1222,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                     <div style="font-size:30px;font-weight:700;color:{_cor_atr};">{em_atraso_qt}</div>
                 </div>
             </div>
-        </div>
-        <div style="text-align:right;padding-left:24px;border-left:1px solid var(--border);flex-shrink:0;">
-            <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">
-                Carteira Total
-            </div>
-            <div style="font-size:30px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
-            <div style="font-size:11px;color:var(--text-sub);margin-top:5px;">{leads_abertos} propostas ativas</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
