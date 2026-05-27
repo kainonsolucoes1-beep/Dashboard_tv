@@ -1090,7 +1090,7 @@ def grafico_funil_status(df_atendente):
     ))
     fig.update_layout(
         margin=dict(t=10, b=10, l=10, r=10),
-        height=320,
+        height=max(200, len(labels) * 72),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(color="#e8eef8"),
@@ -1170,40 +1170,72 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             f'👤</div>'
         )
 
-    # ── Cabeçalho com gradiente ───────────────────────────────────────────────
+    # ── Pré-calcula temperaturas para o centro do header ─────────────────────
+    _qt_quente = int((df_atendente["perception"] == "🔥 Quente").sum())
+    _qt_morno  = int((df_atendente["perception"] == "🌡️ Morno").sum())
+    _qt_frio   = int((df_atendente["perception"] == "🧊 Frio").sum())
+    _cor_atr   = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
+
+    # ── Cabeçalho 3 zonas ────────────────────────────────────────────────────
     st.markdown(f"""
     <div style="
         background: linear-gradient(135deg, var(--bg-card) 0%, {cor_atendente}12 100%);
         border: 2px solid {cor_atendente};
         border-radius: 20px;
-        padding: 28px 32px;
+        padding: 24px 28px;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
-        gap: 24px;
+        gap: 20px;
         box-shadow: 0 4px 32px {cor_atendente}22;
     ">
-        {avatar_html}
-        <div style="flex:1;">
-            <div style="display:flex;align-items:center;gap:12px;line-height:1.1;">
-                <span style="font-size:32px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
-                <span style="font-size:11px;font-weight:600;color:{cor_atendente};
-                             background:{cor_atendente}20;border:1px solid {cor_atendente}55;
-                             padding:3px 10px;border-radius:20px;letter-spacing:.8px;">OPERADOR</span>
-            </div>
-            <div style="font-size:13px;color:var(--text-sub);margin-top:10px;">
-                {total_at} leads no período &nbsp;·&nbsp;
-                <span style="color:#22c55e;">{vendas_at} vendas</span> &nbsp;·&nbsp;
-                {taxa_at} conversão &nbsp;·&nbsp;
-                <span style="color:#f59e0b;">{leads_abertos} em aberto</span>
+        <!-- Zona 1: Avatar + Nome -->
+        <div style="display:flex;align-items:center;gap:18px;flex-shrink:0;">
+            {avatar_html}
+            <div>
+                <div style="display:flex;align-items:center;gap:10px;line-height:1.1;">
+                    <span style="font-size:28px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
+                    <span style="font-size:10px;font-weight:600;color:{cor_atendente};
+                                 background:{cor_atendente}20;border:1px solid {cor_atendente}55;
+                                 padding:2px 9px;border-radius:20px;letter-spacing:.8px;">OPERADOR</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-sub);margin-top:8px;">
+                    {total_at} leads &nbsp;·&nbsp;
+                    <span style="color:#22c55e;">{vendas_at} vendas</span> &nbsp;·&nbsp;
+                    {taxa_at} conversão
+                </div>
             </div>
         </div>
-        <div style="text-align:right;padding-left:28px;border-left:1px solid var(--border);">
+
+        <!-- Zona 2: KPIs centrais -->
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:0;">
+            <div style="text-align:center;padding:0 24px;">
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Ticket Médio</div>
+                <div style="font-size:18px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
+            </div>
+            <div style="width:1px;height:40px;background:var(--border);"></div>
+            <div style="text-align:center;padding:0 24px;">
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Em Atraso</div>
+                <div style="font-size:18px;font-weight:700;color:{_cor_atr};">{em_atraso_qt} leads</div>
+            </div>
+            <div style="width:1px;height:40px;background:var(--border);"></div>
+            <div style="text-align:center;padding:0 24px;">
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;">Temperatura</div>
+                <div style="display:flex;gap:12px;justify-content:center;font-size:14px;font-weight:700;">
+                    <span style="color:#ef4444;">🔥 {_qt_quente}</span>
+                    <span style="color:#f59e0b;">🌡️ {_qt_morno}</span>
+                    <span style="color:#4f8ef7;">🧊 {_qt_frio}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zona 3: Carteira Total -->
+        <div style="text-align:right;padding-left:24px;border-left:1px solid var(--border);flex-shrink:0;">
             <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
                 Carteira Total
             </div>
-            <div style="font-size:38px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
-            <div style="font-size:11px;color:var(--text-sub);margin-top:6px;">em propostas ativas</div>
+            <div style="font-size:34px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
+            <div style="font-size:11px;color:var(--text-sub);margin-top:6px;">{leads_abertos} propostas ativas</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1267,46 +1299,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Linha de métricas rápidas ─────────────────────────────────────────────
-    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-    m1, m2, m3 = st.columns(3)
-    _cor_atraso = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
-    _brd_atraso = "#ef444430" if em_atraso_qt > 0 else "var(--border)"
-    with m1:
-        st.markdown(f"""
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
-                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
-            <span style="font-size:26px;">🎟️</span>
-            <div>
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Ticket Médio</div>
-                <div style="font-size:20px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"""
-        <div style="background:var(--bg-card);border:1px solid {_brd_atraso};border-radius:12px;
-                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
-            <span style="font-size:26px;">⏰</span>
-            <div>
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Em Atraso</div>
-                <div style="font-size:20px;font-weight:700;color:{_cor_atraso};">{em_atraso_qt} leads</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with m3:
-        st.markdown(f"""
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
-                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
-            <span style="font-size:26px;">📂</span>
-            <div>
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Em Aberto</div>
-                <div style="font-size:20px;font-weight:700;color:#f59e0b;">{leads_abertos} leads</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     # ── Funil (2/3) + Pizza (1/3) ────────────────────────────────────────────
     cg1, cg2 = st.columns([2, 1])
