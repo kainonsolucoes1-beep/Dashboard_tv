@@ -7,8 +7,41 @@ import os
 from datetime import datetime, date, timedelta
 from PIL import Image
 from config import ACCESS_TOKEN
+import re as _re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _renovar_token_auto() -> str | None:
+    env_path = os.path.join(SCRIPT_DIR, ".env")
+    try:
+        with open(env_path, "r") as f:
+            conteudo = f.read()
+        client_id     = _re.search(r'CLIENT_ID\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        client_secret = _re.search(r'CLIENT_SECRET\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        refresh_token = _re.search(r'REFRESH_TOKEN\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        resp = requests.post(
+            "https://api.followize.com.br/oauth/token",
+            data={
+                "grant_type":    "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id":     client_id,
+                "client_secret": client_secret,
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        novo_access  = data["access_token"]
+        novo_refresh = data["refresh_token"]
+        conteudo = _re.sub(r'ACCESS_TOKEN\s*=\s*"[^"]*"',  f'ACCESS_TOKEN  = "{novo_access}"',  conteudo)
+        conteudo = _re.sub(r'REFRESH_TOKEN\s*=\s*"[^"]*"', f'REFRESH_TOKEN = "{novo_refresh}"', conteudo)
+        with open(env_path, "w") as f:
+            f.write(conteudo)
+        return novo_access
+    except Exception:
+        return None
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 _logo = Image.open(os.path.join(SCRIPT_DIR, "logo o2 atualizada.png"))
@@ -445,12 +478,15 @@ def _ler_cache_disco(path: str):
         return pd.DataFrame(), None
 
 
-def _cache_disco_disponivel(path: str) -> bool:
-    """Retorna True se o arquivo de cache existe e tem menos de 10 minutos."""
-    if not os.path.exists(path):
+def _cache_disco_disponivel(path: str, max_age: int = 0) -> bool:
+    """Retorna True se o arquivo existe e não está vazio.
+    max_age > 0: exige que o arquivo tenha menos de max_age segundos."""
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
         return False
-    idade = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).seconds
-    return idade < 600  # 10 minutos de tolerância
+    if max_age > 0:
+        idade = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).total_seconds()
+        return idade < max_age
+    return True
 
 
 @st.fragment(run_every=30)
@@ -475,10 +511,12 @@ def _watcher_pkl():
 
 
 def _fetch_leads_from_api(days: int, date_of: str = "creation"):
+    global ACCESS_TOKEN
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
     todos_leads = []
     pagina = 1
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    _token_renovado = False
     while True:
         params = {"date_from": date_from, "date_of": date_of, "per_page": 200, "page": pagina}
         ultimo_erro = None
@@ -489,6 +527,13 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
                     "https://api.followize.com.br/v3/leads",
                     headers=headers, params=params, timeout=60
                 )
+                if response.status_code == 401 and not _token_renovado:
+                    novo = _renovar_token_auto()
+                    if novo:
+                        ACCESS_TOKEN = novo
+                        headers["Authorization"] = f"Bearer {novo}"
+                        _token_renovado = True
+                        continue
                 if response.status_code != 200:
                     return pd.DataFrame(), f"Erro na API: {response.status_code}"
                 data = response.json()
@@ -1588,7 +1633,10 @@ def render_hoje_rt():
     nomes_dia = {0:"segunda",1:"terça",2:"quarta",3:"quinta",4:"sexta"}
     nome_util = nomes_dia.get(ultimo_util.weekday(), str(ultimo_util))
 
-    df_base_hoje = df_base.copy()
+    _ORIGENS_SDR_HOJE = {"julia", "isaac", "leticia", "rodolfo"}
+    df_base_hoje = df_base[
+        df_base["origem"].str.lower().str.strip().isin(_ORIGENS_SDR_HOJE)
+    ].copy()
     if selecionados:
         df_base_hoje = df_base_hoje[df_base_hoje["origem"].isin(selecionados)]
 
@@ -1922,19 +1970,9 @@ def render_visao_geral(df_todos: pd.DataFrame):
     render_hoje_rt()
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 📊 Visão Mensal - SDR")
+    st.markdown("#### 📊 Visão Mensal")
 
-    _ORIGENS_SDR = {"isaac", "julia", "leticia", "rodolfo", "o2 solution"}
-    _REMAP_SDR   = {
-        "anny":        "O2 Solution",
-        "emilly":      "O2 Solution",
-        "o2 solution": "O2 Solution",
-    }
     df_sdr = df.copy()
-    df_sdr["origem"] = df_sdr["origem"].apply(
-        lambda o: _REMAP_SDR.get(str(o).lower().strip(), o) if pd.notna(o) else o
-    )
-    df_sdr = df_sdr[df_sdr["origem"].str.lower().str.strip().isin(_ORIGENS_SDR)]
 
     _ops_sdr = sorted(df_sdr["origem"].dropna().unique().tolist())
 
@@ -1966,7 +2004,6 @@ def render_visao_geral(df_todos: pd.DataFrame):
         ("btn_prim",     "Pendente",         "👋", "#4f8ef7"),
         ("btn_agend",    "Agendado",          "📅", "#f59e0b"),
         ("btn_proposta", "Proposta Enviada",  "📄", "#8b5cf6"),
-        ("btn_venda",    "Venda Realizada",   "✅", "#22c55e"),
     ]
     for _i, (_btn_key, _status, _icone, _cor) in enumerate(_sdr_static):
         _df_card = df_sdr[df_sdr["status"] == _status]
@@ -1974,6 +2011,26 @@ def render_visao_geral(df_todos: pd.DataFrame):
             render_card(_icone, len(_df_card), _status, _cor, df=_df_card, status_filtro=None)
             if st.button("🔍 Ver leads", key=_btn_key, use_container_width=True):
                 modal_leads_status(_df_card, _status, _cor, operadores=_ops_sdr)
+
+    # Card 5 – 💰 Potencial em Carteira (substitui "Venda Realizada")
+    _df_proposta    = df_sdr[df_sdr["status"] == "Proposta Enviada"]
+    _valor_carteira = _df_proposta["valor_proposta"].sum()
+    _qtd_proposta   = len(_df_proposta)
+
+    with _sdr_cols[4]:
+        st.markdown(f"""
+        <div class="card-status" style="border-left:4px solid #22c55e;text-align:center;">
+            <span class="card-icone">💰</span>
+            <div class="card-valor" style="color:#22c55e;font-size:38px;">{fmt_brl(_valor_carteira)}</div>
+            <div class="card-label">Potencial em Carteira</div>
+            <div style="margin-top:10px;color:#7a9cc7;font-size:13px;">
+                📄 {_qtd_proposta} lead{"s" if _qtd_proposta != 1 else ""} com proposta
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("🔍 Ver leads", key="btn_carteira", use_container_width=True):
+            modal_leads_status(_df_proposta, "Potencial em Carteira", "#22c55e", operadores=_ops_sdr)
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
     st.markdown("#### 💰 Visão geral · Equipe Comercial")
