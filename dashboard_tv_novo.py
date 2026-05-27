@@ -1958,6 +1958,11 @@ st.session_state["_is_admin"]          = _is_admin
 st.session_state["_auth_user"]         = _auth_user
 st.session_state["_user_origem_filtro"] = _USER_ORIGEM.get(_auth_user) if not _is_admin else None
 
+# Limpa df_funil ao trocar de usuário para evitar contaminação cross-sessão
+if st.session_state.get("_prev_auth_user") != _auth_user:
+    st.session_state.pop("df_funil", None)
+    st.session_state["_prev_auth_user"] = _auth_user
+
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 col_titulo, col_hora, col_btn, col_user = st.columns([3, 2, 1, 1])
 with col_titulo:
@@ -2185,8 +2190,9 @@ def render_visao_geral(df_todos: pd.DataFrame):
     ec_de      = st.session_state.get("ec_de",     _ec_default_de)
     ec_ate     = st.session_state.get("ec_ate",    _ec_default_ate)
 
-    # Origens derivadas da base real (df_funil ou df_todos), não apenas dos 30 dias
-    _origens_disp_ec = sorted(_base_at["origem"].dropna().unique().tolist())
+    # Origens derivadas de df_todos (dados limpos da sessão atual) para garantir
+    # que o admin sempre veja todas as origens, independente do df_funil em cache
+    _origens_disp_ec = sorted(df_todos["origem"].dropna().unique().tolist())
     ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
     # Garante que valores salvos no session_state ainda válidos na base atual
     ec_origens = [o for o in ec_origens if o in _origens_disp_ec] or _origens_disp_ec
