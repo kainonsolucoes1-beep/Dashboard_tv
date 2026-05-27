@@ -1189,7 +1189,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         gap: 20px;
         box-shadow: 0 4px 32px {cor_atendente}22;
     ">
-        <!-- Zona 1: Avatar + Nome -->
         <div style="display:flex;align-items:center;gap:18px;flex-shrink:0;">
             {avatar_html}
             <div>
@@ -1206,8 +1205,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 </div>
             </div>
         </div>
-
-        <!-- Zona 2: KPIs centrais -->
         <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:0;">
             <div style="text-align:center;padding:0 24px;">
                 <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Ticket Médio</div>
@@ -1228,8 +1225,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 </div>
             </div>
         </div>
-
-        <!-- Zona 3: Carteira Total -->
         <div style="text-align:right;padding-left:24px;border-left:1px solid var(--border);flex-shrink:0;">
             <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
                 Carteira Total
