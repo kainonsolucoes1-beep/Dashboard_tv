@@ -1955,7 +1955,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
     _default_ate = date.today()
 
     # Chaves persistentes — não são apagadas quando a aba some da tela
-    selecionados  = st.session_state.get("_fv_origem",  origens_disp)
+    selecionados  = [o for o in st.session_state.get("_fv_origem", origens_disp) if o in origens_disp] or origens_disp
     filtro_status = st.session_state.get("_fv_status",  "Todos")
     data_de       = st.session_state.get("_fv_de",      _default_de)
     data_ate      = st.session_state.get("_fv_ate",     _default_ate)
