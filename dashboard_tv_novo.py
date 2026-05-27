@@ -1201,22 +1201,22 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         </div>
         <div style="flex:1;display:flex;justify-content:center;align-items:center;">
             <div style="display:flex;align-items:center;gap:0;">
-                <div style="text-align:center;padding:0 20px;">
+                <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Leads no Período</div>
                     <div style="font-size:30px;font-weight:700;color:{cor_atendente};">{total_at}</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
-                <div style="text-align:center;padding:0 20px;">
+                <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Carteira Total</div>
                     <div style="font-size:30px;font-weight:700;color:var(--green);">{fmt_brl(total_valor)}</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
-                <div style="text-align:center;padding:0 20px;">
+                <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Ticket Médio</div>
                     <div style="font-size:30px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
-                <div style="text-align:center;padding:0 20px;">
+                <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Em Atraso</div>
                     <div style="font-size:30px;font-weight:700;color:{_cor_atr};">{em_atraso_qt}</div>
                 </div>
