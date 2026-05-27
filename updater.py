@@ -16,6 +16,7 @@ import time
 import pickle
 import os
 import sys
+import re
 import logging
 from datetime import datetime, timedelta
 
@@ -35,6 +36,43 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 from config import ACCESS_TOKEN
+
+_ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
+
+
+def _renovar_token() -> str | None:
+    """Renova ACCESS_TOKEN via refresh_token e grava no .env. Retorna o novo token."""
+    try:
+        with open(_ENV_PATH, "r") as f:
+            conteudo = f.read()
+        client_id     = re.search(r'CLIENT_ID\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        client_secret = re.search(r'CLIENT_SECRET\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        refresh_token = re.search(r'REFRESH_TOKEN\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
+        resp = requests.post(
+            "https://api.followize.com.br/oauth/token",
+            data={
+                "grant_type":    "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id":     client_id,
+                "client_secret": client_secret,
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            log.error(f"Falha ao renovar token: {resp.status_code}")
+            return None
+        data = resp.json()
+        novo_access  = data["access_token"]
+        novo_refresh = data["refresh_token"]
+        conteudo = re.sub(r'ACCESS_TOKEN\s*=\s*"[^"]*"',  f'ACCESS_TOKEN  = "{novo_access}"',  conteudo)
+        conteudo = re.sub(r'REFRESH_TOKEN\s*=\s*"[^"]*"', f'REFRESH_TOKEN = "{novo_refresh}"', conteudo)
+        with open(_ENV_PATH, "w") as f:
+            f.write(conteudo)
+        log.info("Token renovado automaticamente.")
+        return novo_access
+    except Exception as e:
+        log.error(f"Erro ao renovar token: {e}")
+        return None
 
 # Caminhos dos arquivos de cache em disco
 CACHE_30_PATH  = os.path.join(SCRIPT_DIR, "cache_30dias.pkl")
@@ -83,10 +121,12 @@ def buscar_leads_api(days: int, date_of: str = "creation") -> pd.DataFrame:
     Busca leads da API Followize e retorna um DataFrame processado.
     Igual ao _fetch_leads_from_api do dashboard, mas sem depender do Streamlit.
     """
+    global ACCESS_TOKEN
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Accept": "application/json"}
     todos_leads = []
     pagina = 1
     date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    _token_renovado = False
 
     log.info(f"Buscando {days} dias (date_of={date_of}) a partir de {date_from}...")
 
@@ -106,6 +146,13 @@ def buscar_leads_api(days: int, date_of: str = "creation") -> pd.DataFrame:
                     params=params,
                     timeout=60,
                 )
+                if response.status_code == 401 and not _token_renovado:
+                    novo = _renovar_token()
+                    if novo:
+                        ACCESS_TOKEN = novo
+                        headers["Authorization"] = f"Bearer {novo}"
+                        _token_renovado = True
+                        continue
                 if response.status_code != 200:
                     log.error(f"Erro na API: status {response.status_code}")
                     return pd.DataFrame()
