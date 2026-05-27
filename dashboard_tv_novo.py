@@ -1172,52 +1172,57 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
 
     _cor_atr   = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
 
-    # ── Cabeçalho 3 zonas ────────────────────────────────────────────────────
+    # ── Cabeçalho ────────────────────────────────────────────────────────────
     st.markdown(f"""
     <div style="
         background: linear-gradient(135deg, var(--bg-card) 0%, {cor_atendente}12 100%);
         border: 2px solid {cor_atendente};
         border-radius: 20px;
-        padding: 24px 28px;
+        padding: 20px 28px;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
         gap: 20px;
         box-shadow: 0 4px 32px {cor_atendente}22;
     ">
-        <div style="display:flex;align-items:center;gap:18px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
             {avatar_html}
             <div>
                 <div style="display:flex;align-items:center;gap:10px;line-height:1.1;">
-                    <span style="font-size:28px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
+                    <span style="font-size:26px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
                     <span style="font-size:10px;font-weight:600;color:{cor_atendente};
                                  background:{cor_atendente}20;border:1px solid {cor_atendente}55;
                                  padding:2px 9px;border-radius:20px;letter-spacing:.8px;">OPERADOR</span>
                 </div>
                 <div style="font-size:12px;color:var(--text-sub);margin-top:8px;">
-                    {total_at} leads &nbsp;·&nbsp;
-                    <span style="color:#22c55e;">{vendas_at} vendas</span> &nbsp;·&nbsp;
-                    {taxa_at} conversão
+                    <span style="color:#22c55e;">{vendas_at} vendas</span>&nbsp;·&nbsp;{taxa_at} conversão
                 </div>
             </div>
         </div>
-        <div style="flex:1;max-width:280px;display:flex;justify-content:center;align-items:center;gap:0;">
-            <div style="text-align:center;padding:0 24px;">
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Ticket Médio</div>
-                <div style="font-size:24px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
-            </div>
-            <div style="width:1px;height:40px;background:var(--border);"></div>
-            <div style="text-align:center;padding:0 24px;">
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Em Atraso</div>
-                <div style="font-size:24px;font-weight:700;color:{_cor_atr};">{em_atraso_qt} leads</div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;">
+            <div style="display:flex;align-items:center;gap:0;">
+                <div style="text-align:center;padding:0 20px;">
+                    <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Leads no Período</div>
+                    <div style="font-size:22px;font-weight:700;color:{cor_atendente};">{total_at}</div>
+                </div>
+                <div style="width:1px;height:36px;background:var(--border);"></div>
+                <div style="text-align:center;padding:0 20px;">
+                    <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Ticket Médio</div>
+                    <div style="font-size:22px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
+                </div>
+                <div style="width:1px;height:36px;background:var(--border);"></div>
+                <div style="text-align:center;padding:0 20px;">
+                    <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Em Atraso</div>
+                    <div style="font-size:22px;font-weight:700;color:{_cor_atr};">{em_atraso_qt}</div>
+                </div>
             </div>
         </div>
         <div style="text-align:right;padding-left:24px;border-left:1px solid var(--border);flex-shrink:0;">
-            <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+            <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">
                 Carteira Total
             </div>
-            <div style="font-size:34px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
-            <div style="font-size:11px;color:var(--text-sub);margin-top:6px;">{leads_abertos} propostas ativas</div>
+            <div style="font-size:30px;font-weight:700;color:var(--green);line-height:1;">{fmt_brl(total_valor)}</div>
+            <div style="font-size:11px;color:var(--text-sub);margin-top:5px;">{leads_abertos} propostas ativas</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1914,17 +1919,35 @@ _authenticator = stauth.Authenticate(
     cookie_key="chave_secreta_dashboard_2024",
     cookie_expiry_days=1,
 )
-_authenticator.login(location="main")
+# ── Tela de login ──────────────────────────────────────────────────────────────
+if st.session_state.get("authentication_status") is not True:
+    st.markdown("""
+    <style>
+    [data-testid="stMainBlockContainer"] { padding-top: 2rem !important; }
+    [data-testid="stForm"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 20px !important;
+        padding: 32px 36px !important;
+        box-shadow: 0 8px 40px rgba(0,0,0,.5) !important;
+    }
+    </style>
+    <div style="text-align:center;padding:48px 0 28px;">
+        <div style="font-size:52px;line-height:1;">📺</div>
+        <div style="font-size:28px;font-weight:700;color:#e8eef8;margin:14px 0 6px;letter-spacing:-.5px;">O2 Solution</div>
+        <div style="font-size:13px;color:#7a9cc7;letter-spacing:.4px;">Dashboard de Acompanhamento de Leads</div>
+    </div>
+    """, unsafe_allow_html=True)
+    _, col_login, _ = st.columns([1, 1.2, 1])
+    with col_login:
+        _authenticator.login(location="main")
+    if st.session_state.get("authentication_status") is False:
+        st.error("Usuário ou senha incorretos.")
+    st.stop()
+
 _auth_status = st.session_state.get("authentication_status")
 _auth_name   = st.session_state.get("name", "")
 _auth_user   = st.session_state.get("username", "")
-
-if _auth_status is False:
-    st.error("Usuário ou senha incorretos.")
-    st.stop()
-if _auth_status is None:
-    st.warning("Por favor, insira seu usuário e senha.")
-    st.stop()
 
 _is_admin = (_auth_user == "lucas")
 # Mapeia username → valor do campo 'origem' no dataframe
