@@ -3071,11 +3071,12 @@ def render_crm():
                     _leads_int   = int(row["leads_total"])
                     _dias_int    = int(row["dias_usada"])
 
+                    _esc = r'\$'
                     exp_label = (
                         f"📦 {_base_nome}  ·  "
                         f"{_leads_int} leads  ·  "
-                        f"{_carteira_f.replace('$', r'\$')}  ·  "
-                        f"ticket: {_ticket_f.replace('$', r'\$')}"
+                        f"{_carteira_f.replace('$', _esc)}  ·  "
+                        f"ticket: {_ticket_f.replace('$', _esc)}"
                     )
                     with st.expander(exp_label, expanded=False):
                         # percepção desta base
