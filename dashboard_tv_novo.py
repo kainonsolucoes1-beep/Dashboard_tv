@@ -1209,7 +1209,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 <div style="text-align:center;padding:0 20px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Carteira Total</div>
                     <div style="font-size:30px;font-weight:700;color:var(--green);">{fmt_brl(total_valor)}</div>
-                    <div style="font-size:10px;color:var(--text-sub);margin-top:3px;">{leads_abertos} ativas</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
                 <div style="text-align:center;padding:0 20px;">
