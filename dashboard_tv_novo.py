@@ -1147,9 +1147,14 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     vendas_at   = int((df_atendente["status"] == "Venda Realizada").sum())
     taxa_at     = f"{(vendas_at / total_at * 100):.1f}%" if total_at > 0 else "0%"
 
-    # ── Avatar: foto circular ou iniciais como fallback ───────────────────────
+    _status_fechados = {"Venda Realizada", "Venda não Realizada"}
+    leads_abertos = int((~df_atendente["status"].isin(_status_fechados)).sum())
+    leads_com_val = int((df_atendente["valor_proposta"] > 0).sum())
+    ticket_medio  = total_valor / leads_com_val if leads_com_val > 0 else 0
+    em_atraso_qt  = int(df_atendente["em_atraso"].sum()) if "em_atraso" in df_atendente.columns else 0
+
+    # ── Avatar: foto circular ou boneco como fallback ─────────────────────────
     foto_uri = foto_base64(foto_path) if foto_path else None
-    iniciais = "".join(p[0].upper() for p in nome_atendente.split()[:2])
     if foto_uri:
         avatar_html = (
             f'<img src="{foto_uri}" style="'
@@ -1165,10 +1170,10 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             f'👤</div>'
         )
 
-    # ── Cabeçalho do atendente ────────────────────────────────────────────────
+    # ── Cabeçalho com gradiente ───────────────────────────────────────────────
     st.markdown(f"""
     <div style="
-        background: var(--bg-card);
+        background: linear-gradient(135deg, var(--bg-card) 0%, {cor_atendente}12 100%);
         border: 2px solid {cor_atendente};
         border-radius: 20px;
         padding: 28px 32px;
@@ -1176,13 +1181,21 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         display: flex;
         align-items: center;
         gap: 24px;
-        box-shadow: 0 4px 24px rgba(0,0,0,.3);
+        box-shadow: 0 4px 32px {cor_atendente}22;
     ">
         {avatar_html}
         <div style="flex:1;">
-            <div style="font-size:28px;font-weight:700;color:{cor_atendente};line-height:1.1;">{nome_atendente}</div>
-            <div style="font-size:13px;color:var(--text-sub);margin-top:8px;">
-                {total_at} leads no período &nbsp;·&nbsp; {vendas_at} vendas &nbsp;·&nbsp; {taxa_at} conversão
+            <div style="display:flex;align-items:center;gap:12px;line-height:1.1;">
+                <span style="font-size:32px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
+                <span style="font-size:11px;font-weight:600;color:{cor_atendente};
+                             background:{cor_atendente}20;border:1px solid {cor_atendente}55;
+                             padding:3px 10px;border-radius:20px;letter-spacing:.8px;">OPERADOR</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-sub);margin-top:10px;">
+                {total_at} leads no período &nbsp;·&nbsp;
+                <span style="color:#22c55e;">{vendas_at} vendas</span> &nbsp;·&nbsp;
+                {taxa_at} conversão &nbsp;·&nbsp;
+                <span style="color:#f59e0b;">{leads_abertos} em aberto</span>
             </div>
         </div>
         <div style="text-align:right;padding-left:28px;border-left:1px solid var(--border);">
@@ -1195,7 +1208,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Cards de temperatura ──────────────────────────────────────────────────
+    # ── Cards de temperatura com barra de progresso ───────────────────────────
     temps = {
         "🔥 Quente": {"cor": "#ef4444", "icone": "🔥"},
         "🌡️ Morno":  {"cor": "#f59e0b", "icone": "🌡️"},
@@ -1210,42 +1223,93 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         qtd       = len(df_temp)
         valor_sum = df_temp["valor_proposta"].sum()
         nome_temp = temp_label.split(' ', 1)[1]
+        pct       = (qtd / total_at * 100) if total_at > 0 else 0
         with col:
             st.markdown(f"""
             <div class="card-status" style="border-left:4px solid {cfg['cor']};">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-                    <span style="font-size:20px;">{cfg['icone']}</span>
-                    <span class="card-label" style="color:{cfg['cor']};">{nome_temp.upper()}</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:18px;">{cfg['icone']}</span>
+                        <span class="card-label" style="color:{cfg['cor']};">{nome_temp.upper()}</span>
+                    </div>
+                    <span style="font-size:13px;font-weight:700;color:{cfg['cor']};opacity:.85;">{pct:.0f}%</span>
                 </div>
-                <div class="card-valor" style="color:{cfg['cor']};font-size:44px;">{qtd}</div>
-                <div style="margin-top:8px;font-size:12px;color:var(--text-sub);">{fmt_brl(valor_sum)} em carteira</div>
+                <div class="card-valor" style="color:{cfg['cor']};font-size:44px;line-height:1;">{qtd}</div>
+                <div style="margin-top:12px;height:4px;background:{cfg['cor']}22;border-radius:2px;">
+                    <div style="height:4px;width:{min(pct,100):.1f}%;background:{cfg['cor']};border-radius:2px;"></div>
+                </div>
+                <div style="margin-top:8px;font-size:12px;color:var(--text-sub);">{fmt_brl(valor_sum)}</div>
             </div>
             """, unsafe_allow_html=True)
 
-    # Card de leads sem percepção preenchida — exclui fechados (Venda Realizada / não Realizada)
-    _status_fechados = {"Venda Realizada", "Venda não Realizada"}
     sem_perc = int(
         (
             (df_atendente["perception"] == "Sem percepção") &
             (~df_atendente["status"].isin(_status_fechados))
         ).sum()
     )
+    pct_sp = (sem_perc / total_at * 100) if total_at > 0 else 0
     with ct4:
         st.markdown(f"""
         <div class="card-status" style="border-left:4px solid var(--text-sub);">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-                <span style="font-size:20px;">❓</span>
-                <span class="card-label" style="color:var(--text-sub);">SEM PERCEPÇÃO</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:18px;">❓</span>
+                    <span class="card-label" style="color:var(--text-sub);">SEM PERCEPÇÃO</span>
+                </div>
+                <span style="font-size:13px;font-weight:700;color:var(--text-sub);">{pct_sp:.0f}%</span>
             </div>
-            <div class="card-valor" style="color:var(--text-sub);font-size:44px;">{sem_perc}</div>
+            <div class="card-valor" style="color:var(--text-sub);font-size:44px;line-height:1;">{sem_perc}</div>
+            <div style="margin-top:12px;height:4px;background:#ffffff12;border-radius:2px;">
+                <div style="height:4px;width:{min(pct_sp,100):.1f}%;background:var(--text-sub);border-radius:2px;"></div>
+            </div>
             <div style="margin-top:8px;font-size:12px;color:var(--text-sub);">não classificados</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Linha de métricas rápidas ─────────────────────────────────────────────
+    st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    _cor_atraso = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
+    _brd_atraso = "#ef444430" if em_atraso_qt > 0 else "var(--border)"
+    with m1:
+        st.markdown(f"""
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
+            <span style="font-size:26px;">🎟️</span>
+            <div>
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Ticket Médio</div>
+                <div style="font-size:20px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m2:
+        st.markdown(f"""
+        <div style="background:var(--bg-card);border:1px solid {_brd_atraso};border-radius:12px;
+                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
+            <span style="font-size:26px;">⏰</span>
+            <div>
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Em Atraso</div>
+                <div style="font-size:20px;font-weight:700;color:{_cor_atraso};">{em_atraso_qt} leads</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m3:
+        st.markdown(f"""
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+                    padding:16px 20px;display:flex;align-items:center;gap:16px;">
+            <span style="font-size:26px;">📂</span>
+            <div>
+                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Em Aberto</div>
+                <div style="font-size:20px;font-weight:700;color:#f59e0b;">{leads_abertos} leads</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
 
-    # ── Funil + Pizza lado a lado ─────────────────────────────────────────────
-    cg1, cg2 = st.columns(2)
+    # ── Funil (2/3) + Pizza (1/3) ────────────────────────────────────────────
+    cg1, cg2 = st.columns([2, 1])
     with cg1:
         st.markdown("#### 🔽 Funil de Status")
         st.plotly_chart(
@@ -1254,7 +1318,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             key=f"funil_{nome_atendente}"
         )
     with cg2:
-        st.markdown("#### 🌡️ Distribuição de Temperatura")
+        st.markdown("#### 🌡️ Temperatura")
         fig_pizza = grafico_temperatura_pizza(df_atendente)
         if fig_pizza:
             st.plotly_chart(
@@ -1263,7 +1327,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 key=f"pizza_{nome_atendente}"
             )
         else:
-            st.info("Nenhum lead com percepção classificada ainda.")
+            st.info("Sem percepção classificada ainda.")
 
     st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
