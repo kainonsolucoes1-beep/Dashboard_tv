@@ -92,6 +92,18 @@ CORES_PERCEPTION = {
     "🧊 Frio":   "#4f8ef7",   # azul frio
 }
 
+# Mapeamentos de perfil de usuário (usados no funil personalizado)
+USER_ATENDENTE = {
+    "isaac": "Isaac", "julia": "Julia",
+    "leticia": "Leticia", "rodolfo": "Rodolfo",
+    "anny": "Anny",
+}
+USER_COR = {
+    "isaac": "#4f8ef7", "julia": "#22c55e",
+    "leticia": "#8b5cf6", "rodolfo": "#f59e0b",
+    "anny": "#ef4444",
+}
+
 # ── HORAS ÚTEIS (sem fins de semana e feriados BR) ────────────────────────────
 FERIADOS_BR = {
     date(2025, 1, 1), date(2025, 4, 18), date(2025, 4, 21),
@@ -1149,8 +1161,8 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             f'<div style="width:96px;height:96px;border-radius:50%;'
             f'border:3px solid {cor_atendente};background:{cor_atendente}18;'
             f'display:flex;align-items:center;justify-content:center;'
-            f'font-size:32px;font-weight:700;color:{cor_atendente};flex-shrink:0;">'
-            f'{iniciais}</div>'
+            f'font-size:48px;flex-shrink:0;">'
+            f'👤</div>'
         )
 
     # ── Cabeçalho do atendente ────────────────────────────────────────────────
@@ -1567,17 +1579,28 @@ def render_funil_rt():
 
     st.markdown("---")
 
-    df_giovanna = df_funil[df_funil["atendente"].str.contains("Giovanna", case=False, na=False)]
-    df_rayanna  = df_funil[df_funil["atendente"].str.contains("Rayanna",  case=False, na=False)]
+    # Sempre derivado do username atual — evita valor stale de sessão anterior
+    _funil_user     = st.session_state.get("username", "")
+    _funil_is_admin = (_funil_user == "lucas")
 
-    col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
-    with col_gio:
-        render_painel_atendente(df_giovanna, "Giovanna", "#8b5cf6", foto_path="fotos/giovanna.jpg")
-    with col_ray:
-        render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
+    if not _funil_is_admin:
+        # Operador logado: df_funil já está filtrado pela sua origem — usa direto
+        _nome_at = USER_ATENDENTE.get(_funil_user, _funil_user.capitalize())
+        _cor_at  = USER_COR.get(_funil_user, "#4f8ef7")
+        render_painel_atendente(df_funil, _nome_at, _cor_at, foto_path=None)
+    else:
+        # Admin: painéis lado a lado de Giovanna e Rayanna
+        df_giovanna = df_funil[df_funil["atendente"].str.contains("Giovanna", case=False, na=False)]
+        df_rayanna  = df_funil[df_funil["atendente"].str.contains("Rayanna",  case=False, na=False)]
+        col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
+        with col_gio:
+            render_painel_atendente(df_giovanna, "Giovanna", "#8b5cf6", foto_path="fotos/giovanna.jpg")
+        with col_ray:
+            render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
 
     st.markdown("---")
-    st.markdown("#### 📊 Consolidado das Atendentes")
+    _titulo_cons = "#### 📊 Meu Consolidado" if not _funil_is_admin else "#### 📊 Consolidado das Atendentes"
+    st.markdown(_titulo_cons)
 
     total_carteira = df_funil["valor_proposta"].sum()
     leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
@@ -1872,6 +1895,7 @@ _USER_ORIGEM = {
     "anny": "O2 Solution",
 }
 st.session_state["_is_admin"]          = _is_admin
+st.session_state["_auth_user"]         = _auth_user
 st.session_state["_user_origem_filtro"] = _USER_ORIGEM.get(_auth_user) if not _is_admin else None
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
