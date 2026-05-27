@@ -1287,7 +1287,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
     # ── Funil (2/3) + Pizza (1/3) ────────────────────────────────────────────
-    cg1, cg2 = st.columns([2, 1])
+    cg1, cg2 = st.columns([1, 1])
     with cg1:
         st.markdown("#### 🔽 Funil de Status")
         st.plotly_chart(
