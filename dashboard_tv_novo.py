@@ -2113,7 +2113,8 @@ def render_visao_geral(df_todos: pd.DataFrame):
     render_hoje_rt()
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 📊 Visão Mensal")
+    st.markdown("#### 📊 Visão Mensal · SDR")
+    st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
 
     df_sdr = df.copy()
 
@@ -2176,15 +2177,16 @@ def render_visao_geral(df_todos: pd.DataFrame):
             modal_leads_status(_df_proposta, "Potencial em Carteira", "#22c55e", operadores=_ops_sdr)
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 💰 Visão geral · Equipe Comercial")
+    st.markdown("#### 💰 Pipeline Ativo · Equipe Comercial")
+    st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>última atualização</strong> — inclui leads antigos ainda em negociação</div>", unsafe_allow_html=True)
 
     _ATENDENTES = ["Giovanna", "Rayanna"]
     # Usa os 80 dias do Funil (session_state["df_funil"]) quando disponível,
     # garantindo a mesma base de dados que o Funil de Vendas usa.
     _base_at = st.session_state.get("df_funil", df_todos)
 
-    # Janela padrão igual ao SDR: 30 dias (data de criação)
-    _ec_default_days = 30
+    # Janela padrão: 80 dias se df_funil carregado, 30 se não (cobre pipeline histórico)
+    _ec_default_days = 80 if "df_funil" in st.session_state else 30
     _ec_default_de   = date.today() - timedelta(days=_ec_default_days)
     _ec_default_ate  = date.today()
     ec_de      = st.session_state.get("ec_de",     _ec_default_de)
@@ -2217,8 +2219,13 @@ def render_visao_geral(df_todos: pd.DataFrame):
                 ec_ate     = st.session_state.get("ec_ate",    _ec_default_ate)
                 ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
     df_at = _base_at.copy()
-    # Filtra por data de criação (data_obj), igual ao SDR, para manter consistência
-    df_at = df_at[df_at["data_obj"].apply(lambda d: d is not None and ec_de <= d <= ec_ate)]
+    # Filtra por última atualização (atualizado_obj) com fallback para data de criação —
+    # captura leads antigos ainda ativos na carteira da equipe comercial
+    df_at = df_at[df_at.apply(
+        lambda r: (r["atualizado_obj"] or r["data_obj"]) is not None
+                  and ec_de <= (r["atualizado_obj"] or r["data_obj"]) <= ec_ate,
+        axis=1
+    )]
     if ec_origens:
         df_at = df_at[df_at["origem"].isin(ec_origens)]
     df_at = df_at[df_at["atendente"].apply(
