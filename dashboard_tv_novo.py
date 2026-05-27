@@ -1090,7 +1090,7 @@ def grafico_funil_status(df_atendente):
     ))
     fig.update_layout(
         margin=dict(t=10, b=10, l=10, r=10),
-        height=max(200, len(labels) * 72),
+        height=max(160, len(labels) * 56),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(color="#e8eef8"),
@@ -1170,10 +1170,6 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             f'👤</div>'
         )
 
-    # ── Pré-calcula temperaturas para o centro do header ─────────────────────
-    _qt_quente = int((df_atendente["perception"] == "🔥 Quente").sum())
-    _qt_morno  = int((df_atendente["perception"] == "🌡️ Morno").sum())
-    _qt_frio   = int((df_atendente["perception"] == "🧊 Frio").sum())
     _cor_atr   = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
 
     # ── Cabeçalho 3 zonas ────────────────────────────────────────────────────
@@ -1205,24 +1201,15 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 </div>
             </div>
         </div>
-        <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:0;">
+        <div style="flex:1;max-width:280px;display:flex;justify-content:center;align-items:center;gap:0;">
             <div style="text-align:center;padding:0 24px;">
                 <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Ticket Médio</div>
-                <div style="font-size:18px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
+                <div style="font-size:24px;font-weight:700;color:#4f8ef7;">{fmt_brl(ticket_medio)}</div>
             </div>
             <div style="width:1px;height:40px;background:var(--border);"></div>
             <div style="text-align:center;padding:0 24px;">
                 <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Em Atraso</div>
-                <div style="font-size:18px;font-weight:700;color:{_cor_atr};">{em_atraso_qt} leads</div>
-            </div>
-            <div style="width:1px;height:40px;background:var(--border);"></div>
-            <div style="text-align:center;padding:0 24px;">
-                <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;">Temperatura</div>
-                <div style="display:flex;gap:12px;justify-content:center;font-size:14px;font-weight:700;">
-                    <span style="color:#ef4444;">🔥 {_qt_quente}</span>
-                    <span style="color:#f59e0b;">🌡️ {_qt_morno}</span>
-                    <span style="color:#4f8ef7;">🧊 {_qt_frio}</span>
-                </div>
+                <div style="font-size:24px;font-weight:700;color:{_cor_atr};">{em_atraso_qt} leads</div>
             </div>
         </div>
         <div style="text-align:right;padding-left:24px;border-left:1px solid var(--border);flex-shrink:0;">
