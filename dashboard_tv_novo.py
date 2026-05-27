@@ -1956,11 +1956,13 @@ with col_btn:
         fetch_leads_hoje.clear()
         st.rerun()  # rerun global: reroda o script completo
 with col_user:
-    st.markdown(
-        f"<div style='text-align:right;padding-top:8px;color:#7a9cc7;font-size:13px;'>👤 {_auth_name}</div>",
-        unsafe_allow_html=True,
-    )
-    _authenticator.logout(location="main")
+    with st.popover(f"👤 {_auth_name}", use_container_width=True):
+        st.markdown(
+            f"<div style='font-size:13px;color:#7a9cc7;padding:4px 0 10px;'>"
+            f"Logado como <strong style='color:#e8eef8;'>{_auth_name}</strong></div>",
+            unsafe_allow_html=True,
+        )
+        _authenticator.logout(location="main")
 
 _watcher_pkl()
 
