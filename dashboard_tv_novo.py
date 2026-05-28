@@ -1554,17 +1554,16 @@ def render_funil_rt():
     filtro_temp  = st.session_state.get("_fv_funil_temp",   "Todas")
     funil_origem = [o for o in funil_origem if o in ops_funil] or ops_funil
 
-    _fh, _fb = st.columns([5, 1])
-    with _fb:
-        _funil_atualizar = st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True)
-    if _funil_atualizar:
-        fetch_leads_80dias.clear()
-        fetch_leads_criticos.clear()
-        df, _ = merge_leads_longo()
-        st.session_state["df_funil"] = df
-        st.rerun(scope="fragment")
-
     with st.expander("🔎 Filtros da Aba", expanded=False):
+        _fb_col, _ = st.columns([1, 5])
+        with _fb_col:
+            _funil_atualizar = st.button("🔄 Atualizar", key="funil_refresh", use_container_width=True)
+        if _funil_atualizar:
+            fetch_leads_80dias.clear()
+            fetch_leads_criticos.clear()
+            df, _ = merge_leads_longo()
+            st.session_state["df_funil"] = df
+            st.rerun(scope="fragment")
         with st.form("filtros_funil", border=False):
             ff1, ff2, ff3, ff4, ff5, ff6 = st.columns([1.5, 1.5, 2.5, 2, 1.5, 1])
             with ff1:
