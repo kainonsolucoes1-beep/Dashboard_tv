@@ -2400,14 +2400,16 @@ def render_operadores(df_todos: pd.DataFrame):
     else:
         st.info("Selecione ao menos um operador para ver o acumulado.")
 
-    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 🏆 Ranking de Vendas por Operador")
-    df_op_rank = df_todos.copy()
-    if op_selecionados:
-        df_op_rank = df_op_rank[df_op_rank["origem"].isin(op_selecionados)]
-    if op_status != "Todos":
-        df_op_rank = df_op_rank[df_op_rank["status"] == op_status]
-    st.plotly_chart(grafico_origens(df_op_rank), use_container_width=True, key="origens_op")
+    _VENDEDORES = {"isaac", "leticia", "julia", "rodolfo"}
+    if st.session_state.get("_auth_user", "") not in _VENDEDORES:
+        st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+        st.markdown("#### 🏆 Ranking de Vendas por Operador")
+        df_op_rank = df_todos.copy()
+        if op_selecionados:
+            df_op_rank = df_op_rank[df_op_rank["origem"].isin(op_selecionados)]
+        if op_status != "Todos":
+            df_op_rank = df_op_rank[df_op_rank["status"] == op_status]
+        st.plotly_chart(grafico_origens(df_op_rank), use_container_width=True, key="origens_op")
 
 
 @st.dialog("👤 Detalhes do Operador", width="large")
