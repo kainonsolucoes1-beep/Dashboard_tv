@@ -1172,6 +1172,16 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
 
     _cor_atr   = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
 
+    _is_adm = st.session_state.get("_is_admin", False)
+    if _is_adm:
+        _html_carteira = f'<span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(total_valor).split(" ",1)[1]}</span>'
+        _html_ticket   = f'<span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(ticket_medio).split(" ",1)[1]}</span>'
+        _div_style_brl = "display:flex;align-items:baseline;justify-content:center;gap:3px;"
+    else:
+        _html_carteira = fmt_brl(total_valor)
+        _html_ticket   = fmt_brl(ticket_medio)
+        _div_style_brl = ""
+
     # ── Cabeçalho ────────────────────────────────────────────────────────────
     st.markdown(f"""
     <div style="
@@ -1200,12 +1210,12 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
                 <div style="width:1px;height:36px;background:var(--border);"></div>
                 <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Carteira Total</div>
-                    <div style="font-size:30px;font-weight:700;color:var(--green);display:flex;align-items:baseline;justify-content:center;gap:3px;"><span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(total_valor).split(" ",1)[1]}</span></div>
+                    <div style="font-size:30px;font-weight:700;color:var(--green);{_div_style_brl}">{_html_carteira}</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
                 <div style="text-align:center;padding:0 32px;">
                     <div style="font-size:10px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;">Ticket Médio</div>
-                    <div style="font-size:30px;font-weight:700;color:#4f8ef7;display:flex;align-items:baseline;justify-content:center;gap:3px;"><span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(ticket_medio).split(" ",1)[1]}</span></div>
+                    <div style="font-size:30px;font-weight:700;color:#4f8ef7;{_div_style_brl}">{_html_ticket}</div>
                 </div>
                 <div style="width:1px;height:36px;background:var(--border);"></div>
                 <div style="text-align:center;padding:0 32px;">
