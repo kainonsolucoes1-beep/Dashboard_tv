@@ -2022,13 +2022,16 @@ _abas = (
     if _is_admin else
     ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia"]
 )
-if st.session_state.get("_aba_pk") in _abas:
-    st.session_state["aba_ativa"] = st.session_state.pop("_aba_pk")
-elif "_aba_pk" in st.session_state:
-    del st.session_state["_aba_pk"]
+_aba_restore = st.session_state.pop("_aba_pk", None)
+if _aba_restore in _abas:
+    st.session_state.pop("aba_ativa", None)
+    _nav_idx = _abas.index(_aba_restore)
+else:
+    _nav_idx = 0
 aba_ativa = st.radio(
     "nav",
     options=_abas,
+    index=_nav_idx,
     horizontal=True,
     label_visibility="collapsed",
     key="aba_ativa",
@@ -2113,7 +2116,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
     render_hoje_rt()
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 📊 Visão Mensal · SDR")
+    st.markdown("#### 📊 Pipeline · SDR")
     st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
 
     df_sdr = df.copy()
@@ -2177,7 +2180,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
             modal_leads_status(_df_proposta, "Potencial em Carteira", "#22c55e", operadores=_ops_sdr)
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 💰 Pipeline Ativo · Equipe Comercial")
+    st.markdown("#### 💰 Pipeline · Equipe Comercial")
     st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>última atualização</strong> — inclui leads antigos ainda em negociação</div>", unsafe_allow_html=True)
 
     _ATENDENTES = ["Giovanna", "Rayanna"]
