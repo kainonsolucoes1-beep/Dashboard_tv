@@ -1173,9 +1173,9 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
 
     _cor_atr   = "#ef4444" if em_atraso_qt > 0 else "var(--text-sub)"
 
-    _html_carteira = f'<span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(total_valor).split(" ",1)[1]}</span>'
-    _html_ticket   = f'<span style="font-size:14px;font-weight:600;">R$</span><span>{fmt_brl(ticket_medio).split(" ",1)[1]}</span>'
-    _div_style_brl = "display:flex;align-items:baseline;justify-content:center;gap:3px;"
+    _html_carteira = f'<span style="font-size:20px;font-weight:700;">R$</span><span style="font-size:20px;font-weight:700;">{fmt_brl(total_valor).split(" ",1)[1]}</span>'
+    _html_ticket   = f'<span style="font-size:20px;font-weight:700;">R$</span><span style="font-size:20px;font-weight:700;">{fmt_brl(ticket_medio).split(" ",1)[1]}</span>'
+    _div_style_brl = "display:flex;align-items:baseline;justify-content:center;gap:4px;"
 
     # ── Cabeçalho ────────────────────────────────────────────────────────────
     st.markdown(f"""
