@@ -520,6 +520,7 @@ def _watcher_pkl():
                 fetch_leads_80dias.clear()
                 fetch_leads_criticos.clear()
                 fetch_leads_hoje.clear()
+                st.session_state["_aba_pk"] = st.session_state.get("aba_ativa")
                 st.rerun()
 
 
@@ -2028,6 +2029,8 @@ _abas = (
     if _is_admin else
     ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia"]
 )
+if "_aba_pk" in st.session_state:
+    st.session_state["aba_ativa"] = st.session_state.pop("_aba_pk")
 aba_ativa = st.radio(
     "nav",
     options=_abas,
