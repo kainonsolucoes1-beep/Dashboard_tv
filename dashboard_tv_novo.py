@@ -1188,15 +1188,7 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
         <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
             {avatar_html}
             <div>
-                <div style="display:flex;align-items:center;gap:10px;line-height:1.1;">
-                    <span style="font-size:26px;font-weight:700;color:{cor_atendente};">{nome_atendente}</span>
-                    <span style="font-size:10px;font-weight:600;color:{cor_atendente};
-                                 background:{cor_atendente}20;border:1px solid {cor_atendente}55;
-                                 padding:2px 9px;border-radius:20px;letter-spacing:.8px;">OPERADOR</span>
-                </div>
-                <div style="font-size:12px;color:var(--text-sub);margin-top:8px;">
-                    <span style="color:#22c55e;">{vendas_at} vendas</span>&nbsp;·&nbsp;{taxa_at} conversão
-                </div>
+                <span style="font-size:26px;font-weight:700;color:{cor_atendente};line-height:1.1;">{nome_atendente}</span>
             </div>
         </div>
         <div style="flex:1;display:flex;justify-content:center;align-items:center;">
