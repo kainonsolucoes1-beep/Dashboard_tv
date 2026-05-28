@@ -2029,8 +2029,10 @@ _abas = (
     if _is_admin else
     ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia"]
 )
-if "_aba_pk" in st.session_state:
+if st.session_state.get("_aba_pk") in _abas:
     st.session_state["aba_ativa"] = st.session_state.pop("_aba_pk")
+elif "_aba_pk" in st.session_state:
+    del st.session_state["_aba_pk"]
 aba_ativa = st.radio(
     "nav",
     options=_abas,
