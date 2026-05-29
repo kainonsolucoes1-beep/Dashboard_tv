@@ -832,14 +832,10 @@ _abas = (
 )
 _aba_restore = st.session_state.pop("_aba_pk", None)
 if _aba_restore in _abas:
-    st.session_state.pop("aba_ativa", None)
-    _nav_idx = _abas.index(_aba_restore)
-else:
-    _nav_idx = 0
+    st.session_state["aba_ativa"] = _aba_restore
 aba_ativa = st.radio(
     "nav",
     options=_abas,
-    index=_nav_idx,
     horizontal=True,
     label_visibility="collapsed",
     key="aba_ativa",
