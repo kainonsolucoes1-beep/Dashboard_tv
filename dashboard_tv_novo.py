@@ -481,13 +481,13 @@ def render_funil_rt():
 
     rc1, rc2, rc3, rc4 = st.columns(4)
     with rc1:
-        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e")
+        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e", small=True)
     with rc2:
-        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7")
+        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7", small=True)
     with rc3:
-        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444")
+        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444", small=True)
     with rc4:
-        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b")
+        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b", small=True)
 
 
 

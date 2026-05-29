@@ -23,16 +23,19 @@ def linhas_por_operador(df, status_filtro, cor):
     return html
 
 
-def render_card(icone, valor, label, cor, df=None, status_filtro=None):
+def render_card(icone, valor, label, cor, df=None, status_filtro=None, small=False):
     """Renderiza card de métrica com breakdown opcional por operador."""
+    _icone_style = "font-size:18px;margin-bottom:5px;display:block;" if small else ""
+    _valor_style = f"color:{cor};font-size:30px;" if small else f"color:{cor};"
+    _label_style = "font-size:9px;" if small else ""
     if df is not None:
         linhas = linhas_por_operador(df, status_filtro, cor)
         st.markdown(f"""
         <div class="card-status" style="border-left:4px solid {cor};display:flex;gap:20px;align-items:flex-start;">
             <div style="min-width:100px;">
-                <span class="card-icone">{icone}</span>
-                <div class="card-valor" style="color:{cor};">{valor}</div>
-                <div class="card-label">{label}</div>
+                <span class="card-icone" style="{_icone_style}">{icone}</span>
+                <div class="card-valor" style="{_valor_style}">{valor}</div>
+                <div class="card-label" style="{_label_style}">{label}</div>
             </div>
             <div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>
             <div style="flex:1;min-width:0;padding-top:4px;">
@@ -45,8 +48,8 @@ def render_card(icone, valor, label, cor, df=None, status_filtro=None):
     else:
         st.markdown(f"""
         <div class="card-status" style="border-left:4px solid {cor};">
-            <span class="card-icone">{icone}</span>
-            <div class="card-valor" style="color:{cor};">{valor}</div>
-            <div class="card-label">{label}</div>
+            <span class="card-icone" style="{_icone_style}">{icone}</span>
+            <div class="card-valor" style="{_valor_style}">{valor}</div>
+            <div class="card-label" style="{_label_style}">{label}</div>
         </div>
         """, unsafe_allow_html=True)
