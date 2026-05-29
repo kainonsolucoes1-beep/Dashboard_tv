@@ -2425,6 +2425,11 @@ def render_visao_geral(df_todos: pd.DataFrame):
         st.markdown("#### 🏆 Ranking por Operador (Vendas)")
         st.plotly_chart(grafico_origens(df), use_container_width=True, key="origens_visao")
 
+    st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+    st.markdown("---")
+    dados_ranking = df[df["status"] == "Venda Realizada"]["origem"].value_counts().to_dict()
+    render_ranking_vendas(dados_ranking if dados_ranking else None)
+
 
 @st.fragment
 def render_operadores(df_todos: pd.DataFrame):
