@@ -311,6 +311,15 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
     )
     df_show = df_sorted_orig[list(col_map.keys())].rename(columns=col_map)
 
+    _term_at = st.text_input(
+        "Pesquisar", placeholder="🔍 Nome, status, canal...",
+        label_visibility="collapsed", key=f"search_{nome_atendente}"
+    )
+    if _term_at:
+        _mask_at = df_show.apply(lambda c: c.astype(str).str.contains(_term_at, case=False, na=False)).any(axis=1)
+        df_show        = df_show[_mask_at].reset_index(drop=True)
+        df_sorted_orig = df_sorted_orig[_mask_at].reset_index(drop=True)
+
     st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
     modal_key = f"modal_shown_{nome_atendente}"
     evt = st.dataframe(
@@ -680,6 +689,15 @@ def render_leads_rt():
         lambda v: fmt_brl(v) if v > 0 else "—"
     )
     df_display = df_display[list(col_labels.keys())].rename(columns=col_labels)
+
+    _term_rt = st.text_input(
+        "Pesquisar", placeholder="🔍 Nome, status, operador...",
+        label_visibility="collapsed", key="search_leads_rt"
+    )
+    if _term_rt:
+        _mask_rt = df_display.apply(lambda c: c.astype(str).str.contains(_term_rt, case=False, na=False)).any(axis=1)
+        df_display     = df_display[_mask_rt].reset_index(drop=True)
+        df_sorted_orig = df_sorted_orig[_mask_rt].reset_index(drop=True)
 
     st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
     evt = st.dataframe(
@@ -1426,6 +1444,15 @@ def render_detalhamento(df_todos: pd.DataFrame):
         columns={c: col_labels_det[c] for c in cols_to_show}
     )
 
+    _term_det = st.text_input(
+        "Pesquisar", placeholder="🔍 Nome, status, operador...",
+        label_visibility="collapsed", key="search_leads_det"
+    )
+    if _term_det:
+        _mask_det  = df_det_display.apply(lambda c: c.astype(str).str.contains(_term_det, case=False, na=False)).any(axis=1)
+        df_det_display = df_det_display[_mask_det].reset_index(drop=True)
+        df_det_sorted  = df_det_sorted[_mask_det].reset_index(drop=True)
+
     evt_det = st.dataframe(
         df_det_display,
         use_container_width=True,
@@ -1647,6 +1674,15 @@ def render_crm():
             )
             cols_crm = [c for c in col_labels_crm if c in df_crm_disp.columns]
             df_crm_disp = df_crm_disp[cols_crm].rename(columns={c: col_labels_crm[c] for c in cols_crm})
+
+            _term_crm = st.text_input(
+                "Pesquisar", placeholder="🔍 Nome, status, operador...",
+                label_visibility="collapsed", key="search_leads_crm"
+            )
+            if _term_crm:
+                _mask_crm   = df_crm_disp.apply(lambda c: c.astype(str).str.contains(_term_crm, case=False, na=False)).any(axis=1)
+                df_crm_disp    = df_crm_disp[_mask_crm].reset_index(drop=True)
+                df_crm_sorted  = df_crm_sorted[_mask_crm].reset_index(drop=True)
 
             evt_crm = st.dataframe(
                 df_crm_disp, use_container_width=True, hide_index=True, height=480,
