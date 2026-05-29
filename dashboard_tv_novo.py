@@ -24,6 +24,13 @@ from src.data.api import (
 )
 from src.data.transforms import merge_leads_curto, merge_leads_longo
 from src.data.aliases import load_base_aliases, save_base_aliases, apply_base_aliases
+from src.ui.cards import linhas_por_operador, render_card
+from src.charts.rosca import grafico_rosca, CORES_STATUS
+from src.charts.origens import grafico_origens
+from src.charts.acumulado import grafico_acumulado
+from src.charts.funil import grafico_funil_status
+from src.charts.temperatura import grafico_temperatura_pizza, CORES_PERCEPTION
+from src.charts.ranking import grafico_ranking_vendas, render_ranking_vendas
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -39,20 +46,6 @@ st.set_page_config(
 )
 
 
-CORES_STATUS = {
-    "Pendente":            "#4f8ef7",
-    "Agendado":            "#f59e0b",
-    "Proposta Enviada":    "#8b5cf6",
-    "Aguardando Pagamento":"#f97316",
-    "Venda Realizada":     "#22c55e",
-    "Venda não Realizada": "#ef4444",
-}
-
-CORES_PERCEPTION = {
-    "🔥 Quente": "#ef4444",   # vermelho quente
-    "🌡️ Morno":  "#f59e0b",   # âmbar
-    "🧊 Frio":   "#4f8ef7",   # azul frio
-}
 
 # Mapeamentos de perfil de usuário (usados no funil personalizado)
 USER_ATENDENTE = {
@@ -104,57 +97,6 @@ def _cache_disco_disponivel(path: str, max_age: int = 0) -> bool:
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
-
-
-def linhas_por_operador(df, status_filtro, cor):
-    """Gera linhas HTML de contagem por origem (operador) para um dado status."""
-    df_f = df[df["status"] == status_filtro] if status_filtro else df
-    ranking = (
-        df_f.groupby("origem").size()
-        .reset_index(name="qtd")
-        .sort_values("qtd", ascending=False)
-    )
-    if ranking.empty:
-        return '<span style="color:#7a9cc7;font-size:12px;">Sem registros</span>'
-    html = ""
-    for _, row in ranking.iterrows():
-        html += (
-            '<div style="display:flex;justify-content:space-between;align-items:center;'
-            'padding:6px 0;border-bottom:1px solid var(--border);">'
-            f'<span style="color:var(--text-main);font-size:14px;font-weight:500;">👤 {row["origem"]}</span>'
-            f'<span style="color:{cor};font-weight:700;font-size:20px;line-height:1;">{row["qtd"]}</span>'
-            '</div>'
-        )
-    return html
-
-
-def render_card(icone, valor, label, cor, df=None, status_filtro=None):
-    """Renderiza card de métrica com breakdown opcional por operador."""
-    if df is not None:
-        linhas = linhas_por_operador(df, status_filtro, cor)
-        st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid {cor};display:flex;gap:20px;align-items:flex-start;">
-            <div style="min-width:100px;">
-                <span class="card-icone">{icone}</span>
-                <div class="card-valor" style="color:{cor};">{valor}</div>
-                <div class="card-label">{label}</div>
-            </div>
-            <div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>
-            <div style="flex:1;min-width:0;padding-top:4px;">
-                <div style="color:var(--text-sub);font-size:12px;font-weight:600;text-transform:uppercase;
-                            letter-spacing:.7px;margin-bottom:8px;">Por Operador</div>
-                {linhas}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid {cor};">
-            <span class="card-icone">{icone}</span>
-            <div class="card-valor" style="color:{cor};">{valor}</div>
-            <div class="card-label">{label}</div>
-        </div>
-        """, unsafe_allow_html=True)
 
 
 @st.dialog("Detalhamento de Leads", width="large")
@@ -254,243 +196,6 @@ def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None, s
 
 
 # ── GRÁFICOS ──────────────────────────────────────────────────────────────────
-def grafico_rosca(df):
-    counts = df["status"].value_counts()
-    labels = counts.index.tolist()
-    values = counts.values.tolist()
-    colors = [CORES_STATUS.get(l, "#aaa") for l in labels]
-    fig = go.Figure(go.Pie(
-        labels=labels, values=values, hole=0.68,
-        domain=dict(x=[0, 0.58]),
-        marker=dict(colors=colors, line=dict(color="rgba(0,0,0,0)", width=0)),
-        textinfo="percent",
-        textfont=dict(size=11, color="#e8eef8"),
-        hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
-    ))
-    fig.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10),
-        showlegend=True,
-        legend=dict(
-            orientation="v", x=0.61, y=0.5,
-            xanchor="left", yanchor="middle",
-            font=dict(color="#e8eef8", size=11),
-            bgcolor="rgba(0,0,0,0)",
-        ),
-        height=280,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
-def grafico_origens(df):
-    vendas  = df[df["status"] == "Venda Realizada"]
-    ranking = vendas["origem"].value_counts().head(10)
-    fig = go.Figure(go.Bar(
-        x=ranking.values.tolist(), y=ranking.index.tolist(), orientation="h",
-        marker=dict(
-            color=ranking.values.tolist(),
-            colorscale=[[0, "#050b14"], [1, "#22c55e"]],
-            line=dict(color="#152a4a", width=1)
-        ),
-        text=ranking.values.tolist(), textposition="outside",
-        textfont=dict(color="#e8eef8", size=12),
-        hovertemplate="<b>%{y}</b><br>%{x} vendas<extra></extra>",
-    ))
-    fig.update_layout(
-        margin=dict(t=10, b=10, l=10, r=40), height=280,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7", zeroline=False),
-        yaxis=dict(color="#e8eef8", autorange="reversed"),
-    )
-    return fig
-
-
-def grafico_acumulado(df, operadores):
-    CORES_OP = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
-    fig = go.Figure()
-    for i, operador in enumerate(operadores):
-        df_op = df[df["origem"] == operador].copy()
-        df_op = df_op[df_op["data_obj"].notna()]
-        if df_op.empty:
-            continue
-        por_dia = df_op.groupby("data_obj").size().reset_index(name="leads")
-        por_dia = por_dia.sort_values("data_obj")
-        por_dia["acumulado"] = por_dia["leads"].cumsum()
-        cor = CORES_OP[i % len(CORES_OP)]
-        fig.add_trace(go.Scatter(
-            x=por_dia["data_obj"].tolist(), y=por_dia["acumulado"].tolist(),
-            name=operador, mode="lines+markers",
-            line=dict(color=cor, width=3),
-            marker=dict(color=cor, size=8, symbol="circle"),
-            hovertemplate=f"<b>{operador}</b><br>%{{x|%d/%m}}<br>%{{y}} leads acumulados<extra></extra>",
-        ))
-    fig.update_layout(
-        margin=dict(t=20, b=20, l=10, r=20), height=320,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=13)),
-        xaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                   tickformat="%d/%m", tickfont=dict(color="#e8eef8", size=12)),
-        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                   tickfont=dict(color="#e8eef8", size=12), zeroline=False),
-        hovermode="x unified",
-    )
-    return fig
-
-
-def grafico_funil_status(df_atendente):
-    """
-    Gráfico de funil mostrando a quantidade de leads em cada etapa do status.
-    O % exibido é individual de cada status em relação ao total de leads,
-    e não acumulado em relação ao topo do funil.
-    """
-    ordem = [
-        "Pendente",
-        "Agendado",
-        "Proposta Enviada",
-        "Aguardando Pagamento",
-    ]
-    contagens = df_atendente["status"].value_counts()
-    labels = [s for s in ordem if s in contagens.index]
-    values = [contagens[s] for s in labels]
-    cores  = [CORES_STATUS[s] for s in labels]
-
-    total = len(df_atendente)
-
-    # Monta o texto de cada barra: quantidade + % individual do total
-    # Ex: "12  (18,5%)" — cada status mostra sua própria fatia
-    textos = [
-        f"{v}  ({v / total * 100:.1f}%)" if total > 0 else str(v)
-        for v in values
-    ]
-
-    fig = go.Figure(go.Funnel(
-        y=labels,
-        x=values,
-        # "none" desliga o texto automático do Plotly para usarmos o nosso
-        textinfo="none",
-        text=textos,
-        textposition="inside",
-        textfont=dict(color="#e8eef8", size=13, family="DM Sans"),
-        marker=dict(color=cores, line=dict(color="#050b14", width=1)),
-        connector=dict(line=dict(color="#152a4a", width=1)),
-        hovertemplate="<b>%{y}</b><br>%{x} leads<br>%{text}<extra></extra>",
-    ))
-    fig.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10),
-        height=max(160, len(labels) * 56),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(color="#e8eef8"),
-    )
-    return fig
-
-
-def grafico_temperatura_pizza(df_atendente):
-    """
-    Gráfico de pizza com a distribuição de temperatura (quente/morno/frio)
-    para os leads com percepção preenchida.
-    """
-    df_com_temp = df_atendente[df_atendente["perception"] != "Sem percepção"]
-    if df_com_temp.empty:
-        return None
-
-    contagens = df_com_temp["perception"].value_counts()
-    labels = contagens.index.tolist()
-    values = contagens.values.tolist()
-    cores  = [CORES_PERCEPTION.get(l, "#7a9cc7") for l in labels]
-
-    fig = go.Figure(go.Pie(
-        labels=labels, values=values, hole=0.65,
-        marker=dict(colors=cores, line=dict(color="rgba(0,0,0,0)", width=0)),
-        textinfo="percent",
-        textfont=dict(size=11, color="#e8eef8"),
-        hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
-    ))
-    fig.update_layout(
-        margin=dict(t=10, b=10, l=10, r=10),
-        showlegend=True,
-        legend=dict(
-            orientation="v", x=1.02, y=0.5,
-            font=dict(color="#e8eef8", size=11),
-            bgcolor="rgba(0,0,0,0)",
-        ),
-        height=280,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
-def grafico_ranking_vendas(dados: dict):
-    """Barras verticais de ranking de vendas — top performer em verde, demais em azul."""
-    if not dados:
-        return None
-    operadores = list(dados.keys())
-    valores    = list(dados.values())
-    max_val    = max(valores)
-    cores      = ["#1D9E75" if v == max_val else "#378ADD" for v in valores]
-
-    fig = go.Figure(go.Bar(
-        x=operadores,
-        y=valores,
-        marker=dict(
-            color=cores,
-            line=dict(color="rgba(0,0,0,0)", width=0),
-        ),
-        text=valores,
-        textposition="outside",
-        textfont=dict(color="#e8eef8", size=14, family="DM Sans"),
-        hovertemplate="<b>%{x}</b><br>%{y} venda(s)<extra></extra>",
-    ))
-    fig.update_layout(
-        margin=dict(t=30, b=10, l=10, r=10),
-        height=300,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(
-            color="#e8eef8",
-            tickfont=dict(size=13, family="DM Sans", color="#e8eef8"),
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor="#152a4a",
-            color="#7a9cc7",
-            tickfont=dict(size=11),
-            zeroline=False,
-            dtick=1,
-        ),
-        bargap=0.45,
-    )
-    return fig
-
-
-def render_ranking_vendas(dados: dict | None = None):
-    """
-    Cards de métrica + gráfico de barras de ranking de vendas por operador.
-    `dados`: dict {operador: qtd_vendas}. Usa exemplo se None.
-    """
-    if dados is None:
-        dados = {"Indicação": 2, "Isaac": 1, "Orgânico": 1}
-
-    total_vendas      = sum(dados.values())
-    top_operador      = max(dados, key=dados.get) if dados else "—"
-    operadores_ativos = len(dados)
-
-    st.markdown("#### 🏆 Ranking de Vendas")
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        render_card("🏆", total_vendas,       "Total de Vendas",   "#1D9E75")
-    with c2:
-        render_card("⭐", top_operador,        "Top Operador",      "#378ADD")
-    with c3:
-        render_card("👥", operadores_ativos,   "Operadores Ativos", "#f59e0b")
-
-    fig = grafico_ranking_vendas(dados)
-    if fig:
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_path=None):
