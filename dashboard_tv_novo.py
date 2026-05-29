@@ -644,9 +644,6 @@ def render_leads_rt():
     with _hd_leads:
         st.markdown("#### 📋 Leads Recentes")
         st.markdown(
-            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-            f"Exibindo os 100 leads mais recentes do período filtrado ({len(df_rt)} no total)."
-            "</p>",
             unsafe_allow_html=True
         )
     with _btn_leads:
