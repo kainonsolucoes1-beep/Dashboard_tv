@@ -1,6 +1,8 @@
 import plotly.graph_objects as go
 import pandas as pd
 
+HORAS = list(range(9, 19))  # 09h – 18h (horário comercial)
+
 
 def _hora(s: str):
     try:
@@ -9,23 +11,27 @@ def _hora(s: str):
         return None
 
 
-def grafico_horarios_pico(df: pd.DataFrame) -> go.Figure:
+def grafico_horarios_pico(df: pd.DataFrame):
     horas_captura = df["criado_em"].apply(_hora).dropna().astype(int)
+    horas_captura = horas_captura[horas_captura.isin(HORAS)]
 
     df_vendas = df[df["status"] == "Venda Realizada"].copy()
     horas_venda = df_vendas["atualizado_em"].apply(_hora).dropna().astype(int)
+    horas_venda = horas_venda[horas_venda.isin(HORAS)]
 
-    horas = list(range(24))
-    cap_counts = [int((horas_captura == h).sum()) for h in horas]
-    vnd_counts = [int((horas_venda == h).sum()) for h in horas]
+    cap_counts = [int((horas_captura == h).sum()) for h in HORAS]
+    vnd_counts = [int((horas_venda == h).sum()) for h in HORAS]
 
-    top3_cap = set(sorted(range(24), key=lambda h: cap_counts[h], reverse=True)[:3])
-    top3_vnd = set(sorted(range(24), key=lambda h: vnd_counts[h], reverse=True)[:3])
+    def _top3(counts):
+        pairs = sorted(enumerate(counts), key=lambda x: x[1], reverse=True)
+        return {HORAS[i] for i, c in pairs[:3] if c > 0}
 
-    colors_cap = ["#f59e0b" if h in top3_cap else "#4f8ef7" for h in horas]
-    colors_vnd = ["#16a34a" if h in top3_vnd else "#22c55e" for h in horas]
+    top3_cap = _top3(cap_counts)
+    top3_vnd = _top3(vnd_counts)
 
-    labels = [f"{h:02d}h" for h in horas]
+    colors_cap = ["#f59e0b" if h in top3_cap else "#4f8ef7" for h in HORAS]
+    colors_vnd = ["#16a34a" if h in top3_vnd else "#22c55e" for h in HORAS]
+    labels = [f"{h:02d}h" for h in HORAS]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
