@@ -38,6 +38,7 @@ from src.views.detalhamento import render_detalhamento
 from src.views.crm import render_crm
 from src.views.estagio import render_estagio_lead
 from src.views.fragments import render_funil_rt, render_leads_rt
+from src.views.kpis import render_kpis
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -169,9 +170,9 @@ st.session_state["df_curto"] = df_todos
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia", "📋 Leads Recentes", "🗂️ CRM"]
+    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
     if _is_admin else
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia"]
+    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia", "📈 KPIs"]
 )
 if "aba_ativa" not in st.session_state and st.session_state.get("_tab_sel") in _abas:
     st.session_state["aba_ativa"] = st.session_state["_tab_sel"]
@@ -197,6 +198,8 @@ elif "Leads Recentes" in aba_ativa:
     render_leads_rt()
 elif "CRM" in aba_ativa:
     render_crm()
+elif "KPIs" in aba_ativa:
+    render_kpis(df_todos)
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
 st.markdown("---")
