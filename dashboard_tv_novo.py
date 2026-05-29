@@ -644,6 +644,9 @@ def render_leads_rt():
     with _hd_leads:
         st.markdown("#### 📋 Leads Recentes")
         st.markdown(
+            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
+            f"Exibindo os 100 leads mais recentes do período filtrado ({len(df_rt)} no total)."
+            "</p>",
             unsafe_allow_html=True
         )
     with _btn_leads:
@@ -1445,12 +1448,10 @@ def render_detalhamento(df_todos: pd.DataFrame):
         columns={c: col_labels_det[c] for c in cols_to_show}
     )
 
-    _sc_det, _ = st.columns([1, 2])
-    with _sc_det:
-        _term_det = st.text_input(
-            "Pesquisar", placeholder="🔍 Busque seus leads aqui...",
-            label_visibility="collapsed", key="search_leads_det"
-        )
+    _term_det = st.text_input(
+        "Pesquisar", placeholder="🔍 Nome, status, operador...",
+        label_visibility="collapsed", key="search_leads_det"
+    )
     if _term_det:
         _mask_det  = df_det_display.apply(lambda c: c.astype(str).str.contains(_term_det, case=False, na=False)).any(axis=1)
         df_det_display = df_det_display[_mask_det].reset_index(drop=True)
@@ -1678,12 +1679,10 @@ def render_crm():
             cols_crm = [c for c in col_labels_crm if c in df_crm_disp.columns]
             df_crm_disp = df_crm_disp[cols_crm].rename(columns={c: col_labels_crm[c] for c in cols_crm})
 
-            _sc_crm, _ = st.columns([1, 2])
-            with _sc_crm:
-                _term_crm = st.text_input(
-                    "Pesquisar", placeholder="🔍 Busque seus leads aqui...",
-                    label_visibility="collapsed", key="search_leads_crm"
-                )
+            _term_crm = st.text_input(
+                "Pesquisar", placeholder="🔍 Nome, status, operador...",
+                label_visibility="collapsed", key="search_leads_crm"
+            )
             if _term_crm:
                 _mask_crm   = df_crm_disp.apply(lambda c: c.astype(str).str.contains(_term_crm, case=False, na=False)).any(axis=1)
                 df_crm_disp    = df_crm_disp[_mask_crm].reset_index(drop=True)
