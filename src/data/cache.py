@@ -55,5 +55,4 @@ def _watcher_pkl(fetch_30, fetch_80, fetch_criticos, fetch_hoje):
                 fetch_80.clear()
                 fetch_criticos.clear()
                 fetch_hoje.clear()
-                st.session_state["_aba_pk"] = st.session_state.get("aba_ativa")
                 st.rerun()

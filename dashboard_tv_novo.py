@@ -830,9 +830,8 @@ _abas = (
     if _is_admin else
     ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia"]
 )
-_aba_restore = st.session_state.pop("_aba_pk", None)
-if _aba_restore in _abas:
-    st.session_state["aba_ativa"] = _aba_restore
+if "aba_ativa" not in st.session_state and st.session_state.get("_tab_sel") in _abas:
+    st.session_state["aba_ativa"] = st.session_state["_tab_sel"]
 aba_ativa = st.radio(
     "nav",
     options=_abas,
@@ -840,6 +839,7 @@ aba_ativa = st.radio(
     label_visibility="collapsed",
     key="aba_ativa",
 )
+st.session_state["_tab_sel"] = aba_ativa
 
 
 @st.fragment
