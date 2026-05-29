@@ -12,40 +12,15 @@ import streamlit_authenticator as stauth
 from src.utils.time import FERIADOS_BR, dias_uteis_lista, horas_uteis, _ultimo_dia_util
 from src.utils.formatters import fmt_brl, foto_base64
 from src.ui.styles import inject_css
+from src.auth.token import _renovar_token_auto
+from src.data.cache import (
+    _ler_cache_disco, _cache_disco_disponivel, _watcher_pkl,
+    CACHE_30_PATH, CACHE_80_PATH, CACHE_HOJE_PATH, CACHE_CRITICOS_PATH,
+)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def _renovar_token_auto() -> str | None:
-    env_path = os.path.join(SCRIPT_DIR, ".env")
-    try:
-        with open(env_path, "r") as f:
-            conteudo = f.read()
-        client_id     = _re.search(r'CLIENT_ID\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
-        client_secret = _re.search(r'CLIENT_SECRET\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
-        refresh_token = _re.search(r'REFRESH_TOKEN\s*=\s*["\']([^"\']+)["\']', conteudo).group(1)
-        resp = requests.post(
-            "https://api.followize.com.br/oauth/token",
-            data={
-                "grant_type":    "refresh_token",
-                "refresh_token": refresh_token,
-                "client_id":     client_id,
-                "client_secret": client_secret,
-            },
-            timeout=15,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        novo_access  = data["access_token"]
-        novo_refresh = data["refresh_token"]
-        conteudo = _re.sub(r'ACCESS_TOKEN\s*=\s*"[^"]*"',  f'ACCESS_TOKEN  = "{novo_access}"',  conteudo)
-        conteudo = _re.sub(r'REFRESH_TOKEN\s*=\s*"[^"]*"', f'REFRESH_TOKEN = "{novo_refresh}"', conteudo)
-        with open(env_path, "w") as f:
-            f.write(conteudo)
-        return novo_access
-    except Exception:
-        return None
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 _logo = Image.open(os.path.join(SCRIPT_DIR, "logo o2 atualizada.png"))
@@ -114,11 +89,6 @@ USER_COR = {
 # ── BUSCA DE DADOS ─────────────────────────────────────────────────────────────
 DIAS_CRITICOS = 4  # últimos N dias considerados tempo-real
 
-# Caminhos dos arquivos de cache em disco gerados pelo updater.py
-CACHE_30_PATH   = os.path.join(SCRIPT_DIR, "cache_30dias.pkl")
-CACHE_80_PATH   = os.path.join(SCRIPT_DIR, "cache_80dias.pkl")
-CACHE_HOJE_PATH     = os.path.join(SCRIPT_DIR, "cache_hoje.pkl")
-CACHE_CRITICOS_PATH = os.path.join(SCRIPT_DIR, "cache_criticos.pkl")
 
 
 def _ler_cache_disco(path: str):
@@ -146,26 +116,6 @@ def _cache_disco_disponivel(path: str, max_age: int = 0) -> bool:
     return True
 
 
-@st.fragment(run_every=30)
-def _watcher_pkl():
-    """Detecta quando o updater.py salva novos pkl e recarrega o dashboard automaticamente."""
-    _pkls = {
-        CACHE_30_PATH:       "mtime_30",
-        CACHE_80_PATH:       "mtime_80",
-        CACHE_HOJE_PATH:     "mtime_hoje",
-        CACHE_CRITICOS_PATH: "mtime_criticos",
-    }
-    for path, key in _pkls.items():
-        if os.path.exists(path):
-            mtime = os.path.getmtime(path)
-            if st.session_state.get(key, 0) < mtime:
-                st.session_state[key] = mtime
-                fetch_leads_30dias.clear()
-                fetch_leads_80dias.clear()
-                fetch_leads_criticos.clear()
-                fetch_leads_hoje.clear()
-                st.session_state["_aba_pk"] = st.session_state.get("aba_ativa")
-                st.rerun()
 
 
 def _fetch_leads_from_api(days: int, date_of: str = "creation"):
@@ -1660,7 +1610,7 @@ with col_user:
         )
         _authenticator.logout(location="main")
 
-_watcher_pkl()
+_watcher_pkl(fetch_leads_30dias, fetch_leads_80dias, fetch_leads_criticos, fetch_leads_hoje)
 
 st.markdown("---")
 
