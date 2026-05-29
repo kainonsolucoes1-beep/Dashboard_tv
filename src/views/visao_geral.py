@@ -9,6 +9,7 @@ from src.ui.cards import linhas_por_operador, render_card
 from src.ui.modals import modal_leads_status
 from src.charts.rosca import grafico_rosca
 from src.charts.origens import grafico_origens
+from src.charts.horarios import grafico_horarios_pico
 from src.views.fragments import render_hoje_rt
 
 
@@ -312,3 +313,44 @@ def render_visao_geral(df_todos: pd.DataFrame):
     with col_g2:
         st.markdown("#### 🏆 Ranking por Operador (Vendas)")
         st.plotly_chart(grafico_origens(df), use_container_width=True, key="origens_visao")
+
+    st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+    st.markdown("#### ⏰ Horários de Pico")
+    st.markdown(
+        "<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:12px;'>"
+        "Distribuição de capturas e vendas por hora do dia · top 3 horários destacados"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    _fig_h, _top3_cap, _top3_vnd, _cap_c, _vnd_c = grafico_horarios_pico(df)
+
+    _h1, _h2 = st.columns(2)
+    with _h1:
+        _pico_cap = sorted(_top3_cap, key=lambda h: _cap_c[h], reverse=True)
+        st.markdown(
+            "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>"
+            + "".join(
+                f"<span style='background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;"
+                f"padding:3px 10px;font-size:13px;color:#f59e0b;font-weight:700;'>"
+                f"📌 {h:02d}h &nbsp;<span style='color:#e8eef8;font-weight:400;'>({_cap_c[h]} leads)</span></span>"
+                for h in _pico_cap
+            )
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    with _h2:
+        _pico_vnd = sorted(_top3_vnd, key=lambda h: _vnd_c[h], reverse=True)
+        st.markdown(
+            "<div style='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>"
+            + "".join(
+                f"<span style='background:#16a34a22;border:1px solid #16a34a;border-radius:8px;"
+                f"padding:3px 10px;font-size:13px;color:#22c55e;font-weight:700;'>"
+                f"💰 {h:02d}h &nbsp;<span style='color:#e8eef8;font-weight:400;'>({_vnd_c[h]} vendas)</span></span>"
+                for h in _pico_vnd
+            )
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.plotly_chart(_fig_h, use_container_width=True, key="horarios_pico_visao")
