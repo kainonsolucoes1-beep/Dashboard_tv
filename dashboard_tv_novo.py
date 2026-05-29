@@ -2471,29 +2471,63 @@ def render_operadores(df_todos: pd.DataFrame):
 
     df_todos = df_todos[df_todos["data_obj"].apply(lambda d: d is not None and op_de <= d <= op_ate)]
 
-    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 📈 Acumulado de Leads por Operador no Mês")
-
+    df_filtrado = df_todos.copy()
     if op_selecionados:
-        df_acum = df_todos.copy()
-        df_acum = df_acum[df_acum["origem"].isin(op_selecionados)]
-        if op_status != "Todos":
-            df_acum = df_acum[df_acum["status"] == op_status]
-        st.plotly_chart(grafico_acumulado(df_acum, op_selecionados), use_container_width=True, key="acumulado_op")
-    else:
-        st.info("Selecione ao menos um operador para ver o acumulado.")
+        df_filtrado = df_filtrado[df_filtrado["origem"].isin(op_selecionados)]
+    if op_status != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["status"] == op_status]
 
     _VENDEDORES = {"isaac", "leticia", "julia", "rodolfo"}
-    if st.session_state.get("_auth_user", "") not in _VENDEDORES:
-        st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-        st.markdown("---")
-        df_op_rank = df_todos.copy()
+    _is_admin   = st.session_state.get("_auth_user", "") not in _VENDEDORES
+
+    st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
+
+    if _is_admin:
+        dados_ranking     = df_filtrado[df_filtrado["status"] == "Venda Realizada"]["origem"].value_counts().to_dict()
+        total_vendas      = sum(dados_ranking.values())
+        top_operador      = max(dados_ranking, key=dados_ranking.get) if dados_ranking else "—"
+        operadores_ativos = len(dados_ranking)
+
+        mc1, mc2, mc3 = st.columns(3)
+        with mc1:
+            render_card("🏆", total_vendas,      "Total de Vendas",   "#1D9E75")
+        with mc2:
+            render_card("⭐", top_operador,       "Top Operador",      "#378ADD")
+        with mc3:
+            render_card("👥", operadores_ativos,  "Operadores Ativos", "#f59e0b")
+
+        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+
+        col_linha, col_rank = st.columns([6, 4])
+        with col_linha:
+            st.markdown("#### 📈 Acumulado de Leads")
+            if op_selecionados:
+                st.plotly_chart(
+                    grafico_acumulado(df_filtrado, op_selecionados),
+                    use_container_width=True, key="acumulado_op",
+                )
+            else:
+                st.info("Selecione ao menos um operador.")
+        with col_rank:
+            st.markdown("#### 🏆 Ranking de Vendas")
+            if dados_ranking:
+                st.plotly_chart(
+                    grafico_ranking_vendas(dados_ranking),
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                    key="ranking_op",
+                )
+            else:
+                st.info("Sem vendas no período.")
+    else:
+        st.markdown("#### 📈 Acumulado de Leads por Operador no Mês")
         if op_selecionados:
-            df_op_rank = df_op_rank[df_op_rank["origem"].isin(op_selecionados)]
-        if op_status != "Todos":
-            df_op_rank = df_op_rank[df_op_rank["status"] == op_status]
-        dados_ranking = df_op_rank[df_op_rank["status"] == "Venda Realizada"]["origem"].value_counts().to_dict()
-        render_ranking_vendas(dados_ranking if dados_ranking else None)
+            st.plotly_chart(
+                grafico_acumulado(df_filtrado, op_selecionados),
+                use_container_width=True, key="acumulado_op",
+            )
+        else:
+            st.info("Selecione ao menos um operador para ver o acumulado.")
 
 
 @st.dialog("👤 Detalhes do Operador", width="large")
