@@ -51,9 +51,6 @@ def render_kpis(df_todos: pd.DataFrame):
         with _fc2:
             kpi_ate = st.date_input("📅 Até", value=_kpi_ate, format="DD/MM/YYYY", key="kpi_pico_ate")
 
-        st.session_state["kpi_pico_de"]  = kpi_de
-        st.session_state["kpi_pico_ate"] = kpi_ate
-
         _dias_uteis = set(dias_uteis_lista(kpi_de, kpi_ate))
         df_pico = df_todos[df_todos["data_obj"].apply(
             lambda d: d is not None and d in _dias_uteis
