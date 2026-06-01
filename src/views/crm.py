@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from datetime import date
 
 from src.data.api import fetch_leads_30dias, fetch_leads_criticos
-from src.data.transforms import merge_leads_curto
+from src.data.transforms import merge_leads_curto, merge_leads_longo
 from src.utils.formatters import fmt_brl
 from src.data.aliases import load_base_aliases, save_base_aliases, apply_base_aliases
 from src.ui.modals import modal_lead
@@ -181,109 +181,120 @@ def render_crm():
                 st.session_state.pop("modal_leads_crm", None)
 
     with sub_ranking:
-        if df_base_all.empty:
-            st.info("Nenhuma base registrada ainda. Preencha o campo **Base de Clientes** no formulário para os dados aparecerem aqui.")
+        df_longo, _ = merge_leads_longo()
+        df_longo = apply_base_aliases(df_longo, aliases)
+        df_vnd_all = df_longo[df_longo["status"] == "Venda Realizada"].copy()
+
+        _default_vr_de  = date.today().replace(day=1)
+        _default_vr_ate = date.today()
+        _vc1, _vc2, _ = st.columns([2, 2, 4])
+        with _vc1:
+            vr_de = st.date_input("📅 De", value=st.session_state.get("crm_vr_de", _default_vr_de), format="DD/MM/YYYY", key="crm_vr_de")
+        with _vc2:
+            vr_ate = st.date_input("📅 Até", value=st.session_state.get("crm_vr_ate", _default_vr_ate), format="DD/MM/YYYY", key="crm_vr_ate")
+
+        df_vr = df_vnd_all[
+            df_vnd_all["atualizado_obj"].apply(lambda d: d is not None and vr_de <= d <= vr_ate)
+        ].copy()
+
+        df_vr["origem_venda"] = df_vr.apply(
+            lambda r: str(r.get("base") or "").strip() or str(r.get("origem") or "Sem origem"),
+            axis=1,
+        )
+
+        if df_vr.empty:
+            st.info("Nenhuma venda realizada no período.")
         else:
-            MEDALHAS = {0: "🥇", 1: "🥈", 2: "🥉"}
+            total_vr    = len(df_vr)
+            valor_total = df_vr["valor_proposta"].sum()
+            ticket      = valor_total / total_vr if total_vr else 0
 
-            ranking = (
-                df_base_all.groupby("base")
-                .agg(
-                    leads     =("id",           "count"),
-                    vendas    =("status",        lambda x: (x == "Venda Realizada").sum()),
-                    carteira  =("valor_proposta","sum"),
-                    dias      =("data_obj",      "nunique"),
-                )
+            _m1, _m2, _m3 = st.columns(3)
+            with _m1:
+                st.metric("Vendas Realizadas", total_vr)
+            with _m2:
+                st.metric("Valor Total", fmt_brl(valor_total))
+            with _m3:
+                st.metric("Ticket Médio", fmt_brl(ticket))
+
+            st.markdown("---")
+            st.markdown("#### 🗂️ Por Origem")
+
+            grp = (
+                df_vr.groupby("origem_venda")
+                .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
                 .reset_index()
+                .sort_values("vendas", ascending=False)
+                .reset_index(drop=True)
             )
-            ranking["conv_pct"]    = (ranking["vendas"] / ranking["leads"].replace(0, float("nan")) * 100).fillna(0).round(1)
-            ranking["ticket_medio"]= (ranking["carteira"] / ranking["vendas"].replace(0, float("nan"))).fillna(0)
-            ranking = ranking.sort_values(["conv_pct", "leads"], ascending=[False, False]).reset_index(drop=True)
+            grp["ticket"] = grp.apply(
+                lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
+            )
 
-            r1, r2, r3 = st.columns(3)
-            with r1:
-                st.metric("Bases no período", len(ranking))
-            with r2:
-                ranking_com_venda = ranking[ranking["vendas"] > 0]
-                melhor = ranking_com_venda.iloc[0]["base"] if not ranking_com_venda.empty else "—"
-                st.metric("Maior conversão", melhor)
-            with r3:
-                media_conv = round(ranking["conv_pct"].mean(), 1) if not ranking.empty else 0
-                st.metric("Conversão média", f"{media_conv}%")
+            _gi = 0
+            for _ci in range(0, len(grp), 3):
+                _chunk = grp.iloc[_ci:_ci + 3]
+                _cols  = st.columns(len(_chunk))
+                for _col, (_, _row) in zip(_cols, _chunk.iterrows()):
+                    _cor = CORES_CRM[_gi % len(CORES_CRM)]
+                    with _col:
+                        st.markdown(
+                            f"<div class='card-status' style='border-left:4px solid {_cor};'>"
+                            f"<div style='font-size:13px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                            f"letter-spacing:.6px;margin-bottom:8px;'>{_row['origem_venda']}</div>"
+                            f"<div style='font-size:32px;font-weight:700;color:{_cor};line-height:1;'>{int(_row['vendas'])}</div>"
+                            f"<div style='color:#7a9cc7;font-size:12px;margin-top:3px;'>vendas</div>"
+                            f"<div style='margin-top:10px;border-top:1px solid #152a4a;padding-top:8px;'>"
+                            f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;'>Valor Total</div>"
+                            f"<div style='font-size:18px;font-weight:700;color:#22c55e;'>{fmt_brl(_row['valor'])}</div>"
+                            f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;'>Ticket Médio</div>"
+                            f"<div style='font-size:16px;font-weight:700;color:#f59e0b;'>{fmt_brl(_row['ticket'])}</div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                    _gi += 1
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
             st.markdown("---")
-            st.markdown("#### 🏆 Bases por Taxa de Conversão")
+            st.markdown("#### 📋 Detalhamento de Vendas")
+            st.caption("💡 Clique em uma linha para ver os detalhes do lead.")
 
-            for idx, row in ranking.iterrows():
-                medalha   = MEDALHAS.get(idx, f"#{idx + 1}")
-                cor       = CORES_CRM[idx % len(CORES_CRM)]
-                conv_cor  = "#22c55e" if row["conv_pct"] >= media_conv else "#f59e0b"
-                bar_w     = min(int(row["conv_pct"] * 4), 100)
+            df_vr_sorted = df_vr.sort_values("atualizado_obj", ascending=False).reset_index(drop=True)
 
-                st.markdown(f"""
-                <div class="card-status" style="border-left:4px solid {cor};margin-bottom:14px;">
-                  <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
-                    <div style="font-size:34px;line-height:1;min-width:48px;text-align:center;padding-top:4px;">{medalha}</div>
-                    <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
-                    <div style="min-width:200px;flex:1;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:2px;">Base</div>
-                      <div style="font-size:18px;font-weight:700;color:{cor};word-break:break-all;">{row['base']}</div>
-                      <div style="margin-top:8px;background:#152a4a;border-radius:99px;height:6px;width:100%;">
-                        <div style="background:{conv_cor};border-radius:99px;height:6px;width:{bar_w}%;"></div>
-                      </div>
-                      <div style="font-size:12px;color:{conv_cor};margin-top:3px;font-weight:600;">{row['conv_pct']}% conversão</div>
-                    </div>
-                    <div style="width:1px;background:#152a4a;align-self:stretch;flex-shrink:0;"></div>
-                    <div style="display:flex;gap:24px;flex-wrap:wrap;padding-top:4px;">
-                      <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Leads</div>
-                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['leads'])}</div>
-                      </div>
-                      <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Vendas</div>
-                        <div style="font-size:26px;font-weight:700;color:#22c55e;">{int(row['vendas'])}</div>
-                      </div>
-                      <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Carteira</div>
-                        <div style="font-size:22px;font-weight:700;color:#f59e0b;">{fmt_brl(row['carteira'])}</div>
-                      </div>
-                      <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Ticket Médio</div>
-                        <div style="font-size:22px;font-weight:700;color:#4f8ef7;">{fmt_brl(row['ticket_medio'])}</div>
-                      </div>
-                      <div>
-                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Dias Usada</div>
-                        <div style="font-size:26px;font-weight:700;color:#e8eef8;">{int(row['dias'])}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("---")
-            st.markdown("#### 📊 Comparativo Visual")
-            fig_rank = go.Figure()
-            bases_rank = ranking["base"].tolist()
-            fig_rank.add_trace(go.Bar(
-                name="Leads", x=bases_rank, y=ranking["leads"].tolist(),
-                marker_color="#4f8ef7",
-                hovertemplate="<b>%{x}</b><br>Leads: %{y}<extra></extra>",
-            ))
-            fig_rank.add_trace(go.Bar(
-                name="Vendas", x=bases_rank, y=ranking["vendas"].tolist(),
-                marker_color="#22c55e",
-                hovertemplate="<b>%{x}</b><br>Vendas: %{y}<extra></extra>",
-            ))
-            fig_rank.update_layout(
-                barmode="group", height=320,
-                margin=dict(t=10, b=20, l=10, r=10),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                legend=dict(orientation="h", y=1.1, x=0, font=dict(color="#e8eef8", size=13)),
-                xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
-                yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                           tickfont=dict(color="#e8eef8", size=12), zeroline=False),
+            _COL_VR = {
+                "atualizado_em":  "Data da Venda",
+                "nome":           "Cliente",
+                "origem_venda":   "Origem",
+                "atendente":      "Atendente",
+                "valor_proposta": "Valor Final (R$)",
+            }
+            df_vr_disp = df_vr_sorted[[c for c in _COL_VR if c in df_vr_sorted.columns]].copy()
+            df_vr_disp["valor_proposta"] = df_vr_sorted["valor_proposta"].apply(
+                lambda v: fmt_brl(v) if v > 0 else "—"
             )
-            st.plotly_chart(fig_rank, use_container_width=True, key="crm_rank_chart")
+            df_vr_disp = df_vr_disp.rename(columns=_COL_VR)
+
+            _sc1, _ = st.columns([1, 2])
+            with _sc1:
+                _term_vr = st.text_input(
+                    "Pesquisar", placeholder="🔍 Cliente, origem, atendente...",
+                    label_visibility="collapsed", key="search_crm_vr"
+                )
+            if _term_vr:
+                _mask_vr     = df_vr_disp.apply(lambda c: c.astype(str).str.contains(_term_vr, case=False, na=False)).any(axis=1)
+                df_vr_disp   = df_vr_disp[_mask_vr].reset_index(drop=True)
+                df_vr_sorted = df_vr_sorted[_mask_vr].reset_index(drop=True)
+
+            evt_vr = st.dataframe(
+                df_vr_disp, use_container_width=True, hide_index=True, height=500,
+                selection_mode="single-row", on_select="rerun", key="tabela_crm_vr",
+            )
+            sel_vr = evt_vr.selection.rows
+            if sel_vr and st.session_state.get("modal_crm_vr") != sel_vr[0]:
+                st.session_state["modal_crm_vr"] = sel_vr[0]
+                modal_lead(df_vr_sorted.iloc[sel_vr[0]])
+            if not sel_vr:
+                st.session_state.pop("modal_crm_vr", None)
 
     with sub_historico:
         if df_base_all.empty:
