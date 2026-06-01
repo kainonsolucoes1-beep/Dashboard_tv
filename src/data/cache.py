@@ -46,13 +46,16 @@ def _watcher_pkl(fetch_30, fetch_80, fetch_criticos, fetch_hoje):
         CACHE_HOJE_PATH:     "mtime_hoje",
         CACHE_CRITICOS_PATH: "mtime_criticos",
     }
+    _changed = False
     for path, key in _pkls.items():
         if os.path.exists(path):
             mtime = os.path.getmtime(path)
             if st.session_state.get(key, 0) < mtime:
                 st.session_state[key] = mtime
-                fetch_30.clear()
-                fetch_80.clear()
-                fetch_criticos.clear()
-                fetch_hoje.clear()
-                st.rerun()
+                _changed = True
+    if _changed:
+        fetch_30.clear()
+        fetch_80.clear()
+        fetch_criticos.clear()
+        fetch_hoje.clear()
+        st.rerun()
