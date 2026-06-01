@@ -7,13 +7,14 @@ from src.data.transforms import merge_leads_curto
 from src.utils.time import dias_uteis_lista
 from src.charts.horarios import grafico_horarios_pico
 from src.utils.formatters import fmt_brl
+from src.ui.modals import modal_leads_status
 
 _SDR_ORIGENS = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly"}
 
 CORES_ORIGEM = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316", "#06b6d4", "#e879f9"]
 
 
-def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list):
+def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list, tab_prefix: str = ""):
     if df_vnd.empty or not origens:
         st.info("Nenhuma venda realizada no período.")
         return
@@ -29,6 +30,8 @@ def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list):
             f"</div>",
             unsafe_allow_html=True,
         )
+        if st.button("🔍 Ver leads", key=f"{tab_prefix}_btn_vnd_total", use_container_width=True):
+            modal_leads_status(df_vnd, "Vendas Realizadas", "#22c55e")
     with g2:
         st.markdown(
             f"<div class='card-status' style='text-align:center;padding:16px 12px;'>"
@@ -73,6 +76,8 @@ def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list):
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
+                if st.button("🔍 Ver leads", key=f"{tab_prefix}_btn_vnd_{op}", use_container_width=True):
+                    modal_leads_status(df_op, op, cor)
 
 
 @st.fragment
@@ -201,8 +206,8 @@ def render_kpis(df_todos: pd.DataFrame):
 
         with tab_sdr:
             df_sdr = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
-            _cards_vendas_por_origem(df_sdr, sdr_presentes)
+            _cards_vendas_por_origem(df_sdr, sdr_presentes, tab_prefix="sdr")
 
         with tab_demais:
             df_demais = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
-            _cards_vendas_por_origem(df_demais, demais_presentes)
+            _cards_vendas_por_origem(df_demais, demais_presentes, tab_prefix="demais")
