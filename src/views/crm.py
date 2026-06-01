@@ -247,17 +247,6 @@ def render_crm():
             valor_total = df_vr["valor_proposta"].sum()
             ticket      = valor_total / total_vr if total_vr else 0
 
-            _m1, _m2, _m3 = st.columns(3)
-            with _m1:
-                st.metric("Vendas Realizadas", total_vr)
-            with _m2:
-                st.metric("Valor Total", fmt_brl(valor_total))
-            with _m3:
-                st.metric("Ticket Médio", fmt_brl(ticket))
-
-            st.markdown("---")
-            st.markdown("#### 🗂️ Por Origem")
-
             grp = (
                 df_vr.groupby("base_display")
                 .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
@@ -268,21 +257,28 @@ def render_crm():
             grp["ticket"] = grp.apply(
                 lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
             )
+            _top_base = grp.loc[grp["valor"].idxmax(), "base_display"] if not grp.empty else "—"
 
-            _esc = r'\$'
+            _m1, _m2, _m3, _m4 = st.columns(4)
+            with _m1:
+                st.metric("Vendas Realizadas", total_vr)
+            with _m2:
+                st.metric("Valor Total", fmt_brl(valor_total))
+            with _m3:
+                st.metric("Ticket Médio", fmt_brl(ticket))
+            with _m4:
+                st.metric("🏆 Maior Base (R$)", _top_base)
+
+            st.markdown("---")
+            st.markdown("#### 🗂️ Por Origem")
+
             for _gi, (_, _row) in enumerate(grp.iterrows()):
                 _cor      = CORES_CRM[_gi % len(CORES_CRM)]
                 _base_lbl = str(_row["base_display"])
                 _vendas_i = int(_row["vendas"])
                 _valor_f  = fmt_brl(_row["valor"])
                 _ticket_f = fmt_brl(_row["ticket"])
-                _exp_lbl  = (
-                    f"📦 {_base_lbl}  ·  "
-                    f"{_vendas_i} venda{'s' if _vendas_i != 1 else ''}  ·  "
-                    f"{_valor_f.replace('$', _esc)}  ·  "
-                    f"ticket: {_ticket_f.replace('$', _esc)}"
-                )
-                with st.expander(_exp_lbl, expanded=False):
+                with st.expander(f"📦  {_base_lbl}", expanded=False):
                     st.markdown(f"""
                     <div class="card-status" style="border-left:4px solid {_cor};margin-bottom:14px;">
                       <div style="display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;">
