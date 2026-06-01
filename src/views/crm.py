@@ -180,6 +180,8 @@ def render_crm():
             if not sel_crm:
                 st.session_state.pop("modal_leads_crm", None)
 
+    _SDR_NOMES_CRM = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+
     with sub_ranking:
         df_longo, _ = merge_leads_longo()
         df_longo = apply_base_aliases(df_longo, aliases)
@@ -197,10 +199,16 @@ def render_crm():
             df_vnd_all["atualizado_obj"].apply(lambda d: d is not None and vr_de <= d <= vr_ate)
         ].copy()
 
-        df_vr["origem_venda"] = df_vr.apply(
-            lambda r: str(r.get("base") or "").strip() or str(r.get("origem") or "Sem origem"),
-            axis=1,
-        )
+        def _calc_origem_venda(r):
+            base = str(r.get("base") or "").strip()
+            if base:
+                return base
+            origem = str(r.get("origem") or "").strip()
+            if origem.lower() in _SDR_NOMES_CRM:
+                return "Prospecção Ativa"
+            return origem or "Sem origem"
+
+        df_vr["origem_venda"] = df_vr.apply(_calc_origem_venda, axis=1)
 
         if df_vr.empty:
             st.info("Nenhuma venda realizada no período.")
