@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import date
 
-from src.data.api import fetch_leads_30dias, fetch_leads_criticos
+from src.data.api import fetch_leads_30dias, fetch_leads_criticos, fetch_leads_80dias
 from src.data.transforms import merge_leads_curto, merge_leads_longo
 from src.utils.formatters import fmt_brl
 from src.data.aliases import load_base_aliases, save_base_aliases, apply_base_aliases, load_base_manual, apply_base_manual
@@ -184,6 +184,9 @@ def render_crm():
 
     with sub_ranking:
         df_longo, _ = merge_leads_longo()
+        if "conversion_goal" not in df_longo.columns:
+            fetch_leads_80dias.clear()
+            df_longo, _ = merge_leads_longo()
         df_longo = apply_base_manual(df_longo, load_base_manual())
         df_longo = apply_base_aliases(df_longo, aliases)
         df_vnd_all = df_longo[df_longo["status"] == "Venda Realizada"].copy()
