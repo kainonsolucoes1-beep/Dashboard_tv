@@ -259,6 +259,7 @@ def render_crm():
             )
             _top_base = grp.loc[grp["valor"].idxmax(), "base_display"] if not grp.empty else "—"
 
+            st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
             _m1, _m2, _m3, _m4 = st.columns(4)
             with _m1:
                 st.metric("Vendas Realizadas", total_vr)
