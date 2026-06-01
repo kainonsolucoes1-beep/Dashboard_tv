@@ -330,6 +330,13 @@ def modal_operador(op: str, df_op: pd.DataFrame, cor: str, de: date, ate: date):
     por_semana["_ord"] = por_semana["semana"].map({v: k for k, v in enumerate(semana_map.values())})
     por_semana = por_semana.sort_values("_ord").drop(columns="_ord")
 
+    # Mapeamento semana_label → datas
+    semana_dates: dict = {}
+    for _d in du_lista:
+        _wk = _d.isocalendar()[1]
+        _lbl = semana_map[_wk]
+        semana_dates.setdefault(_lbl, []).append(_d)
+
     fig_sem = go.Figure()
     fig_sem.add_trace(go.Scatter(
         x=por_semana["semana"].tolist(),
@@ -339,8 +346,8 @@ def modal_operador(op: str, df_op: pd.DataFrame, cor: str, de: date, ate: date):
         textposition="top center",
         textfont=dict(color="#e8eef8", size=13, family="DM Sans"),
         line=dict(color=cor, width=3),
-        marker=dict(color=cor, size=10),
-        hovertemplate="<b>%{x}</b><br>%{y} leads<extra></extra>",
+        marker=dict(color=cor, size=12),
+        hovertemplate="<b>%{x}</b><br>%{y} leads — clique para ver detalhes<extra></extra>",
     ))
     _max_sem = max(int(por_semana["leads"].max()), 1)
     fig_sem.update_layout(
@@ -353,78 +360,72 @@ def modal_operador(op: str, df_op: pd.DataFrame, cor: str, de: date, ate: date):
                    tickfont=dict(color="#e8eef8", size=12), zeroline=False,
                    range=[0, _max_sem * 1.35]),
     )
-    st.plotly_chart(fig_sem, use_container_width=True, key=f"modal_sem_{op}")
+    _sem_evt = st.plotly_chart(
+        fig_sem, use_container_width=True,
+        key=f"modal_sem_{op}", on_select="rerun",
+    )
 
     st.markdown("---")
-    st.markdown("#### 📅 Leads por Dia")
 
-    _all_days_data = []
-    _cur = de
-    while _cur <= ate:
-        if _cur in FERIADOS_BR:
-            _tipo = "feriado"
-        elif _cur.weekday() >= 5:
-            _tipo = "fds"
-        else:
-            _tipo = "util"
-        _leads_d = int(leads_por_dia.get(_cur, 0)) if _tipo == "util" else 0
-        _all_days_data.append({"data_obj": _cur, "leads": _leads_d, "tipo": _tipo})
-        _cur += timedelta(days=1)
-    df_all_dias = pd.DataFrame(_all_days_data)
+    _pts = (_sem_evt.selection or {}).get("points", []) if _sem_evt else []
+    _sem_sel = _pts[0].get("x") if _pts else None
 
-    _HEX_RGB = {
-        "#4f8ef7": (79, 142, 247), "#22c55e": (34, 197, 94),
-        "#f59e0b": (245, 158, 11), "#8b5cf6": (139, 92, 246),
-        "#ef4444": (239, 68, 68),  "#f97316": (249, 115, 22),
-    }
-    _rgb    = _HEX_RGB.get(cor, (79, 142, 247))
-    _cor_dim = f"rgba({_rgb[0]},{_rgb[1]},{_rgb[2]},0.3)"
-    _COR_FDS = "rgba(100,120,160,0.35)"
-    _COR_FER = "rgba(245,158,11,0.45)"
+    if _sem_sel and _sem_sel in semana_dates:
+        _datas_sem = semana_dates[_sem_sel]
+        _df_sem = df_op[df_op["data_obj"].isin(_datas_sem)].copy()
+        _df_sem = _df_sem.sort_values("data_obj", ascending=False).reset_index(drop=True)
 
-    _colors, _texts, _hovers = [], [], []
-    for _, _r in df_all_dias.iterrows():
-        _d = _r["data_obj"]
-        if _r["tipo"] == "util":
-            _colors.append(cor if _r["leads"] > 0 else _cor_dim)
-            _texts.append(str(int(_r["leads"])))
-            _hovers.append(f"{_d.strftime('%d/%m')}: {int(_r['leads'])} lead(s)")
-        elif _r["tipo"] == "fds":
-            _colors.append(_COR_FDS)
-            _texts.append("FDS")
-            _hovers.append(f"{_d.strftime('%d/%m')}: Final de Semana")
-        else:
-            _colors.append(_COR_FER)
-            _texts.append("Feriado")
-            _hovers.append(f"{_d.strftime('%d/%m')}: Feriado")
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:12px;'>"
+            f"<div style='font-size:16px;font-weight:700;color:{cor};'>📅 {_sem_sel}</div>"
+            f"<div style='font-size:13px;color:#7a9cc7;'>{len(_df_sem)} lead(s)  ·  "
+            f"{_datas_sem[0].strftime('%d/%m')} → {_datas_sem[-1].strftime('%d/%m')}</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-left:auto;'>Clique em outro ponto para trocar de semana</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
-    fig_dia = go.Figure()
-    fig_dia.add_trace(go.Bar(
-        x=df_all_dias["data_obj"].tolist(),
-        y=df_all_dias["leads"].tolist(),
-        text=_texts,
-        textposition="outside",
-        constraintext="none",
-        textfont=dict(color="#e8eef8", size=11),
-        marker_color=_colors,
-        customdata=_hovers,
-        hovertemplate="%{customdata}<extra></extra>",
-    ))
-    _tickvals = df_all_dias["data_obj"].tolist()
-    _ticktext = [d.strftime("%d/%m") for d in _tickvals]
-    _max_dia = max(int(df_all_dias["leads"].max()), 1)
-    fig_dia.update_layout(
-        height=260,
-        margin=dict(t=35, b=20, l=10, r=10),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(
-            showgrid=False, color="#7a9cc7",
-            tickmode="array", tickvals=_tickvals, ticktext=_ticktext,
-            tickfont=dict(color="#e8eef8", size=11),
-        ),
-        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                   tickfont=dict(color="#e8eef8", size=11), zeroline=False,
-                   range=[0, _max_dia * 1.30]),
-    )
-    st.plotly_chart(fig_dia, use_container_width=True, key=f"modal_dia_{op}")
+        for _, _lr in _df_sem.iterrows():
+            _status_cor = {"Venda Realizada": "#22c55e", "Venda não Realizada": "#ef4444"}.get(
+                str(_lr.get("status", "")), "#7a9cc7"
+            )
+            _valor_str = fmt_brl(float(_lr.get("valor_proposta") or 0))
+            _valor_str = _valor_str if float(_lr.get("valor_proposta") or 0) > 0 else "—"
+            st.markdown(f"""
+            <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {cor};
+                        border-radius:10px;padding:14px 18px;margin-bottom:10px;">
+              <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+                <div style="min-width:180px;flex:2;">
+                  <div style="font-size:15px;font-weight:700;color:#e8eef8;margin-bottom:4px;">
+                    {_lr.get('nome','—')}</div>
+                  <div style="font-size:12px;color:#7a9cc7;">
+                    {_lr.get('criado_em','').split(' ')[0] if _lr.get('criado_em') else '—'}
+                    &nbsp;·&nbsp; {_lr.get('interesse','—')}
+                  </div>
+                </div>
+                <div style="flex:1;min-width:120px;">
+                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Status</div>
+                  <div style="font-size:14px;font-weight:700;color:{_status_cor};">{_lr.get('status','—')}</div>
+                </div>
+                <div style="flex:1;min-width:120px;">
+                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Atendente</div>
+                  <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('atendente','—')}</div>
+                </div>
+                <div style="flex:1;min-width:100px;">
+                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor</div>
+                  <div style="font-size:14px;font-weight:700;color:#f59e0b;">{_valor_str}</div>
+                </div>
+                <div style="flex:1;min-width:100px;">
+                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Temperatura</div>
+                  <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('perception','—')}</div>
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown(
+            "<div style='font-size:13px;color:#7a9cc7;margin-bottom:8px;'>"
+            "💡 Clique em um ponto do gráfico acima para ver os leads daquela semana."
+            "</div>",
+            unsafe_allow_html=True,
+        )
