@@ -4,4 +4,5 @@ plotly>=5.0.0
 requests>=2.28.0
 Pillow>=9.0.0
 python-dotenv>=1.0.0
-streamlit-authenticator>=0.3.0
+streamlit-authenticator==0.3.3
+extra_streamlit_components==0.3.7
