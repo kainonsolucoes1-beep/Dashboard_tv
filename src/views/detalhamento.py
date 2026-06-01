@@ -88,7 +88,7 @@ def render_detalhamento(df_todos: pd.DataFrame):
 
     chunks = [operadores_det[i:i+4] for i in range(0, len(operadores_det), 4)]
     for chunk in chunks:
-        cols_cards = st.columns(len(chunk))
+        cols_cards = st.columns(4)
         for col_c, op in zip(cols_cards, chunk):
             cor_op = cor_por_op[op]
             total_op   = int(pivot[op].sum())
