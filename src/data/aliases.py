@@ -3,9 +3,10 @@ import os
 
 import pandas as pd
 
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-_ALIASES_PATH = os.path.join(_PROJECT_ROOT, "base_aliases.json")
-_MANUAL_PATH  = os.path.join(_PROJECT_ROOT, "base_manual.json")
+_PROJECT_ROOT  = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ALIASES_PATH  = os.path.join(_PROJECT_ROOT, "base_aliases.json")
+_MANUAL_PATH   = os.path.join(_PROJECT_ROOT, "base_manual.json")
+_VALORES_PATH  = os.path.join(_PROJECT_ROOT, "valores_manual.json")
 
 
 def load_base_aliases() -> dict:
@@ -31,6 +32,35 @@ def load_base_manual() -> dict:
         except Exception:
             pass
     return {}
+
+
+def load_valor_manual() -> dict:
+    if os.path.exists(_VALORES_PATH):
+        try:
+            with open(_VALORES_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def apply_valor_manual(df: pd.DataFrame, overrides: dict) -> pd.DataFrame:
+    """Preenche `valor_proposta` apenas quando é 0, usando mapeamento manual ID → valor."""
+    if not overrides or df.empty or "id" not in df.columns or "valor_proposta" not in df.columns:
+        return df
+    df = df.copy()
+
+    def _id_str(x):
+        try:
+            return str(int(float(x)))
+        except (ValueError, TypeError):
+            return ""
+
+    id_series = df["id"].apply(_id_str)
+    for lead_id, valor in overrides.items():
+        mask = (id_series == str(lead_id)) & (df["valor_proposta"] == 0)
+        df.loc[mask, "valor_proposta"] = float(valor)
+    return df
 
 
 def apply_base_manual(df: pd.DataFrame, overrides: dict) -> pd.DataFrame:
