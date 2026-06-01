@@ -208,7 +208,8 @@ def render_crm():
                 return pd.Series({"origem_display": origem, "base_display": base or "Sem base"})
             return pd.Series({"origem_display": origem or "Sem origem", "base_display": conv or "—"})
 
-        df_vr[["origem_display", "base_display"]] = df_vr.apply(_calc_origem_base, axis=1)
+        if not df_vr.empty:
+            df_vr[["origem_display", "base_display"]] = df_vr.apply(_calc_origem_base, axis=1)
 
         if df_vr.empty:
             st.info("Nenhuma venda realizada no período.")
