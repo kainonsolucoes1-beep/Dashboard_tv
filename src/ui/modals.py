@@ -389,39 +389,42 @@ def modal_operador(op: str, df_op: pd.DataFrame, cor: str, de: date, ate: date):
             _status_cor = {"Venda Realizada": "#22c55e", "Venda não Realizada": "#ef4444"}.get(
                 str(_lr.get("status", "")), "#7a9cc7"
             )
-            _valor_str = fmt_brl(float(_lr.get("valor_proposta") or 0))
-            _valor_str = _valor_str if float(_lr.get("valor_proposta") or 0) > 0 else "—"
-            st.markdown(f"""
-            <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {cor};
-                        border-radius:10px;padding:14px 18px;margin-bottom:10px;">
-              <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
-                <div style="min-width:180px;flex:2;">
-                  <div style="font-size:15px;font-weight:700;color:#e8eef8;margin-bottom:4px;">
-                    {_lr.get('nome','—')}</div>
-                  <div style="font-size:12px;color:#7a9cc7;">
-                    {_lr.get('criado_em','').split(' ')[0] if _lr.get('criado_em') else '—'}
-                    &nbsp;·&nbsp; {_lr.get('interesse','—')}
+            _valor = float(_lr.get("valor_proposta") or 0)
+            _valor_str = fmt_brl(_valor) if _valor > 0 else "—"
+            _nome   = _lr.get("nome", "—")
+            _status = _lr.get("status", "—")
+            _exp_titulo = f"{_nome}  ·  {_status}"
+            with st.expander(_exp_titulo, expanded=False):
+                st.markdown(f"""
+                <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {cor};
+                            border-radius:10px;padding:14px 18px;margin-top:4px;">
+                  <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+                    <div style="min-width:180px;flex:2;">
+                      <div style="font-size:15px;font-weight:700;color:#e8eef8;margin-bottom:4px;">{_nome}</div>
+                      <div style="font-size:12px;color:#7a9cc7;">
+                        {_lr.get('criado_em','').split(' ')[0] if _lr.get('criado_em') else '—'}
+                        &nbsp;·&nbsp; {_lr.get('interesse','—')}
+                      </div>
+                    </div>
+                    <div style="flex:1;min-width:120px;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Status</div>
+                      <div style="font-size:14px;font-weight:700;color:{_status_cor};">{_status}</div>
+                    </div>
+                    <div style="flex:1;min-width:120px;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Atendente</div>
+                      <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('atendente','—')}</div>
+                    </div>
+                    <div style="flex:1;min-width:100px;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor</div>
+                      <div style="font-size:14px;font-weight:700;color:#f59e0b;">{_valor_str}</div>
+                    </div>
+                    <div style="flex:1;min-width:100px;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Temperatura</div>
+                      <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('perception','—')}</div>
+                    </div>
                   </div>
                 </div>
-                <div style="flex:1;min-width:120px;">
-                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Status</div>
-                  <div style="font-size:14px;font-weight:700;color:{_status_cor};">{_lr.get('status','—')}</div>
-                </div>
-                <div style="flex:1;min-width:120px;">
-                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Atendente</div>
-                  <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('atendente','—')}</div>
-                </div>
-                <div style="flex:1;min-width:100px;">
-                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor</div>
-                  <div style="font-size:14px;font-weight:700;color:#f59e0b;">{_valor_str}</div>
-                </div>
-                <div style="flex:1;min-width:100px;">
-                  <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Temperatura</div>
-                  <div style="font-size:14px;font-weight:600;color:#e8eef8;">{_lr.get('perception','—')}</div>
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
     else:
         st.markdown(
             "<div style='font-size:13px;color:#7a9cc7;margin-bottom:8px;'>"
