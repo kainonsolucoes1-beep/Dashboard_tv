@@ -188,7 +188,7 @@ def render_hoje_rt():
     nomes_dia = {0:"segunda",1:"terça",2:"quarta",3:"quinta",4:"sexta"}
     nome_util = nomes_dia.get(ultimo_util.weekday(), str(ultimo_util))
 
-    _ORIGENS_SDR_HOJE = {"julia", "isaac", "leticia", "rodolfo", "maria eduarda"}
+    _ORIGENS_SDR_HOJE = {"julia", "isaac", "leticia", "rodolfo", "maria eduarda", "clara", "kauany"}
     df_base_hoje = df_base[
         df_base["origem"].str.lower().str.strip().isin(_ORIGENS_SDR_HOJE)
     ].copy()
