@@ -38,10 +38,9 @@ def apply_base_manual(df: pd.DataFrame, overrides: dict) -> pd.DataFrame:
     if not overrides or df.empty or "id" not in df.columns or "base" not in df.columns:
         return df
     df = df.copy()
-    mask = df["base"].isna() | (df["base"] == "")
-    df.loc[mask, "base"] = (
-        df.loc[mask, "id"].astype(str).map(overrides).fillna(df.loc[mask, "base"])
-    )
+    for lead_id, base_name in overrides.items():
+        mask = (df["id"].astype(str) == str(lead_id)) & (df["base"].isna() | (df["base"] == ""))
+        df.loc[mask, "base"] = base_name
     return df
 
 
