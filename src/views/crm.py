@@ -209,7 +209,7 @@ def render_crm():
             conv   = str(r.get("conversion_goal") or "").strip()
             if origem.lower() in _SDR_NOMES_CRM:
                 return pd.Series({"origem_display": origem, "base_display": base or "Sem base"})
-            return pd.Series({"origem_display": origem or "Sem origem", "base_display": conv or "—"})
+            return pd.Series({"origem_display": origem or "Sem origem", "base_display": base or conv or "—"})
 
         if not df_vr.empty:
             df_vr[["origem_display", "base_display"]] = df_vr.apply(_calc_origem_base, axis=1)
