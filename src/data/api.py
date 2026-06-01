@@ -225,11 +225,12 @@ def fetch_leads_hoje():
     if _cache_disco_disponivel(CACHE_HOJE_PATH):
         df, _ = _ler_cache_disco(CACHE_HOJE_PATH)
         if not df.empty and "data_obj" in df.columns:
-            _ult = date.today() - timedelta(days=1)
+            hoje_local = date.today()
+            _ult = hoje_local - timedelta(days=1)
             while _ult.weekday() >= 5:
                 _ult -= timedelta(days=1)
-            if (df["data_obj"] == _ult).any():
-                return df, None
-            elif not df.empty:
+            tem_hoje = (df["data_obj"] == hoje_local).any()
+            tem_util = (df["data_obj"] == _ult).any()
+            if tem_hoje or tem_util:
                 return df, None
     return _fetch_leads_from_api(days=5, date_of="creation")
