@@ -6,7 +6,7 @@ from datetime import date
 from src.data.api import fetch_leads_30dias, fetch_leads_criticos
 from src.data.transforms import merge_leads_curto, merge_leads_longo
 from src.utils.formatters import fmt_brl
-from src.data.aliases import load_base_aliases, save_base_aliases, apply_base_aliases
+from src.data.aliases import load_base_aliases, save_base_aliases, apply_base_aliases, load_base_manual, apply_base_manual
 from src.ui.modals import modal_lead
 
 
@@ -184,6 +184,7 @@ def render_crm():
 
     with sub_ranking:
         df_longo, _ = merge_leads_longo()
+        df_longo = apply_base_manual(df_longo, load_base_manual())
         df_longo = apply_base_aliases(df_longo, aliases)
         df_vnd_all = df_longo[df_longo["status"] == "Venda Realizada"].copy()
 

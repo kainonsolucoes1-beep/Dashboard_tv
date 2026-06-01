@@ -5,6 +5,7 @@ import pandas as pd
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _ALIASES_PATH = os.path.join(_PROJECT_ROOT, "base_aliases.json")
+_MANUAL_PATH  = os.path.join(_PROJECT_ROOT, "base_manual.json")
 
 
 def load_base_aliases() -> dict:
@@ -20,6 +21,28 @@ def load_base_aliases() -> dict:
 def save_base_aliases(aliases: dict):
     with open(_ALIASES_PATH, "w", encoding="utf-8") as f:
         json.dump(aliases, f, ensure_ascii=False, indent=2)
+
+
+def load_base_manual() -> dict:
+    if os.path.exists(_MANUAL_PATH):
+        try:
+            with open(_MANUAL_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def apply_base_manual(df: pd.DataFrame, overrides: dict) -> pd.DataFrame:
+    """Preenche `base` apenas quando está vazio, usando mapeamento manual ID → base."""
+    if not overrides or df.empty or "id" not in df.columns or "base" not in df.columns:
+        return df
+    df = df.copy()
+    mask = df["base"].isna() | (df["base"] == "")
+    df.loc[mask, "base"] = (
+        df.loc[mask, "id"].astype(str).map(overrides).fillna(df.loc[mask, "base"])
+    )
+    return df
 
 
 def apply_base_aliases(df: pd.DataFrame, aliases: dict) -> pd.DataFrame:
