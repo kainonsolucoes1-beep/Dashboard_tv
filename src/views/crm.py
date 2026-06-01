@@ -1,7 +1,9 @@
+import json
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import date
+from datetime import date, datetime
 
 from src.data.api import fetch_leads_30dias, fetch_leads_criticos, fetch_leads_80dias
 from src.data.transforms import merge_leads_curto, merge_leads_longo
@@ -213,6 +215,29 @@ def render_crm():
 
         if not df_vr.empty:
             df_vr[["origem_display", "base_display"]] = df_vr.apply(_calc_origem_base, axis=1)
+
+        _extras_path = os.path.join(os.path.dirname(__file__), "..", "..", "leads_extras.json")
+        try:
+            with open(_extras_path, "r", encoding="utf-8") as _f:
+                _extras_raw = json.load(_f)
+            _extras_rows = []
+            for _e in _extras_raw:
+                _d = datetime.strptime(_e["atualizado_obj"], "%Y-%m-%d").date()
+                if vr_de <= _d <= vr_ate:
+                    _extras_rows.append({
+                        "id":              _e["id"],
+                        "nome":            _e["nome"],
+                        "atualizado_em":   _e["atualizado_em"],
+                        "atualizado_obj":  _d,
+                        "atendente":       _e.get("atendente", ""),
+                        "valor_proposta":  float(_e.get("valor_proposta", 0)),
+                        "origem_display":  _e.get("origem_display", "—"),
+                        "base_display":    _e.get("base_display", "—"),
+                    })
+            if _extras_rows:
+                df_vr = pd.concat([df_vr, pd.DataFrame(_extras_rows)], ignore_index=True)
+        except Exception:
+            pass
 
         if df_vr.empty:
             st.info("Nenhuma venda realizada no período.")
