@@ -200,16 +200,15 @@ def render_crm():
             df_vnd_all["atualizado_obj"].apply(lambda d: d is not None and vr_de <= d <= vr_ate)
         ].copy()
 
-        def _calc_origem_venda(r):
-            base = str(r.get("base") or "").strip()
-            if base:
-                return base
+        def _calc_origem_base(r):
+            base   = str(r.get("base") or "").strip()
             origem = str(r.get("origem") or "").strip()
+            conv   = str(r.get("conversion_goal") or "").strip()
             if origem.lower() in _SDR_NOMES_CRM:
-                return "Prospecção Ativa"
-            return origem or "Sem origem"
+                return pd.Series({"origem_display": origem, "base_display": base or "Sem base"})
+            return pd.Series({"origem_display": origem or "Sem origem", "base_display": conv or "—"})
 
-        df_vr["origem_venda"] = df_vr.apply(_calc_origem_venda, axis=1)
+        df_vr[["origem_display", "base_display"]] = df_vr.apply(_calc_origem_base, axis=1)
 
         if df_vr.empty:
             st.info("Nenhuma venda realizada no período.")
@@ -230,7 +229,7 @@ def render_crm():
             st.markdown("#### 🗂️ Por Origem")
 
             grp = (
-                df_vr.groupby("origem_venda")
+                df_vr.groupby("base_display")
                 .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
                 .reset_index()
                 .sort_values("vendas", ascending=False)
@@ -250,7 +249,7 @@ def render_crm():
                         st.markdown(
                             f"<div class='card-status' style='border-left:4px solid {_cor};'>"
                             f"<div style='font-size:13px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
-                            f"letter-spacing:.6px;margin-bottom:8px;'>{_row['origem_venda']}</div>"
+                            f"letter-spacing:.6px;margin-bottom:8px;'>{_row['base_display']}</div>"
                             f"<div style='font-size:32px;font-weight:700;color:{_cor};line-height:1;'>{int(_row['vendas'])}</div>"
                             f"<div style='color:#7a9cc7;font-size:12px;margin-top:3px;'>vendas</div>"
                             f"<div style='margin-top:10px;border-top:1px solid #152a4a;padding-top:8px;'>"
@@ -273,7 +272,8 @@ def render_crm():
             _COL_VR = {
                 "atualizado_em":  "Data da Venda",
                 "nome":           "Cliente",
-                "origem_venda":   "Origem",
+                "base_display":   "Base / Site",
+                "origem_display": "Origem",
                 "atendente":      "Atendente",
                 "valor_proposta": "Valor Final (R$)",
             }

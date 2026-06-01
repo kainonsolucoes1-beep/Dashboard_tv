@@ -184,6 +184,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             "first_interaction_at": last_inter,
             "message_lead":        lead.get("message", "") or "",
             "base":                base,
+            "conversion_goal":     lead.get("conversion_goal", "") or "",
             "em_atraso":           em_atraso,
         })
     return pd.DataFrame(registros), None
