@@ -689,15 +689,6 @@ def render_kpis(df_todos: pd.DataFrame):
                     modal_leads_status(_df_ontem_trat, "Tratados Ontem", "#4f8ef7")
             with _tm3:
                 st.markdown(
-                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
-                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Média 7 dias</div>"
-                    f"<div style='font-size:36px;font-weight:700;color:#8b5cf6;line-height:1.1;'>{_media7}</div>"
-                    f"<div style='font-size:12px;color:#7a9cc7;'>por dia</div>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-            with _tm4:
-                st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;border-left:4px solid #ef4444;'>"
                     f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Faltam tratar</div>"
                     f"<div style='font-size:36px;font-weight:700;color:#ef4444;line-height:1.1;'>{_qtd_pend}</div>"
@@ -707,6 +698,15 @@ def render_kpis(df_todos: pd.DataFrame):
                 )
                 if st.button("Ver leads", key="trat_btn_pend", use_container_width=True):
                     modal_leads_status(_df_pendente, "Faltam Tratar", "#ef4444")
+            with _tm4:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Média 7 dias</div>"
+                    f"<div style='font-size:36px;font-weight:700;color:#8b5cf6;line-height:1.1;'>{_media7}</div>"
+                    f"<div style='font-size:12px;color:#7a9cc7;'>por dia</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
             _fig_trat = go.Figure()
             _fig_trat.add_trace(go.Bar(
