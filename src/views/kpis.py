@@ -452,12 +452,12 @@ def render_kpis(df_todos: pd.DataFrame):
             st.info("Nenhum lead no período selecionado.")
         else:
             _ETAPAS = [
-                ("Total Captados",    None,                  "#4f8ef7"),
-                ("Agendado",          "Agendado",            "#8b5cf6"),
-                ("Proposta Enviada",  "Proposta Enviada",    "#f59e0b"),
-                ("Venda Realizada",   "Venda Realizada",     "#22c55e"),
+                ("Total Captados",     None,                    "#4f8ef7"),
+                ("Agendado",           "Agendado",              "#8b5cf6"),
+                ("Proposta Enviada",   "Proposta Enviada",      "#f59e0b"),
+                ("Venda Realizada",    "Venda Realizada",       "#22c55e"),
+                ("Venda não Realizada","Venda não Realizada",   "#ef4444"),
             ]
-            _perdidos = int((df_fn["status"] == "Venda não Realizada").sum())
 
             _labels, _values, _colors = [], [], []
             _total = len(df_fn)
@@ -468,10 +468,6 @@ def render_kpis(df_todos: pd.DataFrame):
                 _colors.append(_cor)
 
             _pcts = [round(_v / _total * 100, 1) if _total else 0 for _v in _values]
-            _bar_texts = [
-                f"{_v}  ({_p}%)" if _i > 0 else str(_v)
-                for _i, (_v, _p) in enumerate(zip(_values, _pcts))
-            ]
 
             _max_v = max(_values) or 1
             for _i, (_lbl, _val, _cor, _pct) in enumerate(zip(_labels, _values, _colors, _pcts)):
@@ -479,7 +475,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 _pct_str = f"({_pct}%)" if _i > 0 else ""
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
-                  <div style="min-width:140px;font-size:13px;color:#7a9cc7;font-weight:600;
+                  <div style="min-width:160px;font-size:13px;color:#7a9cc7;font-weight:600;
                               text-align:right;text-transform:uppercase;letter-spacing:.5px;">{_lbl}</div>
                   <div style="flex:1;background:#152a4a;border-radius:99px;height:14px;">
                     <div style="background:{_cor};border-radius:99px;height:14px;width:{_bar_w}%;
@@ -491,10 +487,11 @@ def render_kpis(df_todos: pd.DataFrame):
                 </div>
                 """, unsafe_allow_html=True)
 
-            _fc1, _fc2, _fc3, _fc4 = st.columns(4)
-            _tx_ag  = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_prop = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_vnd  = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
+            _fc1, _fc2, _fc3, _fc4, _fc5 = st.columns(5)
+            _tx_ag     = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_prop   = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_vnd    = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_cancel = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
             with _fc1:
                 st.metric("Leads Captados", _values[0])
             with _fc2:
@@ -503,14 +500,8 @@ def render_kpis(df_todos: pd.DataFrame):
                 st.metric("Taxa de Proposta", f"{_tx_prop}%")
             with _fc4:
                 st.metric("Taxa de Conversão", f"{_tx_vnd}%")
-
-            if _perdidos:
-                st.markdown(
-                    f"<div style='margin-top:10px;font-size:13px;color:#ef4444;'>"
-                    f"⚠️ {_perdidos} lead(s) marcado(s) como <b>Venda não Realizada</b> no período."
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
+            with _fc5:
+                st.metric("Cancelamentos", f"{_values[4]} ({_tx_cancel}%)")
 
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
