@@ -131,6 +131,102 @@ def render_kpis(df_todos: pd.DataFrame):
 
     st.markdown("---")
 
+    with st.expander("📡 Origem dos Leads", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Volume e conversão por canal de captação — SDR vs Orgânico"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _og1, _og2 = st.columns([2, 2])
+        with _og1:
+            orig_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                    format="DD/MM/YYYY", key="kpi_orig_de")
+        with _og2:
+            orig_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_orig_ate")
+
+        df_orig = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and orig_de <= d <= orig_ate)
+        ].copy()
+
+        if df_orig.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            df_orig["canal"] = df_orig["origem"].apply(
+                lambda o: "SDR" if str(o).lower() in _SDR_ORIGENS else "Orgânico"
+            )
+
+            _total_orig = len(df_orig)
+            _df_sdr = df_orig[df_orig["canal"] == "SDR"]
+            _df_org = df_orig[df_orig["canal"] == "Orgânico"]
+
+            _n_sdr   = len(_df_sdr)
+            _n_org   = len(_df_org)
+            _pct_sdr = round(_n_sdr / _total_orig * 100, 1) if _total_orig else 0
+            _pct_org = round(_n_org / _total_orig * 100, 1) if _total_orig else 0
+
+            _vnd_sdr  = int((_df_sdr["status"] == "Venda Realizada").sum())
+            _vnd_org  = int((_df_org["status"] == "Venda Realizada").sum())
+            _conv_sdr = round(_vnd_sdr / _n_sdr * 100, 1) if _n_sdr else 0
+            _conv_org = round(_vnd_org / _n_org * 100, 1) if _n_org else 0
+
+            _cor_conv_sdr = "#22c55e" if _conv_sdr >= 20 else "#f59e0b" if _conv_sdr >= 10 else "#ef4444"
+            _cor_conv_org = "#22c55e" if _conv_org >= 20 else "#f59e0b" if _conv_org >= 10 else "#ef4444"
+
+            _oc1, _oc2 = st.columns(2)
+            with _oc1:
+                st.markdown(
+                    f"<div class='card-status' style='border-left:4px solid #4f8ef7;padding:18px;'>"
+                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                    f"letter-spacing:.6px;margin-bottom:10px;'>📞 SDR</div>"
+                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
+                    f"<div style='font-size:36px;font-weight:700;color:#4f8ef7;line-height:1;'>{_n_sdr}</div>"
+                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_sdr}% do total</div>"
+                    f"</div>"
+                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_sdr}</div></div>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_sdr};'>{_conv_sdr}%</div></div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with _oc2:
+                st.markdown(
+                    f"<div class='card-status' style='border-left:4px solid #22c55e;padding:18px;'>"
+                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                    f"letter-spacing:.6px;margin-bottom:10px;'>🌿 Orgânico</div>"
+                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
+                    f"<div style='font-size:36px;font-weight:700;color:#22c55e;line-height:1;'>{_n_org}</div>"
+                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_org}% do total</div>"
+                    f"</div>"
+                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_org}</div></div>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_org};'>{_conv_org}%</div></div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f"<div style='margin-top:20px;margin-bottom:8px;'>"
+                f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;"
+                f"font-weight:600;margin-bottom:8px;'>Distribuição do volume</div>"
+                f"<div style='display:flex;border-radius:99px;overflow:hidden;height:22px;'>"
+                f"<div style='background:#4f8ef7;width:{_pct_sdr}%;display:flex;align-items:center;"
+                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
+                f"overflow:hidden;'>{'SDR ' + str(_pct_sdr) + '%' if _pct_sdr > 8 else ''}</div>"
+                f"<div style='background:#22c55e;width:{_pct_org}%;display:flex;align-items:center;"
+                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
+                f"overflow:hidden;'>{'Orgânico ' + str(_pct_org) + '%' if _pct_org > 8 else ''}</div>"
+                f"</div></div>",
+                unsafe_allow_html=True,
+            )
+
+
     with st.expander("⏰ Horário de Pico", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
@@ -249,355 +345,6 @@ def render_kpis(df_todos: pd.DataFrame):
                 unsafe_allow_html=True,
             )
             st.plotly_chart(fig_heat, use_container_width=True, key="kpis_heatmap_pico")
-
-    with st.expander("💰 Vendas Realizadas", expanded=False):
-        st.markdown(
-            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Ranking de vendas por operador · delta vs período anterior · acompanhamento de meta"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        _vc1, _vc2, _vc3 = st.columns([2, 2, 2])
-        with _vc1:
-            venda_de  = st.date_input("📅 De",  value=date.today().replace(day=1),
-                                      format="DD/MM/YYYY", key="kpi_venda_de")
-        with _vc2:
-            venda_ate = st.date_input("📅 Até", value=date.today(),
-                                      format="DD/MM/YYYY", key="kpi_venda_ate")
-        with _vc3:
-            venda_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
-                                  horizontal=True, key="kpi_venda_tipo")
-
-        _vm1, _ = st.columns([1, 3])
-        with _vm1:
-            meta_vendas = st.number_input("🎯 Meta de vendas", min_value=0, value=30, step=1,
-                                          key="kpi_meta_vendas")
-
-        df_vnd = df_todos[
-            (df_todos["status"] == "Venda Realizada") &
-            (df_todos["data_obj"].apply(lambda d: d is not None and venda_de <= d <= venda_ate))
-        ].copy()
-        if venda_tipo == "SDR":
-            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
-        elif venda_tipo == "Orgânico":
-            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
-
-        _periodo_dias = (venda_ate - venda_de).days + 1
-        _ant_ate = venda_de - timedelta(days=1)
-        _ant_de  = _ant_ate - timedelta(days=_periodo_dias - 1)
-        df_vnd_ant = df_todos[
-            (df_todos["status"] == "Venda Realizada") &
-            (df_todos["data_obj"].apply(lambda d: d is not None and _ant_de <= d <= _ant_ate))
-        ].copy()
-        if venda_tipo == "SDR":
-            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
-        elif venda_tipo == "Orgânico":
-            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
-
-        _total_vnd  = len(df_vnd)
-        _total_ant  = len(df_vnd_ant)
-        _delta_qtd  = _total_vnd - _total_ant
-        _valor_vnd  = df_vnd["valor_proposta"].sum()
-        _valor_ant  = df_vnd_ant["valor_proposta"].sum()
-        _delta_val  = _valor_vnd - _valor_ant
-        _ticket_vnd = _valor_vnd / _total_vnd if _total_vnd else 0
-        _meta_pct   = min(100, round(_total_vnd / meta_vendas * 100)) if meta_vendas > 0 else 0
-        _meta_cor   = "#22c55e" if _meta_pct >= 100 else "#f59e0b" if _meta_pct >= 70 else "#ef4444"
-
-        def _delta_badge(v, is_money=False):
-            if v == 0:
-                return "<span style='background:#152a4a;color:#7a9cc7;font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;'>= ant.</span>"
-            _bc  = "#22c55e" if v > 0 else "#ef4444"
-            _bbg = "#22c55e22" if v > 0 else "#ef444422"
-            _bs  = "▲" if v > 0 else "▼"
-            _bt  = fmt_brl(abs(v)) if is_money else str(abs(int(v)))
-            return (
-                f"<span style='background:{_bbg};color:{_bc};font-size:10px;"
-                f"padding:2px 7px;border-radius:99px;font-weight:600;"
-                f"border:1px solid {_bc};'>{_bs} {_bt}</span>"
-            )
-
-        _g1, _g2, _g3 = st.columns(3)
-        with _g1:
-            st.markdown(
-                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
-                f"<div style='font-size:28px;font-weight:700;color:#22c55e;'>{_total_vnd}</div>"
-                f"<div style='margin-top:5px;'>{_delta_badge(_delta_qtd)}</div>"
-                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;'>Vendas Realizadas</div>"
-                f"</div>", unsafe_allow_html=True,
-            )
-            if st.button("🔍 Ver leads", key="vnd_btn_total", use_container_width=True):
-                modal_leads_status(df_vnd, "Vendas Realizadas", "#22c55e")
-        with _g2:
-            st.markdown(
-                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
-                f"<div style='font-size:22px;font-weight:700;color:#4f8ef7;'>{fmt_brl(_valor_vnd)}</div>"
-                f"<div style='margin-top:5px;'>{_delta_badge(_delta_val, is_money=True)}</div>"
-                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;'>Valor Total</div>"
-                f"</div>", unsafe_allow_html=True,
-            )
-        with _g3:
-            st.markdown(
-                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
-                f"<div style='font-size:22px;font-weight:700;color:#f59e0b;'>{fmt_brl(_ticket_vnd)}</div>"
-                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:12px;'>Ticket Médio</div>"
-                f"</div>", unsafe_allow_html=True,
-            )
-
-        st.markdown(
-            f"<div style='margin-top:12px;background:#0a1628;border:1px solid #152a4a;"
-            f"border-radius:10px;padding:14px 18px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-            f"<span style='color:#7a9cc7;font-size:12px;font-weight:600;text-transform:uppercase;"
-            f"letter-spacing:.6px;'>🎯 Meta Mensal</span>"
-            f"<span style='font-size:20px;font-weight:700;color:{_meta_cor};'>{_meta_pct}%"
-            f"<span style='font-size:13px;color:#7a9cc7;font-weight:400;margin-left:6px;'>"
-            f"({_total_vnd} / {meta_vendas})</span></span>"
-            f"</div>"
-            f"<div style='background:#152a4a;border-radius:99px;height:14px;'>"
-            f"<div style='background:{_meta_cor};border-radius:99px;height:14px;"
-            f"width:{_meta_pct}%;transition:width .4s;'></div>"
-            f"</div></div>",
-            unsafe_allow_html=True,
-        )
-
-        if df_vnd.empty:
-            st.info("Nenhuma venda realizada no período selecionado.")
-        else:
-            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-            _ops_vnd = (
-                df_vnd.groupby("origem")
-                .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
-                .reset_index()
-            )
-            _ops_vnd["ticket"] = _ops_vnd.apply(
-                lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
-            )
-            _ops_vnd = _ops_vnd.sort_values("vendas", ascending=False).reset_index(drop=True)
-            _max_vnd = int(_ops_vnd["vendas"].max()) or 1
-
-            for _oi, _vrow in _ops_vnd.iterrows():
-                _cor_v = CORES_ORIGEM[_oi % len(CORES_ORIGEM)]
-                _bar_v = int(_vrow["vendas"] / _max_vnd * 100)
-                _exp_v = (
-                    f"👤 {_vrow['origem']}  ·  "
-                    f"{int(_vrow['vendas'])} vendas  ·  "
-                    f"{fmt_brl(_vrow['valor'])}"
-                )
-                with st.expander(_exp_v, expanded=False):
-                    st.markdown(f"""
-                    <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {_cor_v};
-                                border-radius:10px;padding:14px 18px;margin-bottom:12px;">
-                      <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:80px;text-align:center;">
-                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Vendas</div>
-                          <div style="font-size:26px;font-weight:700;color:{_cor_v};">{int(_vrow['vendas'])}</div>
-                          <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;">
-                            <div style="background:{_cor_v};border-radius:99px;height:5px;width:{_bar_v}%;"></div>
-                          </div>
-                        </div>
-                        <div style="flex:1;min-width:100px;text-align:center;">
-                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor Total</div>
-                          <div style="font-size:18px;font-weight:700;color:#22c55e;">{fmt_brl(_vrow['valor'])}</div>
-                        </div>
-                        <div style="flex:1;min-width:100px;text-align:center;">
-                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Ticket Médio</div>
-                          <div style="font-size:18px;font-weight:700;color:#f59e0b;">{fmt_brl(_vrow['ticket'])}</div>
-                        </div>
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    _df_op_vnd = df_vnd[df_vnd["origem"] == _vrow["origem"]].copy()
-                    _df_op_vnd = _df_op_vnd.sort_values("data_obj", ascending=False).reset_index(drop=True)
-                    if st.button("🔍 Ver leads", key=f"vnd_btn_{_vrow['origem']}", use_container_width=True):
-                        modal_leads_status(_df_op_vnd, _vrow["origem"], _cor_v)
-                    _COLS_VND = {
-                        "criado_em":      "Data",
-                        "nome":           "Cliente",
-                        "status":         "Status",
-                        "atendente":      "Atendente",
-                        "valor_proposta": "Valor (R$)",
-                    }
-                    _df_vnd_disp = _df_op_vnd[[c for c in _COLS_VND if c in _df_op_vnd.columns]].copy()
-                    if "valor_proposta" in _df_vnd_disp.columns:
-                        _df_vnd_disp["valor_proposta"] = _df_vnd_disp["valor_proposta"].apply(
-                            lambda v: fmt_brl(v) if v > 0 else "—"
-                        )
-                    _df_vnd_disp = _df_vnd_disp.rename(columns=_COLS_VND)
-                    _alt_v = min(400, 40 + len(_df_vnd_disp) * 35)
-                    st.dataframe(_df_vnd_disp, use_container_width=True, hide_index=True, height=_alt_v)
-
-    with st.expander("📊 Distribuição por Etapa", expanded=False):
-        st.markdown(
-            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Distribuição dos leads por etapa do processo comercial no período selecionado"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        _fn1, _fn2, _ = st.columns([2, 2, 4])
-        with _fn1:
-            funil_de = st.date_input("📅 De", value=date.today().replace(day=1),
-                                     format="DD/MM/YYYY", key="kpi_funil_de")
-        with _fn2:
-            funil_ate = st.date_input("📅 Até", value=date.today(),
-                                      format="DD/MM/YYYY", key="kpi_funil_ate")
-
-        df_fn = df_todos[
-            df_todos["data_obj"].apply(lambda d: d is not None and funil_de <= d <= funil_ate)
-        ].copy()
-
-        if df_fn.empty:
-            st.info("Nenhum lead no período selecionado.")
-        else:
-            _ETAPAS = [
-                ("Total Captados",     None,                    "#4f8ef7"),
-                ("Agendado",           "Agendado",              "#8b5cf6"),
-                ("Proposta Enviada",   "Proposta Enviada",      "#f59e0b"),
-                ("Venda Realizada",    "Venda Realizada",       "#22c55e"),
-                ("Venda não Realizada","Venda não Realizada",   "#ef4444"),
-            ]
-
-            _labels, _values, _colors = [], [], []
-            _total = len(df_fn)
-            for _lbl, _st, _cor in _ETAPAS:
-                _n = _total if _st is None else int((df_fn["status"] == _st).sum())
-                _labels.append(_lbl)
-                _values.append(_n)
-                _colors.append(_cor)
-
-            _pcts = [round(_v / _total * 100, 1) if _total else 0 for _v in _values]
-
-            _max_v = max(_values) or 1
-            for _i, (_lbl, _val, _cor, _pct) in enumerate(zip(_labels, _values, _colors, _pcts)):
-                _bar_w = int(_val / _max_v * 100)
-                _pct_str = f"({_pct}%)" if _i > 0 else ""
-                st.markdown(f"""
-                <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
-                  <div style="min-width:160px;font-size:13px;color:#7a9cc7;font-weight:600;
-                              text-align:right;text-transform:uppercase;letter-spacing:.5px;">{_lbl}</div>
-                  <div style="flex:1;background:#152a4a;border-radius:99px;height:14px;">
-                    <div style="background:{_cor};border-radius:99px;height:14px;width:{_bar_w}%;
-                                transition:width .4s;"></div>
-                  </div>
-                  <div style="min-width:90px;font-size:18px;font-weight:700;color:{_cor};">
-                    {_val} <span style="font-size:13px;color:#7a9cc7;font-weight:400;">{_pct_str}</span>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            _fc1, _fc2, _fc3, _fc4, _fc5 = st.columns(5)
-            _tx_ag     = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_prop   = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_vnd    = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_cancel = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
-            with _fc1:
-                st.metric("Leads Captados", _values[0])
-            with _fc2:
-                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
-            with _fc3:
-                st.metric("Taxa de Proposta", f"{_tx_prop}%")
-            with _fc4:
-                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
-            with _fc5:
-                st.metric("Cancelamentos", f"{_values[4]} ({_tx_cancel}%)")
-
-    with st.expander("📡 Origem dos Leads", expanded=False):
-        st.markdown(
-            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Volume e conversão por canal de captação — SDR vs Orgânico"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        _og1, _og2 = st.columns([2, 2])
-        with _og1:
-            orig_de = st.date_input("📅 De", value=date.today().replace(day=1),
-                                    format="DD/MM/YYYY", key="kpi_orig_de")
-        with _og2:
-            orig_ate = st.date_input("📅 Até", value=date.today(),
-                                     format="DD/MM/YYYY", key="kpi_orig_ate")
-
-        df_orig = df_todos[
-            df_todos["data_obj"].apply(lambda d: d is not None and orig_de <= d <= orig_ate)
-        ].copy()
-
-        if df_orig.empty:
-            st.info("Nenhum lead no período selecionado.")
-        else:
-            df_orig["canal"] = df_orig["origem"].apply(
-                lambda o: "SDR" if str(o).lower() in _SDR_ORIGENS else "Orgânico"
-            )
-
-            _total_orig = len(df_orig)
-            _df_sdr = df_orig[df_orig["canal"] == "SDR"]
-            _df_org = df_orig[df_orig["canal"] == "Orgânico"]
-
-            _n_sdr   = len(_df_sdr)
-            _n_org   = len(_df_org)
-            _pct_sdr = round(_n_sdr / _total_orig * 100, 1) if _total_orig else 0
-            _pct_org = round(_n_org / _total_orig * 100, 1) if _total_orig else 0
-
-            _vnd_sdr  = int((_df_sdr["status"] == "Venda Realizada").sum())
-            _vnd_org  = int((_df_org["status"] == "Venda Realizada").sum())
-            _conv_sdr = round(_vnd_sdr / _n_sdr * 100, 1) if _n_sdr else 0
-            _conv_org = round(_vnd_org / _n_org * 100, 1) if _n_org else 0
-
-            _cor_conv_sdr = "#22c55e" if _conv_sdr >= 20 else "#f59e0b" if _conv_sdr >= 10 else "#ef4444"
-            _cor_conv_org = "#22c55e" if _conv_org >= 20 else "#f59e0b" if _conv_org >= 10 else "#ef4444"
-
-            _oc1, _oc2 = st.columns(2)
-            with _oc1:
-                st.markdown(
-                    f"<div class='card-status' style='border-left:4px solid #4f8ef7;padding:18px;'>"
-                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
-                    f"letter-spacing:.6px;margin-bottom:10px;'>📞 SDR</div>"
-                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
-                    f"<div style='font-size:36px;font-weight:700;color:#4f8ef7;line-height:1;'>{_n_sdr}</div>"
-                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_sdr}% do total</div>"
-                    f"</div>"
-                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
-                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
-                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_sdr}</div></div>"
-                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
-                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_sdr};'>{_conv_sdr}%</div></div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-            with _oc2:
-                st.markdown(
-                    f"<div class='card-status' style='border-left:4px solid #22c55e;padding:18px;'>"
-                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
-                    f"letter-spacing:.6px;margin-bottom:10px;'>🌿 Orgânico</div>"
-                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
-                    f"<div style='font-size:36px;font-weight:700;color:#22c55e;line-height:1;'>{_n_org}</div>"
-                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_org}% do total</div>"
-                    f"</div>"
-                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
-                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
-                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_org}</div></div>"
-                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
-                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_org};'>{_conv_org}%</div></div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown(
-                f"<div style='margin-top:20px;margin-bottom:8px;'>"
-                f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;"
-                f"font-weight:600;margin-bottom:8px;'>Distribuição do volume</div>"
-                f"<div style='display:flex;border-radius:99px;overflow:hidden;height:22px;'>"
-                f"<div style='background:#4f8ef7;width:{_pct_sdr}%;display:flex;align-items:center;"
-                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
-                f"overflow:hidden;'>{'SDR ' + str(_pct_sdr) + '%' if _pct_sdr > 8 else ''}</div>"
-                f"<div style='background:#22c55e;width:{_pct_org}%;display:flex;align-items:center;"
-                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
-                f"overflow:hidden;'>{'Orgânico ' + str(_pct_org) + '%' if _pct_org > 8 else ''}</div>"
-                f"</div></div>",
-                unsafe_allow_html=True,
-            )
-
 
     with st.expander("📅 Leads Tratados por Dia", expanded=False):
         st.markdown(
@@ -826,6 +573,69 @@ def render_kpis(df_todos: pd.DataFrame):
             )
             st.plotly_chart(_fig_ag, use_container_width=True, key="chart_agilidade")
 
+    with st.expander("🚨 Leads em Atraso por Operador", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Leads sem resposta em tempo útil — distribuição por operador"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        if "em_atraso" not in df_todos.columns:
+            st.info("Campo 'em_atraso' não disponível nos dados.")
+        else:
+            df_at = df_todos[df_todos["em_atraso"] == True].copy()
+
+            if df_at.empty:
+                st.success("✅ Nenhum lead em atraso no momento.")
+            else:
+                _total_op  = df_todos.groupby("origem")["id"].count().rename("total")
+                _atraso_op = df_at.groupby("origem")["id"].count().rename("em_atraso")
+                _grp_at = pd.concat([_total_op, _atraso_op], axis=1).fillna(0)
+                _grp_at = _grp_at[_grp_at["em_atraso"] > 0].reset_index()
+                _grp_at["em_atraso"] = _grp_at["em_atraso"].astype(int)
+                _grp_at["total"]     = _grp_at["total"].astype(int)
+                _grp_at["pct"]       = (_grp_at["em_atraso"] / _grp_at["total"] * 100).round(1)
+                _grp_at = _grp_at.sort_values("em_atraso", ascending=False).reset_index(drop=True)
+
+                _at_max = int(_grp_at["em_atraso"].max()) or 1
+
+                st.markdown(
+                    f"<div style='font-size:26px;font-weight:700;color:#ef4444;text-align:center;"
+                    f"margin-bottom:16px;'>🚨 {len(df_at)} leads em atraso</div>",
+                    unsafe_allow_html=True,
+                )
+
+                for _ai, _ar in _grp_at.iterrows():
+                    _bar_w_at = int(_ar["em_atraso"] / _at_max * 100)
+                    with st.expander(
+                        f"👤 {_ar['origem']}  ·  {_ar['em_atraso']} em atraso  ·  {_ar['pct']}% da carteira",
+                        expanded=False,
+                    ):
+                        st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+                          <div style="flex:1;background:#152a4a;border-radius:99px;height:10px;">
+                            <div style="background:#ef4444;border-radius:99px;height:10px;width:{_bar_w_at}%;"></div>
+                          </div>
+                          <div style="font-size:18px;font-weight:700;color:#ef4444;">{_ar['em_atraso']}</div>
+                          <div style="font-size:13px;color:#7a9cc7;">/ {_ar['total']} leads ({_ar['pct']}%)</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        _df_at_op = df_at[df_at["origem"] == _ar["origem"]].copy()
+                        _df_at_op = _df_at_op.sort_values("data_obj", ascending=False).reset_index(drop=True)
+                        _COLS_AT = {
+                            "nome":          "Cliente",
+                            "status":        "Status",
+                            "atualizado_em": "Última Atualização",
+                            "atendente":     "Atendente",
+                            "base":          "Base",
+                        }
+                        _df_at_disp = _df_at_op[[c for c in _COLS_AT if c in _df_at_op.columns]].copy()
+                        _df_at_disp = _df_at_disp.rename(columns=_COLS_AT)
+                        _alt_at = min(400, 40 + len(_df_at_disp) * 35)
+                        st.dataframe(_df_at_disp, use_container_width=True, hide_index=True, height=_alt_at)
+
     with st.expander("🔄 Jornada do Lead", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
@@ -975,6 +785,259 @@ def render_kpis(df_todos: pd.DataFrame):
             )
             st.plotly_chart(_fig_jorn, use_container_width=True, key="chart_jornada")
 
+    with st.expander("📊 Distribuição por Etapa", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Distribuição dos leads por etapa do processo comercial no período selecionado"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        _fn1, _fn2, _ = st.columns([2, 2, 4])
+        with _fn1:
+            funil_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                     format="DD/MM/YYYY", key="kpi_funil_de")
+        with _fn2:
+            funil_ate = st.date_input("📅 Até", value=date.today(),
+                                      format="DD/MM/YYYY", key="kpi_funil_ate")
+
+        df_fn = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and funil_de <= d <= funil_ate)
+        ].copy()
+
+        if df_fn.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            _ETAPAS = [
+                ("Total Captados",     None,                    "#4f8ef7"),
+                ("Agendado",           "Agendado",              "#8b5cf6"),
+                ("Proposta Enviada",   "Proposta Enviada",      "#f59e0b"),
+                ("Venda Realizada",    "Venda Realizada",       "#22c55e"),
+                ("Venda não Realizada","Venda não Realizada",   "#ef4444"),
+            ]
+
+            _labels, _values, _colors = [], [], []
+            _total = len(df_fn)
+            for _lbl, _st, _cor in _ETAPAS:
+                _n = _total if _st is None else int((df_fn["status"] == _st).sum())
+                _labels.append(_lbl)
+                _values.append(_n)
+                _colors.append(_cor)
+
+            _pcts = [round(_v / _total * 100, 1) if _total else 0 for _v in _values]
+
+            _max_v = max(_values) or 1
+            for _i, (_lbl, _val, _cor, _pct) in enumerate(zip(_labels, _values, _colors, _pcts)):
+                _bar_w = int(_val / _max_v * 100)
+                _pct_str = f"({_pct}%)" if _i > 0 else ""
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                  <div style="min-width:160px;font-size:13px;color:#7a9cc7;font-weight:600;
+                              text-align:right;text-transform:uppercase;letter-spacing:.5px;">{_lbl}</div>
+                  <div style="flex:1;background:#152a4a;border-radius:99px;height:14px;">
+                    <div style="background:{_cor};border-radius:99px;height:14px;width:{_bar_w}%;
+                                transition:width .4s;"></div>
+                  </div>
+                  <div style="min-width:90px;font-size:18px;font-weight:700;color:{_cor};">
+                    {_val} <span style="font-size:13px;color:#7a9cc7;font-weight:400;">{_pct_str}</span>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            _fc1, _fc2, _fc3, _fc4, _fc5 = st.columns(5)
+            _tx_ag     = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_prop   = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_vnd    = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_cancel = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
+            with _fc1:
+                st.metric("Leads Captados", _values[0])
+            with _fc2:
+                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
+            with _fc3:
+                st.metric("Taxa de Proposta", f"{_tx_prop}%")
+            with _fc4:
+                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
+            with _fc5:
+                st.metric("Cancelamentos", f"{_values[4]} ({_tx_cancel}%)")
+
+    with st.expander("💰 Vendas Realizadas", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Ranking de vendas por operador · delta vs período anterior · acompanhamento de meta"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _vc1, _vc2, _vc3 = st.columns([2, 2, 2])
+        with _vc1:
+            venda_de  = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                      format="DD/MM/YYYY", key="kpi_venda_de")
+        with _vc2:
+            venda_ate = st.date_input("📅 Até", value=date.today(),
+                                      format="DD/MM/YYYY", key="kpi_venda_ate")
+        with _vc3:
+            venda_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                  horizontal=True, key="kpi_venda_tipo")
+
+        _vm1, _ = st.columns([1, 3])
+        with _vm1:
+            meta_vendas = st.number_input("🎯 Meta de vendas", min_value=0, value=30, step=1,
+                                          key="kpi_meta_vendas")
+
+        df_vnd = df_todos[
+            (df_todos["status"] == "Venda Realizada") &
+            (df_todos["data_obj"].apply(lambda d: d is not None and venda_de <= d <= venda_ate))
+        ].copy()
+        if venda_tipo == "SDR":
+            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif venda_tipo == "Orgânico":
+            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
+
+        _periodo_dias = (venda_ate - venda_de).days + 1
+        _ant_ate = venda_de - timedelta(days=1)
+        _ant_de  = _ant_ate - timedelta(days=_periodo_dias - 1)
+        df_vnd_ant = df_todos[
+            (df_todos["status"] == "Venda Realizada") &
+            (df_todos["data_obj"].apply(lambda d: d is not None and _ant_de <= d <= _ant_ate))
+        ].copy()
+        if venda_tipo == "SDR":
+            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif venda_tipo == "Orgânico":
+            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
+
+        _total_vnd  = len(df_vnd)
+        _total_ant  = len(df_vnd_ant)
+        _delta_qtd  = _total_vnd - _total_ant
+        _valor_vnd  = df_vnd["valor_proposta"].sum()
+        _valor_ant  = df_vnd_ant["valor_proposta"].sum()
+        _delta_val  = _valor_vnd - _valor_ant
+        _ticket_vnd = _valor_vnd / _total_vnd if _total_vnd else 0
+        _meta_pct   = min(100, round(_total_vnd / meta_vendas * 100)) if meta_vendas > 0 else 0
+        _meta_cor   = "#22c55e" if _meta_pct >= 100 else "#f59e0b" if _meta_pct >= 70 else "#ef4444"
+
+        def _delta_badge(v, is_money=False):
+            if v == 0:
+                return "<span style='background:#152a4a;color:#7a9cc7;font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;'>= ant.</span>"
+            _bc  = "#22c55e" if v > 0 else "#ef4444"
+            _bbg = "#22c55e22" if v > 0 else "#ef444422"
+            _bs  = "▲" if v > 0 else "▼"
+            _bt  = fmt_brl(abs(v)) if is_money else str(abs(int(v)))
+            return (
+                f"<span style='background:{_bbg};color:{_bc};font-size:10px;"
+                f"padding:2px 7px;border-radius:99px;font-weight:600;"
+                f"border:1px solid {_bc};'>{_bs} {_bt}</span>"
+            )
+
+        _g1, _g2, _g3 = st.columns(3)
+        with _g1:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:28px;font-weight:700;color:#22c55e;'>{_total_vnd}</div>"
+                f"<div style='margin-top:5px;'>{_delta_badge(_delta_qtd)}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;'>Vendas Realizadas</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+            if st.button("🔍 Ver leads", key="vnd_btn_total", use_container_width=True):
+                modal_leads_status(df_vnd, "Vendas Realizadas", "#22c55e")
+        with _g2:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:22px;font-weight:700;color:#4f8ef7;'>{fmt_brl(_valor_vnd)}</div>"
+                f"<div style='margin-top:5px;'>{_delta_badge(_delta_val, is_money=True)}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;'>Valor Total</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        with _g3:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:22px;font-weight:700;color:#f59e0b;'>{fmt_brl(_ticket_vnd)}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:12px;'>Ticket Médio</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+
+        st.markdown(
+            f"<div style='margin-top:12px;background:#0a1628;border:1px solid #152a4a;"
+            f"border-radius:10px;padding:14px 18px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
+            f"<span style='color:#7a9cc7;font-size:12px;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.6px;'>🎯 Meta Mensal</span>"
+            f"<span style='font-size:20px;font-weight:700;color:{_meta_cor};'>{_meta_pct}%"
+            f"<span style='font-size:13px;color:#7a9cc7;font-weight:400;margin-left:6px;'>"
+            f"({_total_vnd} / {meta_vendas})</span></span>"
+            f"</div>"
+            f"<div style='background:#152a4a;border-radius:99px;height:14px;'>"
+            f"<div style='background:{_meta_cor};border-radius:99px;height:14px;"
+            f"width:{_meta_pct}%;transition:width .4s;'></div>"
+            f"</div></div>",
+            unsafe_allow_html=True,
+        )
+
+        if df_vnd.empty:
+            st.info("Nenhuma venda realizada no período selecionado.")
+        else:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            _ops_vnd = (
+                df_vnd.groupby("origem")
+                .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
+                .reset_index()
+            )
+            _ops_vnd["ticket"] = _ops_vnd.apply(
+                lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
+            )
+            _ops_vnd = _ops_vnd.sort_values("vendas", ascending=False).reset_index(drop=True)
+            _max_vnd = int(_ops_vnd["vendas"].max()) or 1
+
+            for _oi, _vrow in _ops_vnd.iterrows():
+                _cor_v = CORES_ORIGEM[_oi % len(CORES_ORIGEM)]
+                _bar_v = int(_vrow["vendas"] / _max_vnd * 100)
+                _exp_v = (
+                    f"👤 {_vrow['origem']}  ·  "
+                    f"{int(_vrow['vendas'])} vendas  ·  "
+                    f"{fmt_brl(_vrow['valor'])}"
+                )
+                with st.expander(_exp_v, expanded=False):
+                    st.markdown(f"""
+                    <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {_cor_v};
+                                border-radius:10px;padding:14px 18px;margin-bottom:12px;">
+                      <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:80px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Vendas</div>
+                          <div style="font-size:26px;font-weight:700;color:{_cor_v};">{int(_vrow['vendas'])}</div>
+                          <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;">
+                            <div style="background:{_cor_v};border-radius:99px;height:5px;width:{_bar_v}%;"></div>
+                          </div>
+                        </div>
+                        <div style="flex:1;min-width:100px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor Total</div>
+                          <div style="font-size:18px;font-weight:700;color:#22c55e;">{fmt_brl(_vrow['valor'])}</div>
+                        </div>
+                        <div style="flex:1;min-width:100px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Ticket Médio</div>
+                          <div style="font-size:18px;font-weight:700;color:#f59e0b;">{fmt_brl(_vrow['ticket'])}</div>
+                        </div>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    _df_op_vnd = df_vnd[df_vnd["origem"] == _vrow["origem"]].copy()
+                    _df_op_vnd = _df_op_vnd.sort_values("data_obj", ascending=False).reset_index(drop=True)
+                    if st.button("🔍 Ver leads", key=f"vnd_btn_{_vrow['origem']}", use_container_width=True):
+                        modal_leads_status(_df_op_vnd, _vrow["origem"], _cor_v)
+                    _COLS_VND = {
+                        "criado_em":      "Data",
+                        "nome":           "Cliente",
+                        "status":         "Status",
+                        "atendente":      "Atendente",
+                        "valor_proposta": "Valor (R$)",
+                    }
+                    _df_vnd_disp = _df_op_vnd[[c for c in _COLS_VND if c in _df_op_vnd.columns]].copy()
+                    if "valor_proposta" in _df_vnd_disp.columns:
+                        _df_vnd_disp["valor_proposta"] = _df_vnd_disp["valor_proposta"].apply(
+                            lambda v: fmt_brl(v) if v > 0 else "—"
+                        )
+                    _df_vnd_disp = _df_vnd_disp.rename(columns=_COLS_VND)
+                    _alt_v = min(400, 40 + len(_df_vnd_disp) * 35)
+                    st.dataframe(_df_vnd_disp, use_container_width=True, hide_index=True, height=_alt_v)
+
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
@@ -1096,69 +1159,6 @@ def render_kpis(df_todos: pd.DataFrame):
                     _df_op_disp = _df_op_disp.rename(columns=_COLS_OP)
                     _alt = min(500, 40 + len(_df_op_disp) * 35)
                     st.dataframe(_df_op_disp, use_container_width=True, hide_index=True, height=_alt)
-
-    with st.expander("🚨 Leads em Atraso por Operador", expanded=False):
-        st.markdown(
-            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Leads sem resposta em tempo útil — distribuição por operador"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        if "em_atraso" not in df_todos.columns:
-            st.info("Campo 'em_atraso' não disponível nos dados.")
-        else:
-            df_at = df_todos[df_todos["em_atraso"] == True].copy()
-
-            if df_at.empty:
-                st.success("✅ Nenhum lead em atraso no momento.")
-            else:
-                _total_op  = df_todos.groupby("origem")["id"].count().rename("total")
-                _atraso_op = df_at.groupby("origem")["id"].count().rename("em_atraso")
-                _grp_at = pd.concat([_total_op, _atraso_op], axis=1).fillna(0)
-                _grp_at = _grp_at[_grp_at["em_atraso"] > 0].reset_index()
-                _grp_at["em_atraso"] = _grp_at["em_atraso"].astype(int)
-                _grp_at["total"]     = _grp_at["total"].astype(int)
-                _grp_at["pct"]       = (_grp_at["em_atraso"] / _grp_at["total"] * 100).round(1)
-                _grp_at = _grp_at.sort_values("em_atraso", ascending=False).reset_index(drop=True)
-
-                _at_max = int(_grp_at["em_atraso"].max()) or 1
-
-                st.markdown(
-                    f"<div style='font-size:26px;font-weight:700;color:#ef4444;text-align:center;"
-                    f"margin-bottom:16px;'>🚨 {len(df_at)} leads em atraso</div>",
-                    unsafe_allow_html=True,
-                )
-
-                for _ai, _ar in _grp_at.iterrows():
-                    _bar_w_at = int(_ar["em_atraso"] / _at_max * 100)
-                    with st.expander(
-                        f"👤 {_ar['origem']}  ·  {_ar['em_atraso']} em atraso  ·  {_ar['pct']}% da carteira",
-                        expanded=False,
-                    ):
-                        st.markdown(f"""
-                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
-                          <div style="flex:1;background:#152a4a;border-radius:99px;height:10px;">
-                            <div style="background:#ef4444;border-radius:99px;height:10px;width:{_bar_w_at}%;"></div>
-                          </div>
-                          <div style="font-size:18px;font-weight:700;color:#ef4444;">{_ar['em_atraso']}</div>
-                          <div style="font-size:13px;color:#7a9cc7;">/ {_ar['total']} leads ({_ar['pct']}%)</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        _df_at_op = df_at[df_at["origem"] == _ar["origem"]].copy()
-                        _df_at_op = _df_at_op.sort_values("data_obj", ascending=False).reset_index(drop=True)
-                        _COLS_AT = {
-                            "nome":          "Cliente",
-                            "status":        "Status",
-                            "atualizado_em": "Última Atualização",
-                            "atendente":     "Atendente",
-                            "base":          "Base",
-                        }
-                        _df_at_disp = _df_at_op[[c for c in _COLS_AT if c in _df_at_op.columns]].copy()
-                        _df_at_disp = _df_at_disp.rename(columns=_COLS_AT)
-                        _alt_at = min(400, 40 + len(_df_at_disp) * 35)
-                        st.dataframe(_df_at_disp, use_container_width=True, hide_index=True, height=_alt_at)
 
     with st.expander("⏱️ Tempo Médio de Fechamento", expanded=False):
         st.markdown(
