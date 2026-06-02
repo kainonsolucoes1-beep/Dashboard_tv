@@ -106,71 +106,6 @@ def _fetch_br_states_geojson():
     return None
 
 
-def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list, tab_prefix: str = ""):
-    if df_vnd.empty or not origens:
-        st.info("Nenhuma venda realizada no período.")
-        return
-
-    total_geral = len(df_vnd)
-    valor_geral = df_vnd["valor_proposta"].sum()
-    g1, g2, g3 = st.columns(3)
-    with g1:
-        st.markdown(
-            f"<div class='card-status' style='text-align:center;padding:16px 12px;'>"
-            f"<div style='font-size:28px;font-weight:700;color:#22c55e;'>{total_geral}</div>"
-            f"<div style='color:#7a9cc7;font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Vendas Realizadas</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("🔍 Ver leads", key=f"{tab_prefix}_btn_vnd_total", use_container_width=True):
-            modal_leads_status(df_vnd, "Vendas Realizadas", "#22c55e")
-    with g2:
-        st.markdown(
-            f"<div class='card-status' style='text-align:center;padding:16px 12px;'>"
-            f"<div style='font-size:24px;font-weight:700;color:#4f8ef7;'>{fmt_brl(valor_geral)}</div>"
-            f"<div style='color:#7a9cc7;font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Valor Total</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-    with g3:
-        ticket = valor_geral / total_geral if total_geral else 0
-        st.markdown(
-            f"<div class='card-status' style='text-align:center;padding:16px 12px;'>"
-            f"<div style='font-size:24px;font-weight:700;color:#f59e0b;'>{fmt_brl(ticket)}</div>"
-            f"<div style='color:#7a9cc7;font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Ticket Médio</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    chunks = [origens[i:i + 4] for i in range(0, len(origens), 4)]
-    for chunk in chunks:
-        cols = st.columns(len(chunk))
-        for col, (i, op) in zip(cols, [(origens.index(o), o) for o in chunk]):
-            cor = CORES_ORIGEM[i % len(CORES_ORIGEM)]
-            df_op = df_vnd[df_vnd["origem"] == op]
-            qtd = len(df_op)
-            val = df_op["valor_proposta"].sum()
-            tkt = val / qtd if qtd else 0
-            with col:
-                st.markdown(
-                    f"<div class='card-status' style='border-left:4px solid {cor};'>"
-                    f"<div style='font-size:13px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
-                    f"letter-spacing:.6px;margin-bottom:8px;'>{op}</div>"
-                    f"<div style='font-size:32px;font-weight:700;color:{cor};line-height:1;'>{qtd}</div>"
-                    f"<div style='color:#7a9cc7;font-size:12px;margin-top:3px;'>vendas</div>"
-                    f"<div style='margin-top:10px;border-top:1px solid #152a4a;padding-top:8px;'>"
-                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;'>Valor</div>"
-                    f"<div style='font-size:18px;font-weight:700;color:#22c55e;'>{fmt_brl(val)}</div>"
-                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;'>Ticket Médio</div>"
-                    f"<div style='font-size:16px;font-weight:700;color:#f59e0b;'>{fmt_brl(tkt)}</div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-                if st.button("🔍 Ver leads", key=f"{tab_prefix}_btn_vnd_{op}", use_container_width=True):
-                    modal_leads_status(df_op, op, cor)
-
 
 @st.fragment
 def render_kpis(df_todos: pd.DataFrame):
@@ -209,16 +144,23 @@ def render_kpis(df_todos: pd.DataFrame):
         _kpi_de  = st.session_state.get("kpi_pico_de",  _default_de)
         _kpi_ate = st.session_state.get("kpi_pico_ate", _default_ate)
 
-        _fc1, _fc2, _ = st.columns([2, 2, 4])
+        _fc1, _fc2, _fc3 = st.columns([2, 2, 2])
         with _fc1:
             kpi_de = st.date_input("📅 De", value=_kpi_de, format="DD/MM/YYYY", key="kpi_pico_de")
         with _fc2:
             kpi_ate = st.date_input("📅 Até", value=_kpi_ate, format="DD/MM/YYYY", key="kpi_pico_ate")
+        with _fc3:
+            kpi_pico_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                     horizontal=True, key="kpi_pico_tipo")
 
         _dias_uteis = set(dias_uteis_lista(kpi_de, kpi_ate))
         df_pico = df_todos[df_todos["data_obj"].apply(
             lambda d: d is not None and d in _dias_uteis
         )]
+        if kpi_pico_tipo == "SDR":
+            df_pico = df_pico[df_pico["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif kpi_pico_tipo == "Orgânico":
+            df_pico = df_pico[df_pico["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
 
         if df_pico.empty:
             st.info("Nenhum lead em dias úteis no período selecionado.")
@@ -268,41 +210,181 @@ def render_kpis(df_todos: pd.DataFrame):
             st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
             st.plotly_chart(_fig_h, use_container_width=True, key="kpis_horarios_pico")
 
+            _HORAS_LIST = list(range(9, 19))
+            _DIAS_PT    = ["Seg", "Ter", "Qua", "Qui", "Sex"]
+            _matrix     = [[0] * len(_HORAS_LIST) for _ in range(5)]
+            for _, _pr in df_pico.iterrows():
+                try:
+                    _ph = int(str(_pr.get("criado_em", "")).split(" ")[1].split(":")[0])
+                except (IndexError, ValueError, AttributeError):
+                    _ph = None
+                _pd = _pr["data_obj"].weekday() if _pr["data_obj"] else None
+                if _ph is not None and _pd is not None and 0 <= _pd <= 4 and _ph in _HORAS_LIST:
+                    _matrix[_pd][_ph - 9] += 1
+
+            fig_heat = go.Figure(go.Heatmap(
+                z=_matrix,
+                x=[f"{h:02d}h" for h in _HORAS_LIST],
+                y=_DIAS_PT,
+                colorscale=[[0, "#0d2137"], [0.5, "#1e4d8c"], [1, "#f59e0b"]],
+                hovertemplate="<b>%{y} · %{x}</b><br>%{z} leads<extra></extra>",
+                colorbar=dict(
+                    title=dict(text="Leads", font=dict(color="#7a9cc7", size=11)),
+                    tickfont=dict(color="#7a9cc7", size=10),
+                    bgcolor="rgba(0,0,0,0)",
+                    len=0.8,
+                ),
+            ))
+            fig_heat.update_layout(
+                height=220,
+                margin=dict(t=30, b=10, l=10, r=60),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(tickfont=dict(color="#e8eef8", size=11), side="top"),
+                yaxis=dict(tickfont=dict(color="#e8eef8", size=11), autorange="reversed"),
+            )
+            st.markdown(
+                "<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                "letter-spacing:.6px;margin-top:8px;margin-bottom:4px;'>🔥 Concentração por Dia × Hora</div>",
+                unsafe_allow_html=True,
+            )
+            st.plotly_chart(fig_heat, use_container_width=True, key="kpis_heatmap_pico")
+
     with st.expander("💰 Vendas Realizadas", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Detalhamento de vendas por origem · SDR e demais"
+            "Ranking de vendas por operador · delta vs período anterior · acompanhamento de meta"
             "</div>",
             unsafe_allow_html=True,
         )
 
-        _vd_de  = st.session_state.get("kpi_venda_de",  date.today().replace(day=1))
-        _vd_ate = st.session_state.get("kpi_venda_ate", date.today())
-
-        _vc1, _vc2, _ = st.columns([2, 2, 4])
+        _vc1, _vc2, _vc3, _vc4 = st.columns([2, 2, 2, 2])
         with _vc1:
-            venda_de = st.date_input("📅 De", value=_vd_de, format="DD/MM/YYYY", key="kpi_venda_de")
+            venda_de  = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                      format="DD/MM/YYYY", key="kpi_venda_de")
         with _vc2:
-            venda_ate = st.date_input("📅 Até", value=_vd_ate, format="DD/MM/YYYY", key="kpi_venda_ate")
+            venda_ate = st.date_input("📅 Até", value=date.today(),
+                                      format="DD/MM/YYYY", key="kpi_venda_ate")
+        with _vc3:
+            venda_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                  horizontal=True, key="kpi_venda_tipo")
+        with _vc4:
+            meta_vendas = st.number_input("🎯 Meta de vendas", min_value=0, value=30, step=1,
+                                          key="kpi_meta_vendas")
 
         df_vnd = df_todos[
             (df_todos["status"] == "Venda Realizada") &
             (df_todos["data_obj"].apply(lambda d: d is not None and venda_de <= d <= venda_ate))
         ].copy()
+        if venda_tipo == "SDR":
+            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif venda_tipo == "Orgânico":
+            df_vnd = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
 
-        todas_origens = sorted(df_vnd["origem"].dropna().unique().tolist())
-        sdr_presentes    = [o for o in todas_origens if o.lower() in _SDR_ORIGENS]
-        demais_presentes = [o for o in todas_origens if o.lower() not in _SDR_ORIGENS]
+        _periodo_dias = (venda_ate - venda_de).days + 1
+        _ant_ate = venda_de - timedelta(days=1)
+        _ant_de  = _ant_ate - timedelta(days=_periodo_dias - 1)
+        df_vnd_ant = df_todos[
+            (df_todos["status"] == "Venda Realizada") &
+            (df_todos["data_obj"].apply(lambda d: d is not None and _ant_de <= d <= _ant_ate))
+        ].copy()
+        if venda_tipo == "SDR":
+            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif venda_tipo == "Orgânico":
+            df_vnd_ant = df_vnd_ant[df_vnd_ant["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
 
-        tab_sdr, tab_demais = st.tabs(["👥 SDR", "📋 Demais"])
+        _total_vnd  = len(df_vnd)
+        _total_ant  = len(df_vnd_ant)
+        _delta_qtd  = _total_vnd - _total_ant
+        _valor_vnd  = df_vnd["valor_proposta"].sum()
+        _valor_ant  = df_vnd_ant["valor_proposta"].sum()
+        _delta_val  = _valor_vnd - _valor_ant
+        _ticket_vnd = _valor_vnd / _total_vnd if _total_vnd else 0
+        _meta_pct   = min(100, round(_total_vnd / meta_vendas * 100)) if meta_vendas > 0 else 0
+        _meta_cor   = "#22c55e" if _meta_pct >= 100 else "#f59e0b" if _meta_pct >= 70 else "#ef4444"
 
-        with tab_sdr:
-            df_sdr = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
-            _cards_vendas_por_origem(df_sdr, sdr_presentes, tab_prefix="sdr")
+        def _delta_tag(v, is_money=False):
+            if v == 0:
+                return "<span style='color:#7a9cc7;font-size:12px;'>= período anterior</span>"
+            cor  = "#22c55e" if v > 0 else "#ef4444"
+            sinal = "▲" if v > 0 else "▼"
+            txt  = fmt_brl(abs(v)) if is_money else str(abs(int(v)))
+            return f"<span style='color:{cor};font-size:12px;font-weight:600;'>{sinal} {txt} vs anterior</span>"
 
-        with tab_demais:
-            df_demais = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
-            _cards_vendas_por_origem(df_demais, demais_presentes, tab_prefix="demais")
+        _g1, _g2, _g3, _g4 = st.columns(4)
+        with _g1:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:28px;font-weight:700;color:#22c55e;'>{_total_vnd}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Vendas Realizadas</div>"
+                f"<div style='margin-top:6px;'>{_delta_tag(_delta_qtd)}</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+            if st.button("🔍 Ver leads", key="vnd_btn_total", use_container_width=True):
+                modal_leads_status(df_vnd, "Vendas Realizadas", "#22c55e")
+        with _g2:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:22px;font-weight:700;color:#4f8ef7;'>{fmt_brl(_valor_vnd)}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Valor Total</div>"
+                f"<div style='margin-top:6px;'>{_delta_tag(_delta_val, is_money=True)}</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        with _g3:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:22px;font-weight:700;color:#f59e0b;'>{fmt_brl(_ticket_vnd)}</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Ticket Médio</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        with _g4:
+            st.markdown(
+                f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                f"<div style='font-size:28px;font-weight:700;color:{_meta_cor};'>{_meta_pct}%</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Meta ({_total_vnd}/{meta_vendas})</div>"
+                f"<div style='margin-top:8px;background:#152a4a;border-radius:99px;height:8px;'>"
+                f"<div style='background:{_meta_cor};border-radius:99px;height:8px;width:{_meta_pct}%;transition:width .4s;'></div>"
+                f"</div></div>", unsafe_allow_html=True,
+            )
+
+        if df_vnd.empty:
+            st.info("Nenhuma venda realizada no período selecionado.")
+        else:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            _ops_vnd = (
+                df_vnd.groupby("origem")
+                .agg(vendas=("id", "count"), valor=("valor_proposta", "sum"))
+                .reset_index()
+            )
+            _ops_vnd["ticket"] = _ops_vnd.apply(
+                lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
+            )
+            _ops_vnd = _ops_vnd.sort_values("vendas", ascending=False).reset_index(drop=True)
+
+            _chunks_vnd = [list(range(i, min(i + 4, len(_ops_vnd)))) for i in range(0, len(_ops_vnd), 4)]
+            for _chunk_idx in _chunks_vnd:
+                _cols_vnd = st.columns(4)
+                for _col_vnd, _oi in zip(_cols_vnd, _chunk_idx):
+                    _vrow = _ops_vnd.iloc[_oi]
+                    _cor_v = CORES_ORIGEM[_oi % len(CORES_ORIGEM)]
+                    with _col_vnd:
+                        st.markdown(
+                            f"<div class='card-status' style='border-left:4px solid {_cor_v};'>"
+                            f"<div style='font-size:13px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                            f"letter-spacing:.6px;margin-bottom:8px;'>{_vrow['origem']}</div>"
+                            f"<div style='font-size:32px;font-weight:700;color:{_cor_v};line-height:1;'>{int(_vrow['vendas'])}</div>"
+                            f"<div style='color:#7a9cc7;font-size:12px;margin-top:3px;'>vendas</div>"
+                            f"<div style='margin-top:10px;border-top:1px solid #152a4a;padding-top:8px;'>"
+                            f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;'>Valor</div>"
+                            f"<div style='font-size:18px;font-weight:700;color:#22c55e;'>{fmt_brl(_vrow['valor'])}</div>"
+                            f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;'>Ticket Médio</div>"
+                            f"<div style='font-size:16px;font-weight:700;color:#f59e0b;'>{fmt_brl(_vrow['ticket'])}</div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                        _df_op_vnd = df_vnd[df_vnd["origem"] == _vrow["origem"]]
+                        if st.button("🔍 Ver leads", key=f"vnd_btn_{_vrow['origem']}", use_container_width=True):
+                            modal_leads_status(_df_op_vnd, _vrow["origem"], _cor_v)
 
     with st.expander("📊 Distribuição por Etapa", expanded=False):
         st.markdown(
