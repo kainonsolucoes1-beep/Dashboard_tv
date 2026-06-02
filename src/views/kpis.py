@@ -550,33 +550,25 @@ def render_kpis(df_todos: pd.DataFrame):
 
             def _pct(n): return round(n / _ag_total * 100, 1) if _ag_total else 0
 
-            _ag_labels = ["Mesmo dia", "Até 1 dia", "2+ dias"]
-            _ag_vals   = [len(_ag_mesmo), len(_ag_um), len(_ag_atraso)]
-            _ag_cores  = ["#22c55e", "#f59e0b", "#ef4444"]
-            _ag_pcts   = [_pct(v) for v in _ag_vals]
-            _ag_texts  = [f"{v}  ({p}%)" for v, p in zip(_ag_vals, _ag_pcts)]
-
-            _fig_ag = go.Figure()
-            _fig_ag.add_trace(go.Bar(
-                x=_ag_vals,
-                y=_ag_labels,
-                orientation="h",
-                marker_color=_ag_cores,
-                text=_ag_texts,
-                textposition="outside",
-                hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
-            ))
-            _fig_ag.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#c9d8f0", family="DM Sans"),
-                margin=dict(t=8, b=8, l=0, r=80),
-                height=160,
-                xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
-                yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
-                bargap=0.35,
-            )
-            st.plotly_chart(_fig_ag, use_container_width=True, key="chart_agilidade")
+            _ag_items = [
+                ("Mesmo Dia",  len(_ag_mesmo),  _pct(len(_ag_mesmo)),  "#22c55e", "rgba(34,197,94,0.08)"),
+                ("Até 1 Dia",  len(_ag_um),     _pct(len(_ag_um)),     "#f59e0b", "rgba(245,158,11,0.08)"),
+                ("2+ Dias",    len(_ag_atraso), _pct(len(_ag_atraso)), "#ef4444", "rgba(239,68,68,0.08)"),
+            ]
+            _ag_c1, _ag_c2, _ag_c3 = st.columns(3)
+            for _col, (lbl, val, pct, cor, bg) in zip([_ag_c1, _ag_c2, _ag_c3], _ag_items):
+                with _col:
+                    st.markdown(
+                        f"<div class='card-status' style='text-align:center;padding:16px 8px;"
+                        f"border-left:4px solid {cor};background:{bg};'>"
+                        f"<div style='font-size:14px;font-weight:700;color:#e8eef8;text-transform:uppercase;"
+                        f"letter-spacing:.6px;padding-bottom:8px;border-bottom:1px solid #152a4a;margin-bottom:8px;'>{lbl}</div>"
+                        f"<div style='font-size:40px;font-weight:700;color:{cor};line-height:1.1;'>{val}</div>"
+                        f"<div style='font-size:13px;color:{cor};margin-top:4px;font-weight:600;'>{pct}%</div>"
+                        f"<div style='font-size:11px;color:#7a9cc7;margin-top:2px;'>dos leads tratados</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
 
     with st.expander("🚨 Leads em Atraso por Operador", expanded=False):
         st.markdown(
