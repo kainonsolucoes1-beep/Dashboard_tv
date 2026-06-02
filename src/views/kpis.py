@@ -818,6 +818,116 @@ def render_kpis(df_todos: pd.DataFrame):
             )
             st.plotly_chart(_fig_ag, use_container_width=True, key="chart_agilidade")
 
+    with st.expander("🔄 Jornada do Lead", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Progressão e tempo médio por estágio — baseado nos leads criados no período"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _jd1, _jd2 = st.columns([2, 2])
+        with _jd1:
+            jorn_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                    format="DD/MM/YYYY", key="kpi_jorn_de")
+        with _jd2:
+            jorn_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_jorn_ate")
+
+        df_jorn = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and jorn_de <= d <= jorn_ate)
+        ].copy()
+
+        if df_jorn.empty:
+            st.info("Nenhum lead criado no período selecionado.")
+        else:
+            df_jorn["_dias"] = (
+                pd.to_datetime(df_jorn["atualizado_obj"]) -
+                pd.to_datetime(df_jorn["data_obj"])
+            ).dt.days.fillna(0).astype(int)
+
+            _JORNADA = [
+                ("Captados",         None,                 "#4f8ef7"),
+                ("Agendado",         "Agendado",           "#8b5cf6"),
+                ("Proposta Enviada", "Proposta Enviada",   "#f59e0b"),
+                ("Venda Realizada",  "Venda Realizada",    "#22c55e"),
+            ]
+
+            _total_jorn = len(df_jorn)
+            _jcols = st.columns(len(_JORNADA))
+            _prev_n = _total_jorn
+
+            for _ji, (_jlabel, _jstatus, _jcor) in enumerate(_JORNADA):
+                _df_e = df_jorn if _jstatus is None else df_jorn[df_jorn["status"] == _jstatus]
+                _jn   = len(_df_e)
+                _jpct_total = round(_jn / _total_jorn * 100, 1) if _total_jorn else 0
+                _jpct_prev  = round(_jn / _prev_n  * 100, 1) if _prev_n else 0
+                _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
+
+                _dias_html = (
+                    f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                    if _javg is not None else ""
+                )
+                _prev_html = (
+                    f"<div style='font-size:12px;color:{_jcor};margin-top:4px;font-weight:600;'>"
+                    f"↓ {_jpct_prev}% do anterior</div>"
+                    if _ji > 0 else ""
+                )
+
+                with _jcols[_ji]:
+                    st.markdown(
+                        f"<div class='card-status' style='border-left:4px solid {_jcor};"
+                        f"text-align:center;padding:16px 10px;'>"
+                        f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
+                        f"letter-spacing:.6px;margin-bottom:6px;'>{_jlabel}</div>"
+                        f"<div style='font-size:32px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
+                        f"<div style='font-size:12px;color:#7a9cc7;'>{_jpct_total}% do total</div>"
+                        f"{_prev_html}{_dias_html}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                if _jstatus is not None:
+                    _prev_n = _jn
+
+            st.markdown(
+                "<div style='margin-top:16px;margin-bottom:4px;font-size:11px;color:#7a9cc7;"
+                "text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
+                "⏱ Tempo médio até cada estágio</div>",
+                unsafe_allow_html=True,
+            )
+
+            _jbar_labels, _jbar_vals, _jbar_cores = [], [], []
+            for _jlabel, _jstatus, _jcor in _JORNADA:
+                if _jstatus is None:
+                    continue
+                _df_e = df_jorn[df_jorn["status"] == _jstatus]
+                _jbar_labels.append(_jlabel)
+                _jbar_cores.append(_jcor)
+                _jbar_vals.append(round(_df_e["_dias"].mean(), 1) if not _df_e.empty else 0)
+
+            _fig_jorn = go.Figure()
+            _fig_jorn.add_trace(go.Bar(
+                x=_jbar_vals,
+                y=_jbar_labels,
+                orientation="h",
+                marker_color=_jbar_cores,
+                text=[f"{v} dias" for v in _jbar_vals],
+                textposition="outside",
+                hovertemplate="<b>%{y}</b><br>%{x} dias em média<extra></extra>",
+            ))
+            _fig_jorn.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d8f0", family="DM Sans"),
+                margin=dict(t=8, b=8, l=0, r=80),
+                height=160,
+                xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11),
+                           title=dict(text="dias desde a entrada", font=dict(size=11, color="#7a9cc7"))),
+                yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
+                bargap=0.35,
+            )
+            st.plotly_chart(_fig_jorn, use_container_width=True, key="chart_jornada")
+
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
