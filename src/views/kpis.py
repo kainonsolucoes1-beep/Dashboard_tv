@@ -213,7 +213,7 @@ def render_kpis(df_todos: pd.DataFrame):
             df_demais = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
             _cards_vendas_por_origem(df_demais, demais_presentes, tab_prefix="demais")
 
-    with st.expander("🔻 Funil de Conversão", expanded=False):
+    with st.expander("📊 Distribuição por Etapa", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
             "Distribuição dos leads por etapa do processo comercial no período selecionado"
