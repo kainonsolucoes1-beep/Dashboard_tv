@@ -847,10 +847,10 @@ def render_kpis(df_todos: pd.DataFrame):
             ).dt.days.fillna(0).astype(int)
 
             _JORNADA = [
-                ("Captados",         None,                 "#4f8ef7"),
-                ("Agendado",         "Agendado",           "#8b5cf6"),
-                ("Proposta Enviada", "Proposta Enviada",   "#f59e0b"),
-                ("Venda Realizada",  "Venda Realizada",    "#22c55e"),
+                ("Captados",         None,                   "#4f8ef7"),
+                ("Agendado",         "Agendado",             "#8b5cf6"),
+                ("Proposta Enviada", "Proposta Enviada",     "#f59e0b"),
+                ("Venda Realizada",  "Venda Realizada",      "#22c55e"),
             ]
 
             _total_jorn = len(df_jorn)
@@ -889,6 +889,34 @@ def render_kpis(df_todos: pd.DataFrame):
                 if _jstatus is not None:
                     _prev_n = _jn
 
+            # Venda não Realizada — saída do funil
+            _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
+            _jn_vnr  = len(_df_vnr)
+            _pct_vnr = round(_jn_vnr / _total_jorn * 100, 1) if _total_jorn else 0
+            _avg_vnr = round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else None
+            _dias_vnr_html = (
+                f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_avg_vnr} dias em média</div>"
+                if _avg_vnr is not None else ""
+            )
+            st.markdown(
+                f"<div style='margin-top:12px;border-top:1px dashed #1e3a5f;padding-top:12px;'>"
+                f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
+                f"letter-spacing:.6px;margin-bottom:8px;'>↳ Saída do funil</div>"
+                f"<div class='card-status' style='border-left:4px solid #ef4444;"
+                f"padding:14px 16px;display:flex;align-items:center;gap:24px;'>"
+                f"<div style='text-align:center;min-width:80px;'>"
+                f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;'>Venda não Realizada</div>"
+                f"<div style='font-size:32px;font-weight:700;color:#ef4444;line-height:1.1;'>{_jn_vnr}</div>"
+                f"</div>"
+                f"<div style='width:1px;background:#1e3a5f;align-self:stretch;'></div>"
+                f"<div style='display:flex;gap:28px;'>"
+                f"<div><div style='font-size:11px;color:#7a9cc7;'>% do total captado</div>"
+                f"<div style='font-size:20px;font-weight:700;color:#ef4444;'>{_pct_vnr}%</div></div>"
+                f"{'<div><div style=\"font-size:11px;color:#7a9cc7;\">Tempo médio até perda</div><div style=\"font-size:20px;font-weight:700;color:#ef4444;\">' + str(_avg_vnr) + ' dias</div></div>' if _avg_vnr is not None else ''}"
+                f"</div></div></div>",
+                unsafe_allow_html=True,
+            )
+
             st.markdown(
                 "<div style='margin-top:16px;margin-bottom:4px;font-size:11px;color:#7a9cc7;"
                 "text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
@@ -904,6 +932,10 @@ def render_kpis(df_todos: pd.DataFrame):
                 _jbar_labels.append(_jlabel)
                 _jbar_cores.append(_jcor)
                 _jbar_vals.append(round(_df_e["_dias"].mean(), 1) if not _df_e.empty else 0)
+            # Adiciona Venda não Realizada ao gráfico de tempo
+            _jbar_labels.append("Venda não Realizada")
+            _jbar_cores.append("#ef4444")
+            _jbar_vals.append(round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else 0)
 
             _fig_jorn = go.Figure()
             _fig_jorn.add_trace(go.Bar(
@@ -920,7 +952,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#c9d8f0", family="DM Sans"),
                 margin=dict(t=8, b=8, l=0, r=80),
-                height=160,
+                height=190,
                 xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11),
                            title=dict(text="dias desde a entrada", font=dict(size=11, color="#7a9cc7"))),
                 yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
