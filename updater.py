@@ -318,8 +318,8 @@ def ciclo_de_atualizacao():
     if not df_hoje.empty:
         salvar_cache(df_hoje, CACHE_HOJE_PATH, "hoje")
 
-    # Críticos — últimos 4 dias por atualização (captura leads modificados)
-    df_crit = buscar_leads_api(days=4, date_of="change")
+    # Críticos — últimos 10 dias por atualização (captura leads modificados e vendas antigas)
+    df_crit = buscar_leads_api(days=10, date_of="change")
     if not df_crit.empty:
         salvar_cache(df_crit, CACHE_CRITICOS_PATH, "criticos")
 
