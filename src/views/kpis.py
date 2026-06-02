@@ -601,9 +601,29 @@ def render_kpis(df_todos: pd.DataFrame):
 
     with st.expander("📅 Leads Tratados por Dia", expanded=False):
         st.markdown(
-            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "<style>"
+            ".kpi-tooltip{position:relative;display:inline-flex;align-items:center;justify-content:center;"
+            "width:15px;height:15px;background:#1e3a5f;border:1px solid #4f8ef7;border-radius:50%;"
+            "color:#4f8ef7;font-size:10px;font-weight:700;cursor:default;margin-left:6px;vertical-align:middle;}"
+            ".kpi-tooltip .kpi-tip{visibility:hidden;opacity:0;width:280px;background:#0d1f35;"
+            "color:#c9d8f0;font-size:12px;line-height:1.5;border:1px solid #1e3a5f;border-radius:8px;"
+            "padding:10px 12px;position:absolute;left:22px;top:-4px;z-index:999;"
+            "transition:opacity .2s;pointer-events:none;}"
+            ".kpi-tooltip:hover .kpi-tip{visibility:visible;opacity:1;}"
+            "</style>"
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;display:flex;align-items:center;'>"
             "Leads ativos trabalhados no dia (status ≠ Pendente) — contados pela data de última atualização"
-            "</div>",
+            "<span class='kpi-tooltip'>?"
+            "<span class='kpi-tip'>"
+            "<strong style='color:#4f8ef7;'>Como ler este indicador</strong><br><br>"
+            "Cada barra do gráfico diário mostra quantos leads foram <em>movimentados</em> naquele dia "
+            "(ou seja, saíram do status Pendente ou receberam alguma atualização).<br><br>"
+            "A seção <strong>Agilidade de Tratamento</strong> mede o tempo entre o lead "
+            "<em>entrar no sistema</em> e ser <em>tocado pela equipe</em>:<br>"
+            "• <strong style='color:#22c55e;'>Mesmo dia</strong> — tratado no dia em que chegou<br>"
+            "• <strong style='color:#f59e0b;'>Até 1 dia</strong> — tratado no dia seguinte<br>"
+            "• <strong style='color:#ef4444;'>2+ dias</strong> — ficou parado antes de ser trabalhado"
+            "</span></span></div>",
             unsafe_allow_html=True,
         )
 
