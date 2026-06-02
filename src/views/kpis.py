@@ -598,52 +598,6 @@ def render_kpis(df_todos: pd.DataFrame):
                 unsafe_allow_html=True,
             )
 
-            df_orig["semana_inicio"] = df_orig["data_obj"].apply(
-                lambda d: d - timedelta(days=d.weekday())
-            )
-            _grp_canal = (
-                df_orig.groupby(["semana_inicio", "canal"])
-                .agg(leads=("id", "count"), vendas=("status", lambda x: (x == "Venda Realizada").sum()))
-                .reset_index()
-                .sort_values("semana_inicio")
-            )
-            _grp_canal["label"] = _grp_canal["semana_inicio"].apply(lambda d: f"Sem {d.strftime('%d/%m')}")
-
-            if not _grp_canal.empty:
-                _sdr_w = _grp_canal[_grp_canal["canal"] == "SDR"]
-                _org_w = _grp_canal[_grp_canal["canal"] == "Orgânico"]
-
-                fig_orig = go.Figure()
-                fig_orig.add_trace(go.Bar(
-                    name="SDR",
-                    x=_sdr_w["label"], y=_sdr_w["leads"],
-                    marker_color="#4f8ef7",
-                    hovertemplate="<b>%{x}</b><br>%{y} leads SDR<extra></extra>",
-                ))
-                fig_orig.add_trace(go.Bar(
-                    name="Orgânico",
-                    x=_org_w["label"], y=_org_w["leads"],
-                    marker_color="#22c55e",
-                    hovertemplate="<b>%{x}</b><br>%{y} leads Orgânico<extra></extra>",
-                ))
-                fig_orig.update_layout(
-                    barmode="group",
-                    height=280,
-                    margin=dict(t=30, b=20, l=10, r=10),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    legend=dict(orientation="h", y=1.14, x=0, font=dict(color="#e8eef8", size=12)),
-                    xaxis=dict(showgrid=False, tickfont=dict(color="#e8eef8", size=11)),
-                    yaxis=dict(showgrid=True, gridcolor="#152a4a",
-                               tickfont=dict(color="#e8eef8", size=11), zeroline=False),
-                    hovermode="x unified",
-                )
-                st.markdown(
-                    "<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
-                    "letter-spacing:.6px;margin-top:14px;margin-bottom:4px;'>📈 Evolução Semanal por Canal</div>",
-                    unsafe_allow_html=True,
-                )
-                st.plotly_chart(fig_orig, use_container_width=True, key="kpis_origem_canal")
 
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
