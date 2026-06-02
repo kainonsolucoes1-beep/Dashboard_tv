@@ -1,6 +1,16 @@
 import pandas as pd
 
-from src.data.api import fetch_leads_30dias, fetch_leads_80dias, fetch_leads_criticos
+from src.data.api import fetch_leads_30dias, fetch_leads_80dias, fetch_leads_criticos, ORIGEM_MAP
+
+
+def _normalize_origens(df: pd.DataFrame) -> pd.DataFrame:
+    if "origem" not in df.columns:
+        return df
+    df = df.copy()
+    df["origem"] = df["origem"].apply(
+        lambda o: ORIGEM_MAP.get(str(o).lower(), o) if o else o
+    )
+    return df
 
 
 def _merge(df_hist, err1):
@@ -11,7 +21,7 @@ def _merge(df_hist, err1):
     merged = pd.concat(partes, ignore_index=True)
     if "id" in merged.columns:
         merged = merged.drop_duplicates(subset=["id"], keep="first")
-    return merged, err1 or err2
+    return _normalize_origens(merged), err1 or err2
 
 
 def merge_leads_curto():

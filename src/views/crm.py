@@ -182,7 +182,7 @@ def render_crm():
             if not sel_crm:
                 st.session_state.pop("modal_leads_crm", None)
 
-    _SDR_NOMES_CRM = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+    _SDR_NOMES_CRM = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora", "gabrieli"}
 
     with sub_ranking:
         df_longo, _ = merge_leads_longo()
@@ -259,16 +259,16 @@ def render_crm():
             )
             _top_base = grp.loc[grp["valor"].idxmax(), "base_display"] if not grp.empty else "—"
 
-            st.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
-            _m1, _m2, _m3, _m4 = st.columns(4)
-            with _m1:
-                st.metric("Vendas Realizadas", total_vr)
-            with _m2:
-                st.metric("Valor Total", fmt_brl(valor_total))
-            with _m3:
-                st.metric("Ticket Médio", fmt_brl(ticket))
-            with _m4:
-                st.metric("🏆 Maior Base (R$)", _top_base)
+            with st.expander("🔍 Dados", expanded=False):
+                _m1, _m2, _m3, _m4 = st.columns(4)
+                with _m1:
+                    st.metric("Vendas Realizadas", total_vr)
+                with _m2:
+                    st.metric("Valor Total", fmt_brl(valor_total))
+                with _m3:
+                    st.metric("Ticket Médio", fmt_brl(ticket))
+                with _m4:
+                    st.metric("🏆 Maior Base (R$)", _top_base)
 
             st.markdown("---")
             st.markdown("#### 🗂️ Por Origem")
