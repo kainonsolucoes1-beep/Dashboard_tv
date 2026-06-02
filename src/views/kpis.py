@@ -710,6 +710,54 @@ def render_kpis(df_todos: pd.DataFrame):
             )
             st.plotly_chart(_fig_trat, use_container_width=True, key="chart_tratados_dia")
 
+            st.markdown(
+                "<div style='margin-top:8px;margin-bottom:6px;font-size:11px;color:#7a9cc7;"
+                "text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
+                "⚡ Agilidade de Tratamento</div>",
+                unsafe_allow_html=True,
+            )
+
+            _df_trat_ag = df_trat.copy()
+            _df_trat_ag["_dias"] = (
+                pd.to_datetime(_df_trat_ag["atualizado_obj"]) -
+                pd.to_datetime(_df_trat_ag["data_obj"])
+            ).dt.days.fillna(999).astype(int)
+
+            _ag_mesmo  = _df_trat_ag[_df_trat_ag["_dias"] == 0]
+            _ag_um     = _df_trat_ag[_df_trat_ag["_dias"] == 1]
+            _ag_atraso = _df_trat_ag[_df_trat_ag["_dias"] >= 2]
+            _ag_total  = len(_df_trat_ag)
+
+            def _pct(n): return round(n / _ag_total * 100, 1) if _ag_total else 0
+
+            _ag_labels = ["Mesmo dia", "Até 1 dia", "2+ dias"]
+            _ag_vals   = [len(_ag_mesmo), len(_ag_um), len(_ag_atraso)]
+            _ag_cores  = ["#22c55e", "#f59e0b", "#ef4444"]
+            _ag_pcts   = [_pct(v) for v in _ag_vals]
+            _ag_texts  = [f"{v}  ({p}%)" for v, p in zip(_ag_vals, _ag_pcts)]
+
+            _fig_ag = go.Figure()
+            _fig_ag.add_trace(go.Bar(
+                x=_ag_vals,
+                y=_ag_labels,
+                orientation="h",
+                marker_color=_ag_cores,
+                text=_ag_texts,
+                textposition="outside",
+                hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
+            ))
+            _fig_ag.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d8f0", family="DM Sans"),
+                margin=dict(t=8, b=8, l=0, r=80),
+                height=160,
+                xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
+                yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
+                bargap=0.35,
+            )
+            st.plotly_chart(_fig_ag, use_container_width=True, key="chart_agilidade")
+
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
