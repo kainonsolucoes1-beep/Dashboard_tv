@@ -482,10 +482,10 @@ def render_kpis(df_todos: pd.DataFrame):
                 plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#c9d8f0", family="DM Sans"),
                 margin=dict(t=10, b=10, l=0, r=40),
-                height=max(220, len(contagem) * 28),
+                height=max(160, len(contagem) * 20),
                 xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
                 yaxis=dict(showgrid=False, tickfont=dict(size=11), autorange="reversed"),
-                bargap=0.3,
+                bargap=0.6,
             )
             st.plotly_chart(_fig_trat, use_container_width=True, key="chart_tratados_dia")
 
