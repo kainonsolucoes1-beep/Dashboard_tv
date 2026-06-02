@@ -181,14 +181,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
                 </div>
                 """, unsafe_allow_html=True)
 
-                if op in pivot.columns and len(spark_x) > 1:
-                    st.plotly_chart(
-                        _spark_fig(pivot[op].tolist(), spark_x, cor_op),
-                        use_container_width=True,
-                        config={"displayModeBar": False},
-                        key=f"spark_{op}",
-                    )
-
                 if st.button("📊 Ver detalhes", key=f"btn_det_{op}", use_container_width=True):
                     modal_operador(op, df_op, cor_op, det_de, det_ate)
 
