@@ -257,32 +257,23 @@ def render_kpis(df_todos: pd.DataFrame):
                 for _i, (_v, _p) in enumerate(zip(_values, _pcts))
             ]
 
-            fig_fn = go.Figure()
-            fig_fn.add_trace(go.Bar(
-                x=_values,
-                y=_labels,
-                orientation="h",
-                marker_color=_colors,
-                text=_bar_texts,
-                textposition="inside",
-                insidetextanchor="start",
-                textfont=dict(color="#e8eef8", size=13),
-                hovertemplate="%{y}: %{x} leads<extra></extra>",
-            ))
             _max_v = max(_values) or 1
-            fig_fn.update_layout(
-                height=200,
-                margin=dict(t=10, b=10, l=140, r=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                xaxis=dict(showgrid=False, showticklabels=False, range=[0, _max_v * 1.15]),
-                yaxis=dict(
-                    showgrid=False, autorange="reversed",
-                    tickfont=dict(color="#e8eef8", size=13),
-                ),
-                bargap=0.3,
-            )
-            st.plotly_chart(fig_fn, use_container_width=True, key="kpi_funil_chart")
+            for _i, (_lbl, _val, _cor, _pct) in enumerate(zip(_labels, _values, _colors, _pcts)):
+                _bar_w = int(_val / _max_v * 100)
+                _pct_str = f"({_pct}%)" if _i > 0 else ""
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                  <div style="min-width:140px;font-size:13px;color:#7a9cc7;font-weight:600;
+                              text-align:right;text-transform:uppercase;letter-spacing:.5px;">{_lbl}</div>
+                  <div style="flex:1;background:#152a4a;border-radius:99px;height:14px;">
+                    <div style="background:{_cor};border-radius:99px;height:14px;width:{_bar_w}%;
+                                transition:width .4s;"></div>
+                  </div>
+                  <div style="min-width:90px;font-size:18px;font-weight:700;color:{_cor};">
+                    {_val} <span style="font-size:13px;color:#7a9cc7;font-weight:400;">{_pct_str}</span>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
 
             _fc1, _fc2, _fc3, _fc4 = st.columns(4)
             _tx_ag  = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
