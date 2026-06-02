@@ -327,7 +327,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 )
                 .reset_index()
             )
-            _ops_cv["taxa"]   = (_ops_cv["vendas"] / _ops_cv["leads"] * 100).round(1)
+            _ops_cv["taxa"]   = (_ops_cv["vendas"] / _ops_cv["leads"] * 100).round(2)
             _ops_cv["ticket"] = _ops_cv.apply(
                 lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
             )
