@@ -878,7 +878,8 @@ def render_kpis(df_todos: pd.DataFrame):
                 with _jcols[_ji]:
                     st.markdown(
                         f"<div class='card-status' style='border-left:4px solid {_jcor};"
-                        f"text-align:center;padding:20px 12px;'>"
+                        f"text-align:center;padding:20px 12px;min-height:180px;"
+                        f"display:flex;flex-direction:column;justify-content:space-between;'>"
                         f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
                         f"letter-spacing:.7px;margin-bottom:8px;font-weight:600;'>{_jlabel}</div>"
                         f"<div style='font-size:44px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
@@ -895,31 +896,32 @@ def render_kpis(df_todos: pd.DataFrame):
             _jn_vnr  = len(_df_vnr)
             _pct_vnr = round(_jn_vnr / _total_jorn * 100, 1) if _total_jorn else 0
             _avg_vnr = round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else None
-            _dias_vnr_html = (
-                f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_avg_vnr} dias em média</div>"
-                if _avg_vnr is not None else ""
-            )
             _tempo_vnr_html = (
-                "<div><div style='font-size:13px;color:#7a9cc7;'>Tempo médio até perda</div>"
-                "<div style='font-size:26px;font-weight:700;color:#ef4444;'>"
-                + str(_avg_vnr) + " dias</div></div>"
-            ) if _avg_vnr is not None else ""
+                "<div style='display:flex;gap:24px;justify-content:center;margin-top:10px;'>"
+                "<div><div style='font-size:12px;color:#7a9cc7;'>% do total</div>"
+                "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_pct_vnr) + "%</div></div>"
+                "<div style='width:1px;background:#1e3a5f;align-self:stretch;'></div>"
+                "<div><div style='font-size:12px;color:#7a9cc7;'>Tempo médio</div>"
+                "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_avg_vnr) + " dias</div></div>"
+                "</div>"
+            ) if _avg_vnr is not None else (
+                "<div style='margin-top:10px;'>"
+                "<div style='font-size:12px;color:#7a9cc7;'>% do total</div>"
+                "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_pct_vnr) + "%</div>"
+                "</div>"
+            )
             st.markdown(
                 f"<div style='margin-top:14px;border-top:1px dashed #1e3a5f;padding-top:14px;'>"
-                f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
-                f"letter-spacing:.7px;font-weight:600;margin-bottom:10px;'>↳ Saída do funil</div>"
+                f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
+                f"letter-spacing:.7px;font-weight:600;margin-bottom:8px;'>↳ Saída do funil</div>"
                 f"<div class='card-status' style='border-left:4px solid #ef4444;"
-                f"padding:16px 20px;display:flex;align-items:center;gap:28px;'>"
-                f"<div style='text-align:center;min-width:90px;'>"
-                f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:6px;'>Venda não Realizada</div>"
+                f"text-align:center;padding:20px 12px;min-height:180px;"
+                f"display:flex;flex-direction:column;justify-content:space-between;'>"
+                f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
+                f"letter-spacing:.7px;font-weight:600;'>Venda não Realizada</div>"
                 f"<div style='font-size:44px;font-weight:700;color:#ef4444;line-height:1.1;'>{_jn_vnr}</div>"
-                f"</div>"
-                f"<div style='width:1px;background:#1e3a5f;align-self:stretch;'></div>"
-                f"<div style='display:flex;gap:32px;'>"
-                f"<div><div style='font-size:13px;color:#7a9cc7;'>% do total captado</div>"
-                f"<div style='font-size:26px;font-weight:700;color:#ef4444;'>{_pct_vnr}%</div></div>"
                 f"{_tempo_vnr_html}"
-                f"</div></div></div>",
+                f"</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -960,7 +962,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 margin=dict(t=8, b=8, l=0, r=80),
                 height=190,
                 xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11),
-                           title=dict(text="dias desde a entrada", font=dict(size=11, color="#7a9cc7"))),
+                           ticksuffix=" d", title=None),
                 yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
                 bargap=0.35,
             )
