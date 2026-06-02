@@ -599,6 +599,96 @@ def render_kpis(df_todos: pd.DataFrame):
             )
 
 
+    with st.expander("📅 Leads Tratados por Dia", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Leads que avançaram do Pendente — contados pela data de última atualização"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _trat1, _trat2 = st.columns([2, 2])
+        with _trat1:
+            trat_de = st.date_input("📅 De", value=date.today() - timedelta(days=29),
+                                    format="DD/MM/YYYY", key="kpi_trat_de")
+        with _trat2:
+            trat_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_trat_ate")
+
+        df_trat = df_todos[
+            df_todos["atualizado_obj"].apply(lambda d: d is not None and trat_de <= d <= trat_ate)
+            & (df_todos["status"] != "Pendente")
+        ].copy()
+
+        if df_trat.empty:
+            st.info("Nenhum lead tratado no período selecionado.")
+        else:
+            contagem = (
+                df_trat.groupby("atualizado_obj").size()
+                .reset_index(name="qtd")
+                .sort_values("atualizado_obj")
+            )
+            contagem["data_fmt"] = contagem["atualizado_obj"].apply(lambda d: d.strftime("%d/%m"))
+
+            _hoje  = date.today()
+            _ontem = _hoje - timedelta(days=1)
+            _qtd_hoje  = int(contagem.loc[contagem["atualizado_obj"] == _hoje,  "qtd"].sum())
+            _qtd_ontem = int(contagem.loc[contagem["atualizado_obj"] == _ontem, "qtd"].sum())
+            _ult7      = contagem[contagem["atualizado_obj"] >= _hoje - timedelta(days=6)]
+            _media7    = round(_ult7["qtd"].mean(), 1) if not _ult7.empty else 0.0
+
+            _cor_hoje = "#22c55e" if _qtd_hoje >= _media7 else "#f59e0b" if _qtd_hoje > 0 else "#ef4444"
+
+            _tm1, _tm2, _tm3 = st.columns(3)
+            with _tm1:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Hoje</div>"
+                    f"<div style='font-size:36px;font-weight:700;color:{_cor_hoje};line-height:1.1;'>{_qtd_hoje}</div>"
+                    f"<div style='font-size:12px;color:#7a9cc7;'>leads tratados</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            with _tm2:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Ontem</div>"
+                    f"<div style='font-size:36px;font-weight:700;color:#4f8ef7;line-height:1.1;'>{_qtd_ontem}</div>"
+                    f"<div style='font-size:12px;color:#7a9cc7;'>leads tratados</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            with _tm3:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Média 7 dias</div>"
+                    f"<div style='font-size:36px;font-weight:700;color:#8b5cf6;line-height:1.1;'>{_media7}</div>"
+                    f"<div style='font-size:12px;color:#7a9cc7;'>por dia</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            _fig_trat = go.Figure()
+            _fig_trat.add_trace(go.Bar(
+                x=contagem["data_fmt"],
+                y=contagem["qtd"],
+                marker_color="#4f8ef7",
+                text=contagem["qtd"],
+                textposition="outside",
+                hovertemplate="<b>%{x}</b><br>%{y} leads tratados<extra></extra>",
+            ))
+            _fig_trat.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d8f0", family="DM Sans"),
+                margin=dict(t=24, b=10, l=0, r=0),
+                height=260,
+                xaxis=dict(showgrid=False, tickfont=dict(size=11)),
+                yaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
+                bargap=0.35,
+            )
+            st.plotly_chart(_fig_trat, use_container_width=True, key="chart_tratados_dia")
+
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
