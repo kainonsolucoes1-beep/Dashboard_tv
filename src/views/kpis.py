@@ -865,11 +865,11 @@ def render_kpis(df_todos: pd.DataFrame):
                 _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
 
                 _dias_html = (
-                    f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                    f"<div style='margin-top:10px;font-size:14px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
                     if _javg is not None else ""
                 )
                 _prev_html = (
-                    f"<div style='font-size:12px;color:{_jcor};margin-top:4px;font-weight:600;'>"
+                    f"<div style='font-size:14px;color:{_jcor};margin-top:6px;font-weight:700;'>"
                     f"↓ {_jpct_prev}% do anterior</div>"
                     if _ji > 0 else ""
                 )
@@ -877,11 +877,11 @@ def render_kpis(df_todos: pd.DataFrame):
                 with _jcols[_ji]:
                     st.markdown(
                         f"<div class='card-status' style='border-left:4px solid {_jcor};"
-                        f"text-align:center;padding:16px 10px;'>"
-                        f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
-                        f"letter-spacing:.6px;margin-bottom:6px;'>{_jlabel}</div>"
-                        f"<div style='font-size:32px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
-                        f"<div style='font-size:12px;color:#7a9cc7;'>{_jpct_total}% do total</div>"
+                        f"text-align:center;padding:20px 12px;'>"
+                        f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
+                        f"letter-spacing:.7px;margin-bottom:8px;font-weight:600;'>{_jlabel}</div>"
+                        f"<div style='font-size:44px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
+                        f"<div style='font-size:14px;color:#c9d8f0;margin-top:4px;'>{_jpct_total}% do total</div>"
                         f"{_prev_html}{_dias_html}"
                         f"</div>",
                         unsafe_allow_html=True,
@@ -899,24 +899,24 @@ def render_kpis(df_todos: pd.DataFrame):
                 if _avg_vnr is not None else ""
             )
             _tempo_vnr_html = (
-                "<div><div style='font-size:11px;color:#7a9cc7;'>Tempo médio até perda</div>"
-                "<div style='font-size:20px;font-weight:700;color:#ef4444;'>"
+                "<div><div style='font-size:13px;color:#7a9cc7;'>Tempo médio até perda</div>"
+                "<div style='font-size:26px;font-weight:700;color:#ef4444;'>"
                 + str(_avg_vnr) + " dias</div></div>"
             ) if _avg_vnr is not None else ""
             st.markdown(
-                f"<div style='margin-top:12px;border-top:1px dashed #1e3a5f;padding-top:12px;'>"
-                f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
-                f"letter-spacing:.6px;margin-bottom:8px;'>↳ Saída do funil</div>"
+                f"<div style='margin-top:14px;border-top:1px dashed #1e3a5f;padding-top:14px;'>"
+                f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
+                f"letter-spacing:.7px;font-weight:600;margin-bottom:10px;'>↳ Saída do funil</div>"
                 f"<div class='card-status' style='border-left:4px solid #ef4444;"
-                f"padding:14px 16px;display:flex;align-items:center;gap:24px;'>"
-                f"<div style='text-align:center;min-width:80px;'>"
-                f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;'>Venda não Realizada</div>"
-                f"<div style='font-size:32px;font-weight:700;color:#ef4444;line-height:1.1;'>{_jn_vnr}</div>"
+                f"padding:16px 20px;display:flex;align-items:center;gap:28px;'>"
+                f"<div style='text-align:center;min-width:90px;'>"
+                f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:6px;'>Venda não Realizada</div>"
+                f"<div style='font-size:44px;font-weight:700;color:#ef4444;line-height:1.1;'>{_jn_vnr}</div>"
                 f"</div>"
                 f"<div style='width:1px;background:#1e3a5f;align-self:stretch;'></div>"
-                f"<div style='display:flex;gap:28px;'>"
-                f"<div><div style='font-size:11px;color:#7a9cc7;'>% do total captado</div>"
-                f"<div style='font-size:20px;font-weight:700;color:#ef4444;'>{_pct_vnr}%</div></div>"
+                f"<div style='display:flex;gap:32px;'>"
+                f"<div><div style='font-size:13px;color:#7a9cc7;'>% do total captado</div>"
+                f"<div style='font-size:26px;font-weight:700;color:#ef4444;'>{_pct_vnr}%</div></div>"
                 f"{_tempo_vnr_html}"
                 f"</div></div></div>",
                 unsafe_allow_html=True,
