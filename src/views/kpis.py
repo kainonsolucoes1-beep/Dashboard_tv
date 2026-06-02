@@ -730,14 +730,54 @@ def render_kpis(df_todos: pd.DataFrame):
             )
             st.plotly_chart(_fig_trat, use_container_width=True, key="chart_tratados_dia")
 
+            _periodo_dias = (trat_ate - trat_de).days
+            _modo_curto   = _periodo_dias <= 3
+
+            if _modo_curto:
+                # Modo curto: âncora em data_obj (leads criados no período)
+                _df_criados = df_todos[
+                    df_todos["data_obj"].apply(lambda d: d is not None and trat_de <= d <= trat_ate)
+                ].copy()
+                _df_trat_ag    = _df_criados[_df_criados["status"] != "Pendente"].copy()
+                _df_pend_curto = _df_criados[_df_criados["status"] == "Pendente"]
+                _n_criados     = len(_df_criados)
+                _n_trat_curto  = len(_df_trat_ag)
+                _n_pend_curto  = len(_df_pend_curto)
+                _pct_trat = round(_n_trat_curto / _n_criados * 100) if _n_criados else 0
+
+                st.markdown(
+                    f"<div style='margin-top:12px;margin-bottom:6px;background:#0a1628;"
+                    f"border:1px solid #152a4a;border-radius:10px;padding:12px 16px;"
+                    f"display:flex;align-items:center;gap:24px;'>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Criados</div>"
+                    f"<div style='font-size:28px;font-weight:700;color:#c9d8f0;line-height:1.1;'>{_n_criados}</div>"
+                    f"</div>"
+                    f"<div style='width:1px;background:#152a4a;align-self:stretch;'></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Já tratados</div>"
+                    f"<div style='font-size:28px;font-weight:700;color:#22c55e;line-height:1.1;'>{_n_trat_curto} <span style='font-size:14px;color:#22c55e;'>({_pct_trat}%)</span></div>"
+                    f"</div>"
+                    f"<div style='width:1px;background:#152a4a;align-self:stretch;'></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Ainda pendentes</div>"
+                    f"<div style='font-size:28px;font-weight:700;color:#ef4444;line-height:1.1;'>{_n_pend_curto}</div>"
+                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                _ctx_label = "⚡ Agilidade · leads criados no período"
+            else:
+                _df_trat_ag   = df_trat.copy()
+                _ctx_label    = "⚡ Agilidade de Tratamento"
+
             st.markdown(
-                "<div style='margin-top:8px;margin-bottom:6px;font-size:11px;color:#7a9cc7;"
-                "text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
-                "⚡ Agilidade de Tratamento</div>",
+                f"<div style='margin-top:8px;margin-bottom:6px;font-size:11px;color:#7a9cc7;"
+                f"text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
+                f"{_ctx_label}</div>",
                 unsafe_allow_html=True,
             )
 
-            _df_trat_ag = df_trat.copy()
             _df_trat_ag["_dias"] = (
                 pd.to_datetime(_df_trat_ag["atualizado_obj"]) -
                 pd.to_datetime(_df_trat_ag["data_obj"])
