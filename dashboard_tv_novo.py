@@ -33,7 +33,6 @@ from src.charts.funil import grafico_funil_status
 from src.charts.temperatura import grafico_temperatura_pizza
 from src.charts.ranking import grafico_ranking_vendas, render_ranking_vendas
 from src.views.visao_geral import render_visao_geral
-from src.views.operadores import render_operadores
 from src.views.detalhamento import render_detalhamento
 from src.views.crm import render_crm
 from src.views.estagio import render_estagio_lead
@@ -170,9 +169,9 @@ st.session_state["df_curto"] = df_todos
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
+    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
     if _is_admin else
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📆 Detalhamento por Dia", "📈 KPIs"]
+    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📈 KPIs"]
 )
 if "aba_ativa" not in st.session_state and st.session_state.get("_tab_sel") in _abas:
     st.session_state["aba_ativa"] = st.session_state["_tab_sel"]
@@ -191,8 +190,6 @@ if "Visão Geral" in aba_ativa:
 elif "Funil" in aba_ativa:
     render_funil_rt()
 elif "Por Operador" in aba_ativa:
-    render_operadores(df_todos)
-elif "Detalhamento" in aba_ativa:
     render_detalhamento(df_todos)
 elif "Leads Recentes" in aba_ativa:
     render_leads_rt()
