@@ -41,25 +41,6 @@ def _spark_fig(y_values, x_labels, cor: str):
 
 @st.fragment
 def render_detalhamento(df_todos: pd.DataFrame):
-    _hd_det, _btn_det = st.columns([5, 1])
-    with _hd_det:
-        st.markdown("#### 👤 Por Operador")
-        st.markdown(
-            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-            "Performance individual — filtre o período abaixo de forma independente das outras abas."
-            "</p>",
-            unsafe_allow_html=True,
-        )
-    with _btn_det:
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Atualizar", key="det_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_criticos.clear()
-            st.rerun(scope="fragment")
-
-    st.markdown("---")
-    st.markdown("#### 🔎 Filtros")
-
     _default_de  = date.today().replace(day=1)
     _default_ate = date.today()
     ops_disp     = sorted(df_todos["origem"].dropna().unique().tolist())
@@ -67,13 +48,27 @@ def render_detalhamento(df_todos: pd.DataFrame):
     _ate_val = st.session_state.get("_fv_det_ate", _default_ate)
     _ops_val = [o for o in st.session_state.get("_fv_det_ops", ops_disp) if o in ops_disp] or ops_disp
 
-    fd1, fd2, fd3 = st.columns([1.5, 1.5, 3])
-    with fd1:
-        det_de = st.date_input("📅 De",   value=_de_val,  format="DD/MM/YYYY", key="det_de")
-    with fd2:
-        det_ate = st.date_input("📅 Até", value=_ate_val, format="DD/MM/YYYY", key="det_ate")
-    with fd3:
-        det_ops = st.multiselect("👤 Origem", options=ops_disp, default=_ops_val, key="det_ops")
+    _ops_label   = ", ".join(_ops_val) if len(_ops_val) <= 3 else f"{len(_ops_val)} operadores"
+    _exp_label   = f"🔎 Filtros · {_de_val.strftime('%d/%m')} – {_ate_val.strftime('%d/%m')} · {_ops_label}"
+
+    with st.expander(_exp_label, expanded=False):
+        fd1, fd2, fd3, fd4 = st.columns([1.5, 1.5, 3, 1])
+        with fd1:
+            det_de = st.date_input("📅 De",   value=_de_val,  format="DD/MM/YYYY", key="det_de")
+        with fd2:
+            det_ate = st.date_input("📅 Até", value=_ate_val, format="DD/MM/YYYY", key="det_ate")
+        with fd3:
+            det_ops = st.multiselect("👤 Origem", options=ops_disp, default=_ops_val, key="det_ops")
+        with fd4:
+            st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+            if st.button("🔄 Atualizar", key="det_refresh", use_container_width=True):
+                fetch_leads_30dias.clear()
+                fetch_leads_criticos.clear()
+                st.rerun(scope="fragment")
+
+    det_de  = st.session_state.get("det_de",  _de_val)
+    det_ate = st.session_state.get("det_ate", _ate_val)
+    det_ops = st.session_state.get("det_ops", _ops_val)
 
     st.session_state["_fv_det_de"]  = det_de
     st.session_state["_fv_det_ate"] = det_ate
@@ -196,33 +191,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
 
                 if st.button("📊 Ver detalhes", key=f"btn_det_{op}", use_container_width=True):
                     modal_operador(op, df_op, cor_op, det_de, det_ate)
-
-    # ── GRÁFICO DE BARRAS ─────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("#### 📊 Leads por Dia")
-
-    fig_barras = go.Figure()
-    for op in operadores_det:
-        fig_barras.add_trace(go.Bar(
-            name=op,
-            x=spark_x,
-            y=pivot[op].tolist(),
-            marker_color=cor_por_op[op],
-            hovertemplate=f"<b>{op}</b><br>%{{x}}<br>%{{y}} leads<extra></extra>",
-        ))
-    fig_barras.update_layout(
-        barmode="group",
-        margin=dict(t=20, b=20, l=10, r=20),
-        height=340,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", y=1.12, x=0, font=dict(color="#e8eef8", size=13)),
-        xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
-        yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
-                   tickfont=dict(color="#e8eef8", size=12), zeroline=False),
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
 
     # ── TABELA DE LEADS (colapsável) ──────────────────────────────────────────
     with st.expander("📋 Leads do Período", expanded=False):
