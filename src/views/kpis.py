@@ -489,18 +489,25 @@ def render_kpis(df_todos: pd.DataFrame):
             unsafe_allow_html=True,
         )
 
-        _fc1_tm, _fc2_tm, _ = st.columns([2, 2, 4])
+        _fc1_tm, _fc2_tm, _fc3_tm = st.columns([2, 2, 2])
         with _fc1_tm:
             tempo_de  = st.date_input("📅 De",  value=date.today().replace(day=1),
                                       format="DD/MM/YYYY", key="kpi_tempo_de")
         with _fc2_tm:
             tempo_ate = st.date_input("📅 Até", value=date.today(),
                                       format="DD/MM/YYYY", key="kpi_tempo_ate")
+        with _fc3_tm:
+            tempo_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                  horizontal=True, key="kpi_tempo_tipo")
 
         df_fc = df_todos[
             (df_todos["status"] == "Venda Realizada") &
             (df_todos["data_obj"].apply(lambda d: d is not None and tempo_de <= d <= tempo_ate))
         ].copy()
+        if tempo_tipo == "SDR":
+            df_fc = df_fc[df_fc["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif tempo_tipo == "Orgânico":
+            df_fc = df_fc[df_fc["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
 
         if df_fc.empty:
             st.info("Nenhuma venda realizada no período selecionado.")
