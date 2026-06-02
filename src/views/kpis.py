@@ -744,9 +744,21 @@ def render_kpis(df_todos: pd.DataFrame):
                 _n_trat_curto  = len(_df_trat_ag)
                 _n_pend_curto  = len(_df_pend_curto)
                 _pct_trat = round(_n_trat_curto / _n_criados * 100) if _n_criados else 0
+                _ctx_label = "⚡ Agilidade · leads criados no período"
+            else:
+                _df_trat_ag   = df_trat.copy()
+                _ctx_label    = "⚡ Agilidade de Tratamento"
 
+            st.markdown(
+                f"<div style='margin-top:8px;margin-bottom:6px;font-size:11px;color:#7a9cc7;"
+                f"text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
+                f"{_ctx_label}</div>",
+                unsafe_allow_html=True,
+            )
+
+            if _modo_curto:
                 st.markdown(
-                    f"<div style='margin-top:12px;margin-bottom:6px;background:#0a1628;"
+                    f"<div style='margin-bottom:10px;background:#0a1628;"
                     f"border:1px solid #152a4a;border-radius:10px;padding:12px 16px;"
                     f"display:flex;align-items:center;gap:24px;'>"
                     f"<div style='text-align:center;'>"
@@ -766,17 +778,6 @@ def render_kpis(df_todos: pd.DataFrame):
                     f"</div>",
                     unsafe_allow_html=True,
                 )
-                _ctx_label = "⚡ Agilidade · leads criados no período"
-            else:
-                _df_trat_ag   = df_trat.copy()
-                _ctx_label    = "⚡ Agilidade de Tratamento"
-
-            st.markdown(
-                f"<div style='margin-top:8px;margin-bottom:6px;font-size:11px;color:#7a9cc7;"
-                f"text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
-                f"{_ctx_label}</div>",
-                unsafe_allow_html=True,
-            )
 
             _df_trat_ag["_dias"] = (
                 pd.to_datetime(_df_trat_ag["atualizado_obj"]) -
