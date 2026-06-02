@@ -14,6 +14,70 @@ _SDR_ORIGENS = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "
 
 CORES_ORIGEM = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316", "#06b6d4", "#e879f9"]
 
+_DDD_ESTADO = {
+    "91": "Pará",       "93": "Pará",       "94": "Pará",
+    "92": "Amazonas",   "97": "Amazonas",
+    "95": "Roraima",    "96": "Amapá",
+    "69": "Rondônia",   "68": "Acre",        "63": "Tocantins",
+    "82": "Alagoas",
+    "71": "Bahia",      "73": "Bahia",       "74": "Bahia",   "75": "Bahia",  "77": "Bahia",
+    "85": "Ceará",      "88": "Ceará",
+    "98": "Maranhão",   "99": "Maranhão",
+    "83": "Paraíba",
+    "81": "Pernambuco", "87": "Pernambuco",
+    "86": "Piauí",      "89": "Piauí",
+    "84": "Rio Grande do Norte",
+    "79": "Sergipe",
+    "61": "Distrito Federal",
+    "62": "Goiás",      "64": "Goiás",
+    "65": "Mato Grosso","66": "Mato Grosso",
+    "67": "Mato Grosso do Sul",
+    "27": "Espírito Santo", "28": "Espírito Santo",
+    "31": "Minas Gerais","32": "Minas Gerais","33": "Minas Gerais",
+    "34": "Minas Gerais","35": "Minas Gerais","37": "Minas Gerais","38": "Minas Gerais",
+    "21": "Rio de Janeiro","22": "Rio de Janeiro","24": "Rio de Janeiro",
+    "11": "São Paulo",  "12": "São Paulo",   "13": "São Paulo",
+    "14": "São Paulo",  "15": "São Paulo",   "16": "São Paulo",
+    "17": "São Paulo",  "18": "São Paulo",   "19": "São Paulo",
+    "41": "Paraná",     "42": "Paraná",      "43": "Paraná",
+    "44": "Paraná",     "45": "Paraná",      "46": "Paraná",
+    "47": "Santa Catarina","48": "Santa Catarina","49": "Santa Catarina",
+    "51": "Rio Grande do Sul","53": "Rio Grande do Sul",
+    "54": "Rio Grande do Sul","55": "Rio Grande do Sul",
+}
+
+_ESTADO_REGIAO = {
+    "Pará": "Norte", "Amazonas": "Norte", "Roraima": "Norte",
+    "Amapá": "Norte", "Rondônia": "Norte", "Acre": "Norte", "Tocantins": "Norte",
+    "Alagoas": "Nordeste", "Bahia": "Nordeste", "Ceará": "Nordeste",
+    "Maranhão": "Nordeste", "Paraíba": "Nordeste", "Pernambuco": "Nordeste",
+    "Piauí": "Nordeste", "Rio Grande do Norte": "Nordeste", "Sergipe": "Nordeste",
+    "Distrito Federal": "Centro-Oeste", "Goiás": "Centro-Oeste",
+    "Mato Grosso": "Centro-Oeste", "Mato Grosso do Sul": "Centro-Oeste",
+    "Espírito Santo": "Sudeste", "Minas Gerais": "Sudeste",
+    "Rio de Janeiro": "Sudeste", "São Paulo": "Sudeste",
+    "Paraná": "Sul", "Santa Catarina": "Sul", "Rio Grande do Sul": "Sul",
+}
+
+_REGIAO_COR = {
+    "Sudeste":      "#4f8ef7",
+    "Nordeste":     "#f59e0b",
+    "Sul":          "#22c55e",
+    "Centro-Oeste": "#8b5cf6",
+    "Norte":        "#06b6d4",
+}
+
+
+def _extrair_ddd(tel):
+    digits = "".join(c for c in str(tel) if c.isdigit())
+    if not digits:
+        return None
+    if digits.startswith("55") and len(digits) >= 12:
+        return digits[2:4]
+    if len(digits) >= 10:
+        return digits[0:2]
+    return None
+
 
 def _cards_vendas_por_origem(df_vnd: pd.DataFrame, origens: list, tab_prefix: str = ""):
     if df_vnd.empty or not origens:
@@ -654,4 +718,131 @@ def render_kpis(df_todos: pd.DataFrame):
                 "label": "Semana", "leads": "Leads", "vendas": "Vendas", "taxa": "Conversão (%)",
             })
             st.dataframe(_grp_ev_disp, use_container_width=True, hide_index=True)
+
+    with st.expander("🗺️ Região dos Leads", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Distribuição geográfica por DDD — captações e vendas por estado e região"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _rg1, _rg2, _rg3, _rg4 = st.columns([2, 2, 2, 2])
+        with _rg1:
+            reg_de = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                   format="DD/MM/YYYY", key="kpi_reg_de")
+        with _rg2:
+            reg_ate = st.date_input("📅 Até", value=date.today(),
+                                    format="DD/MM/YYYY", key="kpi_reg_ate")
+        with _rg3:
+            reg_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                horizontal=True, key="kpi_reg_tipo")
+        with _rg4:
+            reg_metrica = st.radio("Exibir", options=["Captações", "Vendas"],
+                                   horizontal=True, key="kpi_reg_metrica")
+
+        df_rg = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and reg_de <= d <= reg_ate)
+        ].copy()
+        if reg_tipo == "SDR":
+            df_rg = df_rg[df_rg["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif reg_tipo == "Orgânico":
+            df_rg = df_rg[df_rg["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
+        if reg_metrica == "Vendas":
+            df_rg = df_rg[df_rg["status"] == "Venda Realizada"]
+
+        if df_rg.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            df_rg["ddd"]    = df_rg["telefone"].apply(_extrair_ddd)
+            df_rg["estado"] = df_rg["ddd"].apply(lambda d: _DDD_ESTADO.get(d))
+            df_rg["regiao"] = df_rg["estado"].apply(lambda e: _ESTADO_REGIAO.get(e, "Não identificado") if e else "Não identificado")
+
+            _identificados = df_rg[df_rg["regiao"] != "Não identificado"]
+            _nao_id        = int((df_rg["regiao"] == "Não identificado").sum())
+            _total_rg      = len(df_rg)
+
+            if _identificados.empty:
+                st.warning("Nenhum DDD identificado nos telefones do período.")
+            else:
+                _grp_reg = (
+                    _identificados.groupby("regiao")
+                    .agg(qtd=("id", "count"))
+                    .reset_index()
+                    .sort_values("qtd", ascending=False)
+                    .reset_index(drop=True)
+                )
+                _max_reg = int(_grp_reg["qtd"].max()) or 1
+
+                _top_reg = _grp_reg.iloc[0]["regiao"]
+                _m1r, _m2r, _m3r = st.columns(3)
+                with _m1r:
+                    st.markdown(
+                        f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                        f"<div style='font-size:26px;font-weight:700;color:#4f8ef7;'>{len(_identificados)}</div>"
+                        f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>"
+                        f"{'Leads' if reg_metrica == 'Captações' else 'Vendas'} identificados</div>"
+                        f"</div>", unsafe_allow_html=True,
+                    )
+                with _m2r:
+                    _cor_top = _REGIAO_COR.get(_top_reg, "#7a9cc7")
+                    st.markdown(
+                        f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                        f"<div style='font-size:16px;font-weight:700;color:{_cor_top};'>{_top_reg}</div>"
+                        f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Região líder</div>"
+                        f"</div>", unsafe_allow_html=True,
+                    )
+                with _m3r:
+                    st.markdown(
+                        f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                        f"<div style='font-size:26px;font-weight:700;color:#7a9cc7;'>{_nao_id}</div>"
+                        f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Sem DDD identificado</div>"
+                        f"</div>", unsafe_allow_html=True,
+                    )
+
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+                for _, _rrow in _grp_reg.iterrows():
+                    _reg     = _rrow["regiao"]
+                    _qtd_reg = int(_rrow["qtd"])
+                    _pct_reg = round(_qtd_reg / len(_identificados) * 100, 1)
+                    _cor_reg = _REGIAO_COR.get(_reg, "#7a9cc7")
+                    _bar_reg = int(_qtd_reg / _max_reg * 100)
+
+                    _df_estados = (
+                        _identificados[_identificados["regiao"] == _reg]
+                        .groupby("estado")
+                        .agg(qtd=("id", "count"))
+                        .reset_index()
+                        .sort_values("qtd", ascending=False)
+                    )
+
+                    with st.expander(
+                        f"📍 {_reg}  ·  {_qtd_reg} {'leads' if reg_metrica == 'Captações' else 'vendas'}  ·  {_pct_reg}% do total",
+                        expanded=False,
+                    ):
+                        st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+                          <div style="flex:1;background:#152a4a;border-radius:99px;height:10px;">
+                            <div style="background:{_cor_reg};border-radius:99px;height:10px;width:{_bar_reg}%;"></div>
+                          </div>
+                          <div style="font-size:18px;font-weight:700;color:{_cor_reg};">{_qtd_reg}</div>
+                          <div style="font-size:13px;color:#7a9cc7;">({_pct_reg}%)</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        _max_est = int(_df_estados["qtd"].max()) or 1
+                        for _, _erow in _df_estados.iterrows():
+                            _bar_est = int(_erow["qtd"] / _max_est * 100)
+                            _pct_est = round(_erow["qtd"] / _qtd_reg * 100, 1)
+                            st.markdown(f"""
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                              <div style="min-width:160px;font-size:13px;color:#7a9cc7;text-align:right;">{_erow['estado']}</div>
+                              <div style="flex:1;background:#152a4a;border-radius:99px;height:8px;">
+                                <div style="background:{_cor_reg};opacity:.7;border-radius:99px;height:8px;width:{_bar_est}%;"></div>
+                              </div>
+                              <div style="min-width:40px;font-size:14px;font-weight:700;color:#e8eef8;">{int(_erow['qtd'])}</div>
+                              <div style="min-width:50px;font-size:12px;color:#7a9cc7;">{_pct_est}%</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
