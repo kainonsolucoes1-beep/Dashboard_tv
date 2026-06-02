@@ -8,50 +8,72 @@ from src.utils.formatters import fmt_brl
 from src.utils.time import dias_uteis_lista
 from src.ui.modals import modal_lead, modal_operador
 
+CORES_DET = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
+
+
+def _hex_rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _spark_fig(y_values, x_labels, cor: str):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x_labels, y=y_values,
+        mode="lines",
+        line=dict(color=cor, width=2),
+        fill="tozeroy",
+        fillcolor=_hex_rgba(cor, 0.15),
+        hovertemplate="%{x}: %{y} leads<extra></extra>",
+    ))
+    fig.update_layout(
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=60,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        showlegend=False,
+    )
+    return fig
+
 
 @st.fragment
 def render_detalhamento(df_todos: pd.DataFrame):
     _hd_det, _btn_det = st.columns([5, 1])
     with _hd_det:
-        st.markdown("#### 📆 Detalhamento de Leads por Dia e Operador")
+        st.markdown("#### 👤 Por Operador")
         st.markdown(
             "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-            "Análise detalhada dia a dia — filtre o período abaixo de forma independente das outras abas."
+            "Performance individual — filtre o período abaixo de forma independente das outras abas."
             "</p>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
     with _btn_det:
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-        _det_atualizar = st.button("🔄 Atualizar", key="det_refresh", use_container_width=True)
-    if _det_atualizar:
-        fetch_leads_30dias.clear()
-        fetch_leads_criticos.clear()
-        st.rerun(scope="fragment")
+        if st.button("🔄 Atualizar", key="det_refresh", use_container_width=True):
+            fetch_leads_30dias.clear()
+            fetch_leads_criticos.clear()
+            st.rerun(scope="fragment")
 
     st.markdown("---")
-    st.markdown("#### 🔎 Filtros da Aba")
-    _default_det_de  = date.today().replace(day=1)
-    _default_det_ate = date.today()
-    ops_disp_det     = sorted(df_todos["origem"].dropna().unique().tolist())
-    _det_de_val  = st.session_state.get("_fv_det_de",  _default_det_de)
-    _det_ate_val = st.session_state.get("_fv_det_ate", _default_det_ate)
-    _det_ops_val = [o for o in st.session_state.get("_fv_det_ops", ops_disp_det) if o in ops_disp_det] or ops_disp_det
+    st.markdown("#### 🔎 Filtros")
+
+    _default_de  = date.today().replace(day=1)
+    _default_ate = date.today()
+    ops_disp     = sorted(df_todos["origem"].dropna().unique().tolist())
+    _de_val  = st.session_state.get("_fv_det_de",  _default_de)
+    _ate_val = st.session_state.get("_fv_det_ate", _default_ate)
+    _ops_val = [o for o in st.session_state.get("_fv_det_ops", ops_disp) if o in ops_disp] or ops_disp
 
     fd1, fd2, fd3 = st.columns([1.5, 1.5, 3])
     with fd1:
-        det_de = st.date_input(
-            "📅 De", value=_det_de_val,
-            format="DD/MM/YYYY", key="det_de"
-        )
+        det_de = st.date_input("📅 De",   value=_de_val,  format="DD/MM/YYYY", key="det_de")
     with fd2:
-        det_ate = st.date_input(
-            "📅 Até", value=_det_ate_val,
-            format="DD/MM/YYYY", key="det_ate"
-        )
+        det_ate = st.date_input("📅 Até", value=_ate_val, format="DD/MM/YYYY", key="det_ate")
     with fd3:
-        det_ops = st.multiselect(
-            "👤 Origem", options=ops_disp_det, default=_det_ops_val, key="det_ops"
-        )
+        det_ops = st.multiselect("👤 Origem", options=ops_disp, default=_ops_val, key="det_ops")
 
     st.session_state["_fv_det_de"]  = det_de
     st.session_state["_fv_det_ate"] = det_ate
@@ -59,8 +81,7 @@ def render_detalhamento(df_todos: pd.DataFrame):
 
     st.markdown("---")
 
-    df_det = df_todos.copy()
-    df_det = df_det[df_det["data_obj"].notna()]
+    df_det = df_todos[df_todos["data_obj"].notna()].copy()
     df_det = df_det[df_det["data_obj"].apply(lambda d: det_de <= d <= det_ate)]
     if det_ops:
         df_det = df_det[df_det["origem"].isin(det_ops)]
@@ -70,7 +91,6 @@ def render_detalhamento(df_todos: pd.DataFrame):
         return
 
     operadores_det = sorted(df_det["origem"].dropna().unique().tolist())
-    CORES_DET = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
     cor_por_op = {op: CORES_DET[i % len(CORES_DET)] for i, op in enumerate(operadores_det)}
 
     pivot = (
@@ -83,155 +103,113 @@ def render_detalhamento(df_todos: pd.DataFrame):
         .sort_index()
     )
     pivot["Total"] = pivot[operadores_det].sum(axis=1)
+    spark_x = [d.strftime("%d/%m") for d in pivot.index]
 
-    st.markdown("#### 👤 Resumo do Período por Operador")
+    # ── KPI FAIXA GLOBAL ──────────────────────────────────────────────────────
+    total_leads  = len(df_det)
+    total_vendas = int((df_det["status"] == "Venda Realizada").sum())
+    conv_pct     = round(total_vendas / total_leads * 100, 1) if total_leads > 0 else 0
+    volume_total = df_det["valor_proposta"].sum()
 
-    chunks = [operadores_det[i:i+4] for i in range(0, len(operadores_det), 4)]
-    for chunk in chunks:
+    kpi_items = [
+        ("📥 Leads",      str(total_leads),      "#4f8ef7", "no período"),
+        ("✅ Vendas",     str(total_vendas),      "#22c55e", "realizadas"),
+        ("🎯 Conversão",  f"{conv_pct}%",         "#f59e0b", "leads → vendas"),
+        ("💰 Volume",     fmt_brl(volume_total),  "#8b5cf6", "em propostas"),
+    ]
+    for col_k, (lbl, val, cor, sub) in zip(st.columns(4), kpi_items):
+        with col_k:
+            st.markdown(f"""
+            <div style="background:#0e1f38;border-radius:10px;padding:16px 18px;
+                        border-top:3px solid {cor};margin-bottom:4px;">
+                <div style="color:#7a9cc7;font-size:11px;font-weight:600;
+                            text-transform:uppercase;letter-spacing:.6px;">{lbl}</div>
+                <div style="font-size:30px;font-weight:700;color:{cor};
+                            line-height:1.1;margin:4px 0;">{val}</div>
+                <div style="color:#7a9cc7;font-size:12px;">{sub}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── CARDS POR OPERADOR ────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("#### 👤 Resumo por Operador")
+
+    dias_uteis = len(dias_uteis_lista(det_de, det_ate))
+
+    for chunk in [operadores_det[i:i+4] for i in range(0, len(operadores_det), 4)]:
         cols_cards = st.columns(4)
         for col_c, op in zip(cols_cards, chunk):
-            cor_op = cor_por_op[op]
-            total_op   = int(pivot[op].sum())
-            dias_uteis = len(dias_uteis_lista(det_de, det_ate))
-            media_op   = round(total_op / dias_uteis, 1) if dias_uteis > 0 else 0
-
-            df_op_det = df_det[df_det["origem"] == op]
-            valor_op  = df_op_det["valor_proposta"].sum()
-            leads_com_valor = int((df_op_det["valor_proposta"] > 0).sum())
-            ticket_op = valor_op / leads_com_valor if leads_com_valor > 0 else 0
+            cor_op      = cor_por_op[op]
+            total_op    = int(pivot[op].sum())
+            media_op    = round(total_op / dias_uteis, 1) if dias_uteis > 0 else 0
+            df_op       = df_det[df_det["origem"] == op]
+            valor_op    = df_op["valor_proposta"].sum()
+            vendas_op   = int((df_op["status"] == "Venda Realizada").sum())
+            conv_op     = round(vendas_op / total_op * 100, 1) if total_op > 0 else 0
+            leads_c_val = int((df_op["valor_proposta"] > 0).sum())
+            ticket_op   = valor_op / leads_c_val if leads_c_val > 0 else 0
 
             with col_c:
                 st.markdown(f"""
-                <div class="card-status" style="border-left:4px solid {cor_op};display:flex;gap:16px;align-items:flex-start;">
+                <div class="card-status" style="border-left:4px solid {cor_op};
+                     display:flex;gap:16px;align-items:flex-start;">
                     <div style="min-width:110px;">
                         <span class="card-icone">👤</span>
                         <div class="card-valor" style="color:{cor_op};">{total_op}</div>
                         <div class="card-label">{op}</div>
-                        <div style="margin-top:10px;font-size:14px;color:#7a9cc7;">
+                        <div style="margin-top:8px;font-size:13px;color:#7a9cc7;">
                             Média: <b style="color:{cor_op};">{media_op}/dia</b>
                         </div>
+                        <div style="margin-top:4px;font-size:13px;color:#7a9cc7;">
+                            Conversão: <b style="color:#22c55e;">{conv_op}%</b>
+                        </div>
                     </div>
-                    <div style="width:1px;background:#152a4a;align-self:stretch;margin:4px 0;flex-shrink:0;"></div>
+                    <div style="width:1px;background:#152a4a;align-self:stretch;
+                                margin:4px 0;flex-shrink:0;"></div>
                     <div style="flex:1;min-width:0;padding-top:4px;">
-                        <div style="color:#7a9cc7;font-size:13px;font-weight:600;text-transform:uppercase;
-                                    letter-spacing:.6px;margin-bottom:6px;">Carteira (R$)</div>
+                        <div style="color:#7a9cc7;font-size:13px;font-weight:600;
+                                    text-transform:uppercase;letter-spacing:.6px;
+                                    margin-bottom:6px;">Carteira (R$)</div>
                         <div style="font-size:26px;font-weight:700;color:#22c55e;line-height:1.1;">
                             {fmt_brl(valor_op)}
                         </div>
-                        <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">em propostas enviadas</div>
+                        <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">
+                            em propostas enviadas
+                        </div>
                         <div style="margin-top:10px;color:#7a9cc7;font-size:13px;font-weight:600;
-                                    text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Ticket Médio</div>
+                                    text-transform:uppercase;letter-spacing:.6px;
+                                    margin-bottom:4px;">Ticket Médio</div>
                         <div style="font-size:22px;font-weight:700;color:#4f8ef7;">
                             {fmt_brl(ticket_op)}
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                if op in pivot.columns and len(spark_x) > 1:
+                    st.plotly_chart(
+                        _spark_fig(pivot[op].tolist(), spark_x, cor_op),
+                        use_container_width=True,
+                        config={"displayModeBar": False},
+                        key=f"spark_{op}",
+                    )
+
                 if st.button("📊 Ver detalhes", key=f"btn_det_{op}", use_container_width=True):
-                    modal_operador(op, df_op_det, cor_op, det_de, det_ate)
+                    modal_operador(op, df_op, cor_op, det_de, det_ate)
 
+    # ── GRÁFICO DE BARRAS ─────────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("#### 📋 Leads do Período")
-    st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
-
-    df_det_sorted = df_det.copy()
-    df_det_sorted["_sort"] = pd.to_datetime(
-        df_det_sorted["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
-    )
-    df_det_sorted = (
-        df_det_sorted.sort_values("_sort", ascending=False)
-        .drop(columns=["_sort"])
-        .reset_index(drop=True)
-    )
-    if "em_atraso" in df_det_sorted.columns:
-        df_det_sorted["Atraso"] = df_det_sorted["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "")
-    else:
-        df_det_sorted["Atraso"] = ""
-
-    col_labels_det = {
-        "Atraso":         "Situação",
-        "nome":           "Nome",
-        "status":         "Status",
-        "perception":     "Temperatura",
-        "valor_proposta": "Valor (R$)",
-        "atendente":      "Atendente",
-        "origem":         "Operador",
-        "base":           "Base",
-        "interesse":      "Interesse",
-        "criado_em":      "Cadastrado em",
-        "atualizado_em":  "Última Atualização",
-    }
-    df_det_display = df_det_sorted.copy()
-    df_det_display["valor_proposta"] = df_det_display["valor_proposta"].apply(
-        lambda v: fmt_brl(v) if v > 0 else "—"
-    )
-    cols_to_show = [c for c in col_labels_det if c in df_det_display.columns]
-    df_det_display = df_det_display[cols_to_show].rename(
-        columns={c: col_labels_det[c] for c in cols_to_show}
-    )
-
-    _term_det = st.text_input(
-        "Pesquisar", placeholder="🔍 Nome, status, operador...",
-        label_visibility="collapsed", key="search_leads_det"
-    )
-    if _term_det:
-        _mask_det  = df_det_display.apply(lambda c: c.astype(str).str.contains(_term_det, case=False, na=False)).any(axis=1)
-        df_det_display = df_det_display[_mask_det].reset_index(drop=True)
-        df_det_sorted  = df_det_sorted[_mask_det].reset_index(drop=True)
-
-    evt_det = st.dataframe(
-        df_det_display,
-        use_container_width=True,
-        hide_index=True,
-        height=500,
-        selection_mode="single-row",
-        on_select="rerun",
-        key="tabela_leads_det",
-    )
-    sel_det = evt_det.selection.rows
-    if sel_det and st.session_state.get("modal_leads_det") != sel_det[0]:
-        st.session_state["modal_leads_det"] = sel_det[0]
-        modal_lead(df_det_sorted.iloc[sel_det[0]])
-
-    st.markdown("---")
-    st.markdown("#### 📋 Tabela de Leads por Data e Operador")
-
-    tabela_display = pivot.copy()
-    tabela_display.index = [d.strftime("%d/%m/%Y (%a)").replace(
-        "Mon", "Seg").replace("Tue", "Ter").replace("Wed", "Qua")
-        .replace("Thu", "Qui").replace("Fri", "Sex")
-        .replace("Sat", "Sáb").replace("Sun", "Dom")
-        for d in tabela_display.index
-    ]
-    tabela_display.index.name = "Data"
-    tabela_display = tabela_display.reset_index()
-
-    linha_total = {"Data": "📊 TOTAL"}
-    for op in operadores_det:
-        linha_total[op] = int(pivot[op].sum())
-    linha_total["Total"] = int(pivot["Total"].sum())
-    tabela_display = pd.concat(
-        [tabela_display, pd.DataFrame([linha_total])], ignore_index=True
-    )
-    st.dataframe(tabela_display, use_container_width=True, hide_index=True, height=420)
-    if not sel_det:
-        st.session_state.pop("modal_leads_det", None)
-
-    st.markdown("---")
-    st.markdown("#### 📊 Leads por Dia (todos os operadores)")
+    st.markdown("#### 📊 Leads por Dia")
 
     fig_barras = go.Figure()
     for op in operadores_det:
-        cor_op = cor_por_op[op]
-        datas_fmt = [d.strftime("%d/%m") for d in pivot.index]
         fig_barras.add_trace(go.Bar(
             name=op,
-            x=datas_fmt,
+            x=spark_x,
             y=pivot[op].tolist(),
-            marker_color=cor_op,
+            marker_color=cor_por_op[op],
             hovertemplate=f"<b>{op}</b><br>%{{x}}<br>%{{y}} leads<extra></extra>",
         ))
-
     fig_barras.update_layout(
         barmode="group",
         margin=dict(t=20, b=20, l=10, r=20),
@@ -245,3 +223,67 @@ def render_detalhamento(df_todos: pd.DataFrame):
         hovermode="x unified",
     )
     st.plotly_chart(fig_barras, use_container_width=True, key="det_barras")
+
+    # ── TABELA DE LEADS (colapsável) ──────────────────────────────────────────
+    with st.expander("📋 Leads do Período", expanded=False):
+        st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+
+        df_det_sorted = df_det.copy()
+        df_det_sorted["_sort"] = pd.to_datetime(
+            df_det_sorted["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce"
+        )
+        df_det_sorted = (
+            df_det_sorted.sort_values("_sort", ascending=False)
+            .drop(columns=["_sort"])
+            .reset_index(drop=True)
+        )
+        df_det_sorted["Atraso"] = df_det_sorted.get("em_atraso", pd.Series(False, index=df_det_sorted.index)).apply(
+            lambda x: "🔴 Em atraso" if x else ""
+        )
+
+        col_labels = {
+            "Atraso":         "Situação",
+            "nome":           "Nome",
+            "status":         "Status",
+            "perception":     "Temperatura",
+            "valor_proposta": "Valor (R$)",
+            "atendente":      "Atendente",
+            "origem":         "Operador",
+            "base":           "Base",
+            "interesse":      "Interesse",
+            "criado_em":      "Cadastrado em",
+            "atualizado_em":  "Última Atualização",
+        }
+        df_display = df_det_sorted.copy()
+        df_display["valor_proposta"] = df_display["valor_proposta"].apply(
+            lambda v: fmt_brl(v) if v > 0 else "—"
+        )
+        cols_show = [c for c in col_labels if c in df_display.columns]
+        df_display = df_display[cols_show].rename(columns={c: col_labels[c] for c in cols_show})
+
+        term = st.text_input(
+            "Pesquisar", placeholder="🔍 Nome, status, operador...",
+            label_visibility="collapsed", key="search_leads_det"
+        )
+        if term:
+            mask = df_display.apply(
+                lambda c: c.astype(str).str.contains(term, case=False, na=False)
+            ).any(axis=1)
+            df_display    = df_display[mask].reset_index(drop=True)
+            df_det_sorted = df_det_sorted[mask].reset_index(drop=True)
+
+        evt = st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True,
+            height=500,
+            selection_mode="single-row",
+            on_select="rerun",
+            key="tabela_leads_det",
+        )
+        sel = evt.selection.rows
+        if sel and st.session_state.get("modal_leads_det") != sel[0]:
+            st.session_state["modal_leads_det"] = sel[0]
+            modal_lead(df_det_sorted.iloc[sel[0]])
+        if not sel:
+            st.session_state.pop("modal_leads_det", None)
