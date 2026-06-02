@@ -195,7 +195,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
     return pd.DataFrame(registros), None
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def fetch_leads_30dias():
     """60 dias por criação. Prioriza cache em disco do updater.py."""
     if _cache_disco_disponivel(CACHE_30_PATH):
@@ -205,7 +205,7 @@ def fetch_leads_30dias():
     return _fetch_leads_from_api(days=60, date_of="creation")
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def fetch_leads_80dias():
     """80 dias por criação. Prioriza cache em disco do updater.py."""
     if _cache_disco_disponivel(CACHE_80_PATH):
