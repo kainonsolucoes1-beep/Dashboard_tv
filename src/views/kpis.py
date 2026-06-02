@@ -602,7 +602,7 @@ def render_kpis(df_todos: pd.DataFrame):
     with st.expander("📅 Leads Tratados por Dia", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
-            "Leads que avançaram do Pendente — contados pela data de última atualização"
+            "Leads ativos trabalhados no dia (status ≠ Pendente) — contados pela data de última atualização"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -670,22 +670,23 @@ def render_kpis(df_todos: pd.DataFrame):
 
             _fig_trat = go.Figure()
             _fig_trat.add_trace(go.Bar(
-                x=contagem["data_fmt"],
-                y=contagem["qtd"],
+                x=contagem["qtd"],
+                y=contagem["data_fmt"],
+                orientation="h",
                 marker_color="#4f8ef7",
                 text=contagem["qtd"],
                 textposition="outside",
-                hovertemplate="<b>%{x}</b><br>%{y} leads tratados<extra></extra>",
+                hovertemplate="<b>%{y}</b><br>%{x} leads<extra></extra>",
             ))
             _fig_trat.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#c9d8f0", family="DM Sans"),
-                margin=dict(t=24, b=10, l=0, r=0),
-                height=260,
-                xaxis=dict(showgrid=False, tickfont=dict(size=11)),
-                yaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
-                bargap=0.35,
+                margin=dict(t=10, b=10, l=0, r=40),
+                height=max(220, len(contagem) * 28),
+                xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11)),
+                yaxis=dict(showgrid=False, tickfont=dict(size=11), autorange="reversed"),
+                bargap=0.3,
             )
             st.plotly_chart(_fig_trat, use_container_width=True, key="chart_tratados_dia")
 
