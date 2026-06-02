@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import date
+from datetime import date, timedelta
 
 from src.data.api import fetch_leads_30dias, fetch_leads_criticos
 from src.data.transforms import merge_leads_curto
@@ -409,3 +409,233 @@ def render_kpis(df_todos: pd.DataFrame):
                     _df_op_disp = _df_op_disp.rename(columns=_COLS_OP)
                     _alt = min(500, 40 + len(_df_op_disp) * 35)
                     st.dataframe(_df_op_disp, use_container_width=True, hide_index=True, height=_alt)
+
+    with st.expander("🚨 Leads em Atraso por Operador", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Leads sem resposta em tempo útil — distribuição por operador"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        if "em_atraso" not in df_todos.columns:
+            st.info("Campo 'em_atraso' não disponível nos dados.")
+        else:
+            df_at = df_todos[df_todos["em_atraso"] == True].copy()
+
+            if df_at.empty:
+                st.success("✅ Nenhum lead em atraso no momento.")
+            else:
+                _total_op  = df_todos.groupby("origem")["id"].count().rename("total")
+                _atraso_op = df_at.groupby("origem")["id"].count().rename("em_atraso")
+                _grp_at = pd.concat([_total_op, _atraso_op], axis=1).fillna(0)
+                _grp_at = _grp_at[_grp_at["em_atraso"] > 0].reset_index()
+                _grp_at["em_atraso"] = _grp_at["em_atraso"].astype(int)
+                _grp_at["total"]     = _grp_at["total"].astype(int)
+                _grp_at["pct"]       = (_grp_at["em_atraso"] / _grp_at["total"] * 100).round(1)
+                _grp_at = _grp_at.sort_values("em_atraso", ascending=False).reset_index(drop=True)
+
+                _at_max = int(_grp_at["em_atraso"].max()) or 1
+
+                st.markdown(
+                    f"<div style='font-size:26px;font-weight:700;color:#ef4444;text-align:center;"
+                    f"margin-bottom:16px;'>🚨 {len(df_at)} leads em atraso</div>",
+                    unsafe_allow_html=True,
+                )
+
+                for _ai, _ar in _grp_at.iterrows():
+                    _bar_w_at = int(_ar["em_atraso"] / _at_max * 100)
+                    with st.expander(
+                        f"👤 {_ar['origem']}  ·  {_ar['em_atraso']} em atraso  ·  {_ar['pct']}% da carteira",
+                        expanded=False,
+                    ):
+                        st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+                          <div style="flex:1;background:#152a4a;border-radius:99px;height:10px;">
+                            <div style="background:#ef4444;border-radius:99px;height:10px;width:{_bar_w_at}%;"></div>
+                          </div>
+                          <div style="font-size:18px;font-weight:700;color:#ef4444;">{_ar['em_atraso']}</div>
+                          <div style="font-size:13px;color:#7a9cc7;">/ {_ar['total']} leads ({_ar['pct']}%)</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        _df_at_op = df_at[df_at["origem"] == _ar["origem"]].copy()
+                        _df_at_op = _df_at_op.sort_values("data_obj", ascending=False).reset_index(drop=True)
+                        _COLS_AT = {
+                            "nome":          "Cliente",
+                            "status":        "Status",
+                            "atualizado_em": "Última Atualização",
+                            "atendente":     "Atendente",
+                            "base":          "Base",
+                        }
+                        _df_at_disp = _df_at_op[[c for c in _COLS_AT if c in _df_at_op.columns]].copy()
+                        _df_at_disp = _df_at_disp.rename(columns=_COLS_AT)
+                        _alt_at = min(400, 40 + len(_df_at_disp) * 35)
+                        st.dataframe(_df_at_disp, use_container_width=True, hide_index=True, height=_alt_at)
+
+    with st.expander("⏱️ Tempo Médio de Fechamento", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Dias médios entre captação e venda realizada — por operador"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _fc1_tm, _fc2_tm, _ = st.columns([2, 2, 4])
+        with _fc1_tm:
+            tempo_de  = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                      format="DD/MM/YYYY", key="kpi_tempo_de")
+        with _fc2_tm:
+            tempo_ate = st.date_input("📅 Até", value=date.today(),
+                                      format="DD/MM/YYYY", key="kpi_tempo_ate")
+
+        df_fc = df_todos[
+            (df_todos["status"] == "Venda Realizada") &
+            (df_todos["data_obj"].apply(lambda d: d is not None and tempo_de <= d <= tempo_ate))
+        ].copy()
+
+        if df_fc.empty:
+            st.info("Nenhuma venda realizada no período selecionado.")
+        else:
+            df_fc["_upd"] = pd.to_datetime(df_fc["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce")
+            df_fc["dias"] = df_fc.apply(
+                lambda r: (r["_upd"].date() - r["data_obj"]).days
+                if pd.notna(r["_upd"]) and r["data_obj"] is not None else None,
+                axis=1,
+            )
+            df_fc = df_fc.dropna(subset=["dias"])
+            df_fc["dias"] = df_fc["dias"].astype(int).clip(lower=0)
+
+            if df_fc.empty:
+                st.info("Dados insuficientes para calcular tempo médio.")
+            else:
+                _media_geral = round(float(df_fc["dias"].mean()), 1)
+                st.markdown(
+                    f"<div style='font-size:22px;font-weight:700;color:#4f8ef7;text-align:center;"
+                    f"margin-bottom:16px;'>⏱️ Média geral: "
+                    f"<span style='color:#f59e0b;'>{_media_geral} dias</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+                _grp_tm = (
+                    df_fc.groupby("origem")["dias"]
+                    .agg(["mean", "min", "max", "count"])
+                    .reset_index()
+                    .rename(columns={"mean": "media", "min": "minimo", "max": "maximo", "count": "vendas"})
+                )
+                _grp_tm["media"] = _grp_tm["media"].round(1)
+                _grp_tm = _grp_tm.sort_values("media").reset_index(drop=True)
+                _max_med = float(_grp_tm["media"].max()) or 1.0
+
+                for _ti, _tr in _grp_tm.iterrows():
+                    _cor_tm = (
+                        "#22c55e" if _tr["media"] <= 3 else
+                        "#f59e0b" if _tr["media"] <= 7 else
+                        "#ef4444"
+                    )
+                    _bar_w_tm = int(_tr["media"] / _max_med * 100)
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                      <div style="min-width:140px;font-size:13px;color:#7a9cc7;font-weight:600;text-align:right;">
+                        {_tr['origem']}</div>
+                      <div style="flex:1;background:#152a4a;border-radius:99px;height:12px;">
+                        <div style="background:{_cor_tm};border-radius:99px;height:12px;width:{_bar_w_tm}%;"></div>
+                      </div>
+                      <div style="min-width:60px;font-size:17px;font-weight:700;color:{_cor_tm};">{_tr['media']}d</div>
+                      <div style="min-width:150px;font-size:12px;color:#7a9cc7;">
+                        {int(_tr['vendas'])} vendas · {int(_tr['minimo'])}–{int(_tr['maximo'])} dias
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    with st.expander("📈 Evolução Semanal de Conversão", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Taxa de conversão semana a semana — leads captados vs vendas realizadas"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _ec1, _ec2, _ec3 = st.columns([2, 2, 2])
+        with _ec1:
+            ev_de = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                   format="DD/MM/YYYY", key="kpi_ev_de")
+        with _ec2:
+            ev_ate = st.date_input("📅 Até", value=date.today(),
+                                    format="DD/MM/YYYY", key="kpi_ev_ate")
+        with _ec3:
+            ev_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                               horizontal=True, key="kpi_ev_tipo")
+
+        df_ev = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and ev_de <= d <= ev_ate)
+        ].copy()
+        if ev_tipo == "SDR":
+            df_ev = df_ev[df_ev["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif ev_tipo == "Orgânico":
+            df_ev = df_ev[df_ev["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
+
+        if df_ev.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            df_ev["semana_inicio"] = df_ev["data_obj"].apply(
+                lambda d: d - timedelta(days=d.weekday())
+            )
+            _grp_ev = (
+                df_ev.groupby("semana_inicio")
+                .agg(
+                    leads =("id",     "count"),
+                    vendas=("status", lambda x: (x == "Venda Realizada").sum()),
+                )
+                .reset_index()
+                .sort_values("semana_inicio")
+            )
+            _grp_ev["taxa"]  = (_grp_ev["vendas"] / _grp_ev["leads"] * 100).round(2)
+            _grp_ev["label"] = _grp_ev["semana_inicio"].apply(lambda d: f"Sem {d.strftime('%d/%m')}")
+
+            fig_ev = go.Figure()
+            fig_ev.add_trace(go.Bar(
+                name="Leads captados",
+                x=_grp_ev["label"],
+                y=_grp_ev["leads"],
+                marker_color="#4f8ef7",
+                opacity=0.55,
+                yaxis="y",
+                hovertemplate="<b>%{x}</b><br>%{y} leads<extra></extra>",
+            ))
+            fig_ev.add_trace(go.Scatter(
+                name="Conversão (%)",
+                x=_grp_ev["label"],
+                y=_grp_ev["taxa"],
+                mode="lines+markers+text",
+                line=dict(color="#22c55e", width=2),
+                marker=dict(size=8, color="#22c55e"),
+                text=[f"{v}%" for v in _grp_ev["taxa"]],
+                textposition="top center",
+                textfont=dict(color="#22c55e", size=11),
+                yaxis="y2",
+                hovertemplate="<b>%{x}</b><br>%{y:.2f}% conversão<extra></extra>",
+            ))
+            fig_ev.update_layout(
+                height=320,
+                margin=dict(t=30, b=20, l=10, r=60),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                legend=dict(orientation="h", y=1.14, x=0, font=dict(color="#e8eef8", size=12)),
+                xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
+                yaxis=dict(
+                    title="Leads", showgrid=True, gridcolor="#152a4a",
+                    tickfont=dict(color="#4f8ef7", size=11), zeroline=False,
+                ),
+                yaxis2=dict(
+                    title="Conversão (%)", overlaying="y", side="right",
+                    showgrid=False, tickfont=dict(color="#22c55e", size=11), zeroline=False,
+                ),
+                hovermode="x unified",
+            )
+            st.plotly_chart(fig_ev, use_container_width=True, key="kpis_evolucao_semanal")
+
+            _grp_ev_disp = _grp_ev[["label", "leads", "vendas", "taxa"]].rename(columns={
+                "label": "Semana", "leads": "Leads", "vendas": "Vendas", "taxa": "Conversão (%)",
+            })
+            st.dataframe(_grp_ev_disp, use_container_width=True, hide_index=True)
