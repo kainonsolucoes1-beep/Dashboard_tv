@@ -898,6 +898,11 @@ def render_kpis(df_todos: pd.DataFrame):
                 f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_avg_vnr} dias em média</div>"
                 if _avg_vnr is not None else ""
             )
+            _tempo_vnr_html = (
+                "<div><div style='font-size:11px;color:#7a9cc7;'>Tempo médio até perda</div>"
+                "<div style='font-size:20px;font-weight:700;color:#ef4444;'>"
+                + str(_avg_vnr) + " dias</div></div>"
+            ) if _avg_vnr is not None else ""
             st.markdown(
                 f"<div style='margin-top:12px;border-top:1px dashed #1e3a5f;padding-top:12px;'>"
                 f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
@@ -912,7 +917,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 f"<div style='display:flex;gap:28px;'>"
                 f"<div><div style='font-size:11px;color:#7a9cc7;'>% do total captado</div>"
                 f"<div style='font-size:20px;font-weight:700;color:#ef4444;'>{_pct_vnr}%</div></div>"
-                f"{'<div><div style=\"font-size:11px;color:#7a9cc7;\">Tempo médio até perda</div><div style=\"font-size:20px;font-weight:700;color:#ef4444;\">' + str(_avg_vnr) + ' dias</div></div>' if _avg_vnr is not None else ''}"
+                f"{_tempo_vnr_html}"
                 f"</div></div></div>",
                 unsafe_allow_html=True,
             )
