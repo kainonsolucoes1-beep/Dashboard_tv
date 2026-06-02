@@ -503,6 +503,148 @@ def render_kpis(df_todos: pd.DataFrame):
             with _fc5:
                 st.metric("Cancelamentos", f"{_values[4]} ({_tx_cancel}%)")
 
+    with st.expander("📡 Origem dos Leads", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Volume e conversão por canal de captação — SDR vs Orgânico"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _og1, _og2 = st.columns([2, 2])
+        with _og1:
+            orig_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                    format="DD/MM/YYYY", key="kpi_orig_de")
+        with _og2:
+            orig_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_orig_ate")
+
+        df_orig = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and orig_de <= d <= orig_ate)
+        ].copy()
+
+        if df_orig.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            df_orig["canal"] = df_orig["origem"].apply(
+                lambda o: "SDR" if str(o).lower() in _SDR_ORIGENS else "Orgânico"
+            )
+
+            _total_orig = len(df_orig)
+            _df_sdr = df_orig[df_orig["canal"] == "SDR"]
+            _df_org = df_orig[df_orig["canal"] == "Orgânico"]
+
+            _n_sdr   = len(_df_sdr)
+            _n_org   = len(_df_org)
+            _pct_sdr = round(_n_sdr / _total_orig * 100, 1) if _total_orig else 0
+            _pct_org = round(_n_org / _total_orig * 100, 1) if _total_orig else 0
+
+            _vnd_sdr  = int((_df_sdr["status"] == "Venda Realizada").sum())
+            _vnd_org  = int((_df_org["status"] == "Venda Realizada").sum())
+            _conv_sdr = round(_vnd_sdr / _n_sdr * 100, 1) if _n_sdr else 0
+            _conv_org = round(_vnd_org / _n_org * 100, 1) if _n_org else 0
+
+            _cor_conv_sdr = "#22c55e" if _conv_sdr >= 20 else "#f59e0b" if _conv_sdr >= 10 else "#ef4444"
+            _cor_conv_org = "#22c55e" if _conv_org >= 20 else "#f59e0b" if _conv_org >= 10 else "#ef4444"
+
+            _oc1, _oc2 = st.columns(2)
+            with _oc1:
+                st.markdown(
+                    f"<div class='card-status' style='border-left:4px solid #4f8ef7;padding:18px;'>"
+                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                    f"letter-spacing:.6px;margin-bottom:10px;'>📞 SDR</div>"
+                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
+                    f"<div style='font-size:36px;font-weight:700;color:#4f8ef7;line-height:1;'>{_n_sdr}</div>"
+                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_sdr}% do total</div>"
+                    f"</div>"
+                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_sdr}</div></div>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_sdr};'>{_conv_sdr}%</div></div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with _oc2:
+                st.markdown(
+                    f"<div class='card-status' style='border-left:4px solid #22c55e;padding:18px;'>"
+                    f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                    f"letter-spacing:.6px;margin-bottom:10px;'>🌿 Orgânico</div>"
+                    f"<div style='display:flex;align-items:flex-end;gap:10px;'>"
+                    f"<div style='font-size:36px;font-weight:700;color:#22c55e;line-height:1;'>{_n_org}</div>"
+                    f"<div style='font-size:15px;color:#7a9cc7;margin-bottom:4px;'>{_pct_org}% do total</div>"
+                    f"</div>"
+                    f"<div style='margin-top:12px;display:flex;gap:24px;'>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Vendas</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:#22c55e;'>{_vnd_org}</div></div>"
+                    f"<div><div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;'>Conversão</div>"
+                    f"<div style='font-size:20px;font-weight:700;color:{_cor_conv_org};'>{_conv_org}%</div></div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f"<div style='margin-top:14px;'>"
+                f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;"
+                f"font-weight:600;margin-bottom:6px;'>Distribuição do volume</div>"
+                f"<div style='display:flex;border-radius:99px;overflow:hidden;height:22px;'>"
+                f"<div style='background:#4f8ef7;width:{_pct_sdr}%;display:flex;align-items:center;"
+                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
+                f"overflow:hidden;'>{'SDR ' + str(_pct_sdr) + '%' if _pct_sdr > 8 else ''}</div>"
+                f"<div style='background:#22c55e;width:{_pct_org}%;display:flex;align-items:center;"
+                f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
+                f"overflow:hidden;'>{'Orgânico ' + str(_pct_org) + '%' if _pct_org > 8 else ''}</div>"
+                f"</div></div>",
+                unsafe_allow_html=True,
+            )
+
+            df_orig["semana_inicio"] = df_orig["data_obj"].apply(
+                lambda d: d - timedelta(days=d.weekday())
+            )
+            _grp_canal = (
+                df_orig.groupby(["semana_inicio", "canal"])
+                .agg(leads=("id", "count"), vendas=("status", lambda x: (x == "Venda Realizada").sum()))
+                .reset_index()
+                .sort_values("semana_inicio")
+            )
+            _grp_canal["label"] = _grp_canal["semana_inicio"].apply(lambda d: f"Sem {d.strftime('%d/%m')}")
+
+            if not _grp_canal.empty:
+                _sdr_w = _grp_canal[_grp_canal["canal"] == "SDR"]
+                _org_w = _grp_canal[_grp_canal["canal"] == "Orgânico"]
+
+                fig_orig = go.Figure()
+                fig_orig.add_trace(go.Bar(
+                    name="SDR",
+                    x=_sdr_w["label"], y=_sdr_w["leads"],
+                    marker_color="#4f8ef7",
+                    hovertemplate="<b>%{x}</b><br>%{y} leads SDR<extra></extra>",
+                ))
+                fig_orig.add_trace(go.Bar(
+                    name="Orgânico",
+                    x=_org_w["label"], y=_org_w["leads"],
+                    marker_color="#22c55e",
+                    hovertemplate="<b>%{x}</b><br>%{y} leads Orgânico<extra></extra>",
+                ))
+                fig_orig.update_layout(
+                    barmode="group",
+                    height=280,
+                    margin=dict(t=30, b=20, l=10, r=10),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(orientation="h", y=1.14, x=0, font=dict(color="#e8eef8", size=12)),
+                    xaxis=dict(showgrid=False, tickfont=dict(color="#e8eef8", size=11)),
+                    yaxis=dict(showgrid=True, gridcolor="#152a4a",
+                               tickfont=dict(color="#e8eef8", size=11), zeroline=False),
+                    hovermode="x unified",
+                )
+                st.markdown(
+                    "<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+                    "letter-spacing:.6px;margin-top:14px;margin-bottom:4px;'>📈 Evolução Semanal por Canal</div>",
+                    unsafe_allow_html=True,
+                )
+                st.plotly_chart(fig_orig, use_container_width=True, key="kpis_origem_canal")
+
     with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
