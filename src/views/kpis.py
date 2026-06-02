@@ -244,26 +244,43 @@ def render_kpis(df_todos: pd.DataFrame):
             _perdidos = int((df_fn["status"] == "Venda não Realizada").sum())
 
             _labels, _values, _colors = [], [], []
+            _total = len(df_fn)
             for _lbl, _st, _cor in _ETAPAS:
-                _n = len(df_fn) if _st is None else int((df_fn["status"] == _st).sum())
+                _n = _total if _st is None else int((df_fn["status"] == _st).sum())
                 _labels.append(_lbl)
                 _values.append(_n)
                 _colors.append(_cor)
 
-            fig_fn = go.Figure(go.Funnel(
-                y=_labels,
+            _pcts = [round(_v / _total * 100, 1) if _total else 0 for _v in _values]
+            _bar_texts = [
+                f"{_v}  ({_p}%)" if _i > 0 else str(_v)
+                for _i, (_v, _p) in enumerate(zip(_values, _pcts))
+            ]
+
+            fig_fn = go.Figure()
+            fig_fn.add_trace(go.Bar(
                 x=_values,
-                textinfo="value+percent initial",
-                textfont=dict(color="#e8eef8", size=14),
-                marker=dict(color=_colors, line=dict(width=1, color="#0a1628")),
-                connector=dict(line=dict(color="#152a4a", width=2)),
+                y=_labels,
+                orientation="h",
+                marker_color=_colors,
+                text=_bar_texts,
+                textposition="inside",
+                insidetextanchor="start",
+                textfont=dict(color="#e8eef8", size=13),
+                hovertemplate="%{y}: %{x} leads<extra></extra>",
             ))
+            _max_v = max(_values) or 1
             fig_fn.update_layout(
-                height=320,
-                margin=dict(t=20, b=20, l=10, r=10),
+                height=200,
+                margin=dict(t=10, b=10, l=140, r=20),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e8eef8"),
+                xaxis=dict(showgrid=False, showticklabels=False, range=[0, _max_v * 1.15]),
+                yaxis=dict(
+                    showgrid=False, autorange="reversed",
+                    tickfont=dict(color="#e8eef8", size=13),
+                ),
+                bargap=0.3,
             )
             st.plotly_chart(fig_fn, use_container_width=True, key="kpi_funil_chart")
 
