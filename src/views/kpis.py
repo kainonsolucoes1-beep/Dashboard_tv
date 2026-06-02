@@ -67,6 +67,18 @@ _REGIAO_COR = {
     "Norte":        "#06b6d4",
 }
 
+_ESTADO_UF = {
+    "Acre": "AC", "Alagoas": "AL", "Amapá": "AP", "Amazonas": "AM",
+    "Bahia": "BA", "Ceará": "CE", "Distrito Federal": "DF",
+    "Espírito Santo": "ES", "Goiás": "GO", "Maranhão": "MA",
+    "Mato Grosso": "MT", "Mato Grosso do Sul": "MS", "Minas Gerais": "MG",
+    "Pará": "PA", "Paraíba": "PB", "Paraná": "PR", "Pernambuco": "PE",
+    "Piauí": "PI", "Rio de Janeiro": "RJ", "Rio Grande do Norte": "RN",
+    "Rio Grande do Sul": "RS", "Rondônia": "RO", "Roraima": "RR",
+    "Santa Catarina": "SC", "São Paulo": "SP", "Sergipe": "SE",
+    "Tocantins": "TO",
+}
+
 
 def _extrair_ddd(tel):
     digits = "".join(c for c in str(tel) if c.isdigit())
@@ -76,6 +88,21 @@ def _extrair_ddd(tel):
         return digits[2:4]
     if len(digits) >= 10:
         return digits[0:2]
+    return None
+
+
+@st.cache_data(ttl=86400 * 7, show_spinner=False)
+def _fetch_br_states_geojson():
+    try:
+        import requests as _req
+        r = _req.get(
+            "https://raw.githubusercontent.com/giuliano-macedo/geodata-br-states/main/geojson/br_states.json",
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
     return None
 
 
@@ -757,6 +784,7 @@ def render_kpis(df_todos: pd.DataFrame):
             df_rg["ddd"]    = df_rg["telefone"].apply(_extrair_ddd)
             df_rg["estado"] = df_rg["ddd"].apply(lambda d: _DDD_ESTADO.get(d))
             df_rg["regiao"] = df_rg["estado"].apply(lambda e: _ESTADO_REGIAO.get(e, "Não identificado") if e else "Não identificado")
+            df_rg["uf"]     = df_rg["estado"].apply(lambda e: _ESTADO_UF.get(e) if e else None)
 
             _identificados = df_rg[df_rg["regiao"] != "Não identificado"]
             _nao_id        = int((df_rg["regiao"] == "Não identificado").sum())
@@ -801,6 +829,48 @@ def render_kpis(df_todos: pd.DataFrame):
                     )
 
                 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+                _geo = _fetch_br_states_geojson()
+                if _geo:
+                    _grp_uf = (
+                        _identificados[_identificados["uf"].notna()]
+                        .groupby(["estado", "uf"])
+                        .agg(qtd=("id", "count"))
+                        .reset_index()
+                    )
+                    if not _grp_uf.empty:
+                        _label_mapa = "leads" if reg_metrica == "Captações" else "vendas"
+                        fig_mapa = go.Figure(go.Choropleth(
+                            geojson=_geo,
+                            locations=_grp_uf["uf"].tolist(),
+                            z=_grp_uf["qtd"].tolist(),
+                            featureidkey="id",
+                            colorscale=[[0, "#0d2137"], [0.5, "#1e4d8c"], [1, "#4f8ef7"]],
+                            text=_grp_uf.apply(
+                                lambda r: f"{r['estado']} ({r['uf']})", axis=1
+                            ).tolist(),
+                            hovertemplate="<b>%{text}</b><br>%{z} " + _label_mapa + "<extra></extra>",
+                            marker_line_color="#0a1628",
+                            marker_line_width=0.8,
+                            colorbar=dict(
+                                title=dict(text=_label_mapa.capitalize(), font=dict(color="#7a9cc7", size=11)),
+                                tickfont=dict(color="#7a9cc7", size=10),
+                                bgcolor="rgba(0,0,0,0)",
+                                len=0.6,
+                            ),
+                        ))
+                        fig_mapa.update_geos(
+                            fitbounds="locations",
+                            visible=False,
+                            bgcolor="rgba(0,0,0,0)",
+                        )
+                        fig_mapa.update_layout(
+                            height=420,
+                            margin=dict(t=0, b=0, l=0, r=0),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            geo=dict(bgcolor="rgba(0,0,0,0)"),
+                        )
+                        st.plotly_chart(fig_mapa, use_container_width=True, key="kpis_mapa_regiao")
 
                 for _, _rrow in _grp_reg.iterrows():
                     _reg     = _rrow["regiao"]
