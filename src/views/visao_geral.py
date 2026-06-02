@@ -16,6 +16,8 @@ from src.views.fragments import render_hoje_rt
 def render_visao_geral(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
 
+    _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
 
     _default_de  = date.today() - timedelta(days=30)
@@ -23,15 +25,22 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     selecionados  = [o for o in st.session_state.get("_fv_origem", origens_disp) if o in origens_disp] or origens_disp
     filtro_status = st.session_state.get("_fv_status",  "Todos")
+    filtro_grupo  = st.session_state.get("_fv_grupo",   "Todos")
     data_de       = st.session_state.get("_fv_de",      _default_de)
     data_ate      = st.session_state.get("_fv_ate",     _default_ate)
 
     with st.expander("🔎 Filtros da Aba", expanded=False):
         with st.form("filtros_visao", border=False):
+            _grupo_idx = ["Todos", "SDR", "Orgânico"].index(filtro_grupo) if filtro_grupo in ["Todos", "SDR", "Orgânico"] else 0
+            _w_grupo = st.radio(
+                "👥 Grupo de Origem", options=["Todos", "SDR", "Orgânico"],
+                index=_grupo_idx, horizontal=True, key="visao_grupo",
+            )
+            st.markdown("<div style='margin-bottom:4px'></div>", unsafe_allow_html=True)
             col_op, col_st, col_de, col_ate, col_btn_f = st.columns([3, 2, 1.5, 1.5, 1])
             with col_op:
                 _w_orig = st.multiselect(
-                    "👤 Origem", options=origens_disp, default=selecionados, key="visao_origem"
+                    "👤 Origem individual", options=origens_disp, default=selecionados, key="visao_origem"
                 )
             with col_st:
                 _status_opts = ["Todos"] + list(dict.fromkeys(STATUS_MAP.values()))
@@ -54,10 +63,12 @@ def render_visao_geral(df_todos: pd.DataFrame):
             if submitted:
                 selecionados  = _w_orig
                 filtro_status = _w_status
+                filtro_grupo  = _w_grupo
                 data_de       = _w_de
                 data_ate      = _w_ate
                 st.session_state["_fv_origem"] = selecionados
                 st.session_state["_fv_status"] = filtro_status
+                st.session_state["_fv_grupo"]  = filtro_grupo
                 st.session_state["_fv_de"]     = data_de
                 st.session_state["_fv_ate"]    = data_ate
         st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
@@ -71,7 +82,11 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     df = df_todos.copy()
     df = df[df["data_obj"].apply(lambda d: d is not None and data_de <= d <= data_ate)]
-    if selecionados:
+    if filtro_grupo == "SDR":
+        df = df[df["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES_VG)]
+    elif filtro_grupo == "Orgânico":
+        df = df[df["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES_VG)]
+    elif selecionados:
         df = df[df["origem"].isin(selecionados)]
     if filtro_status != "Todos":
         df = df[df["status"] == filtro_status]
@@ -87,26 +102,11 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     render_hoje_rt()
 
-    _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
-
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    _pip_h, _pip_r = st.columns([4, 2])
-    with _pip_h:
-        st.markdown("#### 📊 Pipeline · SDR")
-        st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
-    with _pip_r:
-        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
-        _pip_tipo = st.radio(
-            "Tipo", options=["SDR", "Orgânico"],
-            horizontal=True, key="visao_pip_tipo",
-            label_visibility="collapsed",
-        )
+    st.markdown("#### 📊 Pipeline · SDR")
+    st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
 
     df_sdr = df.copy()
-    if _pip_tipo == "SDR":
-        df_sdr = df_sdr[df_sdr["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES_VG)]
-    else:
-        df_sdr = df_sdr[df_sdr["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES_VG)]
 
     _ops_sdr = sorted(df_sdr["origem"].dropna().unique().tolist())
 
