@@ -16,7 +16,7 @@ from src.views.fragments import render_hoje_rt
 def render_visao_geral(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
 
-    _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+    _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora", "gabrieli"}
 
     origens_disp = sorted(df_todos["origem"].dropna().unique().tolist())
 

@@ -19,6 +19,7 @@ ORIGEM_MAP = {
     "emily":      "O2 Solution",
     "rodolfo":    "O2 Solution",
     "discadora":  "O2 Solution",
+    "gabrieli":   "O2 Solution",
 }
 
 STATUS_MAP = {
