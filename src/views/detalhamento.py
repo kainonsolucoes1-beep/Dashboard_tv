@@ -115,13 +115,13 @@ def render_detalhamento(df_todos: pd.DataFrame):
     for col_k, (lbl, val, cor, sub) in zip(st.columns(4), kpi_items):
         with col_k:
             st.markdown(f"""
-            <div style="background:#0e1f38;border-radius:10px;padding:16px 18px;
-                        border-top:3px solid {cor};margin-bottom:4px;">
-                <div style="color:#7a9cc7;font-size:11px;font-weight:600;
-                            text-transform:uppercase;letter-spacing:.6px;">{lbl}</div>
-                <div style="font-size:30px;font-weight:700;color:{cor};
+            <div style="background:#0e1f38;border-radius:12px;padding:24px 26px;
+                        border-top:4px solid {cor};margin-bottom:6px;">
+                <div style="color:#7a9cc7;font-size:13px;font-weight:600;
+                            text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">{lbl}</div>
+                <div style="font-size:42px;font-weight:700;color:{cor};
                             line-height:1.1;margin:4px 0;">{val}</div>
-                <div style="color:#7a9cc7;font-size:12px;">{sub}</div>
+                <div style="color:#7a9cc7;font-size:14px;margin-top:6px;">{sub}</div>
             </div>
             """, unsafe_allow_html=True)
 
