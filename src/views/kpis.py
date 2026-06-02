@@ -639,3 +639,108 @@ def render_kpis(df_todos: pd.DataFrame):
                 "label": "Semana", "leads": "Leads", "vendas": "Vendas", "taxa": "Conversão (%)",
             })
             st.dataframe(_grp_ev_disp, use_container_width=True, hide_index=True)
+
+    with st.expander("🗺️ Origem do Lead", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Distribuição de todos os leads por operador/origem — volume e eficiência"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _or1, _or2, _or3 = st.columns([2, 2, 2])
+        with _or1:
+            orig_de = st.date_input("📅 De",  value=date.today().replace(day=1),
+                                    format="DD/MM/YYYY", key="kpi_orig_de")
+        with _or2:
+            orig_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_orig_ate")
+        with _or3:
+            orig_tipo = st.radio("Tipo", options=["Todos", "SDR", "Orgânico"],
+                                 horizontal=True, key="kpi_orig_tipo")
+
+        df_or = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and orig_de <= d <= orig_ate)
+        ].copy()
+        if orig_tipo == "SDR":
+            df_or = df_or[df_or["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        elif orig_tipo == "Orgânico":
+            df_or = df_or[df_or["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
+
+        if df_or.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            _grp_or = (
+                df_or.groupby("origem")
+                .agg(
+                    leads =("id",     "count"),
+                    vendas=("status", lambda x: (x == "Venda Realizada").sum()),
+                )
+                .reset_index()
+            )
+            _grp_or["taxa"] = (_grp_or["vendas"] / _grp_or["leads"] * 100).round(2)
+            _grp_or["pct_leads"] = (_grp_or["leads"] / _grp_or["leads"].sum() * 100).round(1)
+            _grp_or = _grp_or.sort_values("leads", ascending=False).reset_index(drop=True)
+
+            _total_or   = int(_grp_or["leads"].sum())
+            _lider_or   = _grp_or.iloc[0]["origem"]
+            _maior_conv = _grp_or.loc[_grp_or["taxa"].idxmax(), "origem"]
+            _menor_conv = _grp_or.loc[_grp_or["taxa"].idxmin(), "origem"]
+
+            _m1, _m2, _m3, _m4 = st.columns(4)
+            with _m1:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                    f"<div style='font-size:26px;font-weight:700;color:#4f8ef7;'>{_total_or}</div>"
+                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Total de Leads</div>"
+                    f"</div>", unsafe_allow_html=True,
+                )
+            with _m2:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                    f"<div style='font-size:16px;font-weight:700;color:#f59e0b;'>{_lider_or}</div>"
+                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Maior Volume</div>"
+                    f"</div>", unsafe_allow_html=True,
+                )
+            with _m3:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                    f"<div style='font-size:16px;font-weight:700;color:#22c55e;'>{_maior_conv}</div>"
+                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Maior Conversão</div>"
+                    f"</div>", unsafe_allow_html=True,
+                )
+            with _m4:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
+                    f"<div style='font-size:16px;font-weight:700;color:#ef4444;'>{_menor_conv}</div>"
+                    f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;'>Menor Conversão</div>"
+                    f"</div>", unsafe_allow_html=True,
+                )
+
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+            _max_leads = int(_grp_or["leads"].max()) or 1
+            for _oi, _or_row in _grp_or.iterrows():
+                _cor_or  = CORES_ORIGEM[_oi % len(CORES_ORIGEM)]
+                _bar_vol = int(_or_row["leads"] / _max_leads * 100)
+                _taxa_or = _or_row["taxa"]
+                _cor_tx  = (
+                    "#22c55e" if _taxa_or >= 20 else
+                    "#f59e0b" if _taxa_or >= 10 else
+                    "#ef4444"
+                )
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                  <div style="min-width:130px;font-size:13px;font-weight:600;color:{_cor_or};
+                              text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {_or_row['origem']}</div>
+                  <div style="flex:1;background:#152a4a;border-radius:99px;height:12px;">
+                    <div style="background:{_cor_or};border-radius:99px;height:12px;width:{_bar_vol}%;"></div>
+                  </div>
+                  <div style="min-width:50px;font-size:16px;font-weight:700;color:{_cor_or};">
+                    {int(_or_row['leads'])}</div>
+                  <div style="min-width:55px;font-size:12px;color:#7a9cc7;">{_or_row['pct_leads']}%</div>
+                  <div style="min-width:80px;font-size:13px;font-weight:700;color:{_cor_tx};text-align:right;">
+                    {_taxa_or}% conv.</div>
+                </div>
+                """, unsafe_allow_html=True)
