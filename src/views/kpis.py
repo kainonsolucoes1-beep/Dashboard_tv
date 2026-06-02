@@ -10,7 +10,7 @@ from src.charts.horarios import grafico_horarios_pico
 from src.utils.formatters import fmt_brl
 from src.ui.modals import modal_leads_status
 
-_SDR_ORIGENS = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+_SDR_ORIGENS = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora"}
 
 CORES_ORIGEM = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316", "#06b6d4", "#e879f9"]
 

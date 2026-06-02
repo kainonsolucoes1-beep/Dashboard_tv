@@ -85,8 +85,12 @@ INTERVALO_SEGUNDOS = 300  # 5 minutos
 
 # ── Mapeamentos (mesmos do dashboard) ─────────────────────────────────────────
 ORIGEM_MAP = {
-    "Livia": "O2 Solution",
-    "Anny":  "O2 Solution",
+    "Livia":      "O2 Solution",
+    "Anny":       "O2 Solution",
+    "kauany":     "O2 Solution",
+    "emily":      "O2 Solution",
+    "rodolfo":    "O2 Solution",
+    "discadora":  "O2 Solution",
 }
 
 STATUS_MAP = {
