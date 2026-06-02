@@ -639,7 +639,10 @@ def render_kpis(df_todos: pd.DataFrame):
 
             _cor_hoje = "#22c55e" if _qtd_hoje >= _media7 else "#f59e0b" if _qtd_hoje > 0 else "#ef4444"
 
-            _tm1, _tm2, _tm3 = st.columns(3)
+            _df_pendente = df_todos[df_todos["status"] == "Pendente"]
+            _qtd_pend    = len(_df_pendente)
+
+            _tm1, _tm2, _tm3, _tm4 = st.columns(4)
             with _tm1:
                 st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
@@ -649,6 +652,9 @@ def render_kpis(df_todos: pd.DataFrame):
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+                _df_hoje_trat = df_trat[df_trat["atualizado_obj"] == _hoje]
+                if st.button("Ver leads", key="trat_btn_hoje", use_container_width=True):
+                    modal_leads_status(_df_hoje_trat, "Tratados Hoje", _cor_hoje)
             with _tm2:
                 st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
@@ -658,6 +664,9 @@ def render_kpis(df_todos: pd.DataFrame):
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+                _df_ontem_trat = df_trat[df_trat["atualizado_obj"] == _ontem]
+                if st.button("Ver leads", key="trat_btn_ontem", use_container_width=True):
+                    modal_leads_status(_df_ontem_trat, "Tratados Ontem", "#4f8ef7")
             with _tm3:
                 st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
@@ -667,6 +676,17 @@ def render_kpis(df_todos: pd.DataFrame):
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+            with _tm4:
+                st.markdown(
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;border-left:4px solid #ef4444;'>"
+                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Faltam tratar</div>"
+                    f"<div style='font-size:36px;font-weight:700;color:#ef4444;line-height:1.1;'>{_qtd_pend}</div>"
+                    f"<div style='font-size:12px;color:#7a9cc7;'>em Pendente agora</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Ver leads", key="trat_btn_pend", use_container_width=True):
+                    modal_leads_status(_df_pendente, "Faltam Tratar", "#ef4444")
 
             _fig_trat = go.Figure()
             _fig_trat.add_trace(go.Bar(
