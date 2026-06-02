@@ -584,9 +584,9 @@ def render_kpis(df_todos: pd.DataFrame):
                 )
 
             st.markdown(
-                f"<div style='margin-top:14px;'>"
+                f"<div style='margin-top:20px;margin-bottom:8px;'>"
                 f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;"
-                f"font-weight:600;margin-bottom:6px;'>Distribuição do volume</div>"
+                f"font-weight:600;margin-bottom:8px;'>Distribuição do volume</div>"
                 f"<div style='display:flex;border-radius:99px;overflow:hidden;height:22px;'>"
                 f"<div style='background:#4f8ef7;width:{_pct_sdr}%;display:flex;align-items:center;"
                 f"justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;"
