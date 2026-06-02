@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import date
 
 from src.data.api import fetch_leads_30dias, fetch_leads_criticos
@@ -211,3 +212,159 @@ def render_kpis(df_todos: pd.DataFrame):
         with tab_demais:
             df_demais = df_vnd[df_vnd["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
             _cards_vendas_por_origem(df_demais, demais_presentes, tab_prefix="demais")
+
+    with st.expander("🔻 Funil de Conversão", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Distribuição dos leads por etapa do processo comercial no período selecionado"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        _fn1, _fn2, _ = st.columns([2, 2, 4])
+        with _fn1:
+            funil_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                     format="DD/MM/YYYY", key="kpi_funil_de")
+        with _fn2:
+            funil_ate = st.date_input("📅 Até", value=date.today(),
+                                      format="DD/MM/YYYY", key="kpi_funil_ate")
+
+        df_fn = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and funil_de <= d <= funil_ate)
+        ].copy()
+
+        if df_fn.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            _ETAPAS = [
+                ("Total Captados",    None,                  "#4f8ef7"),
+                ("Agendado",          "Agendado",            "#8b5cf6"),
+                ("Proposta Enviada",  "Proposta Enviada",    "#f59e0b"),
+                ("Venda Realizada",   "Venda Realizada",     "#22c55e"),
+            ]
+            _perdidos = int((df_fn["status"] == "Venda não Realizada").sum())
+
+            _labels, _values, _colors = [], [], []
+            for _lbl, _st, _cor in _ETAPAS:
+                _n = len(df_fn) if _st is None else int((df_fn["status"] == _st).sum())
+                _labels.append(_lbl)
+                _values.append(_n)
+                _colors.append(_cor)
+
+            fig_fn = go.Figure(go.Funnel(
+                y=_labels,
+                x=_values,
+                textinfo="value+percent initial",
+                textfont=dict(color="#e8eef8", size=14),
+                marker=dict(color=_colors, line=dict(width=1, color="#0a1628")),
+                connector=dict(line=dict(color="#152a4a", width=2)),
+            ))
+            fig_fn.update_layout(
+                height=320,
+                margin=dict(t=20, b=20, l=10, r=10),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e8eef8"),
+            )
+            st.plotly_chart(fig_fn, use_container_width=True, key="kpi_funil_chart")
+
+            _fc1, _fc2, _fc3, _fc4 = st.columns(4)
+            _tx_ag  = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_prop = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_vnd  = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
+            with _fc1:
+                st.metric("Leads Captados", _values[0])
+            with _fc2:
+                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
+            with _fc3:
+                st.metric("Taxa de Proposta", f"{_tx_prop}%")
+            with _fc4:
+                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
+
+            if _perdidos:
+                st.markdown(
+                    f"<div style='margin-top:10px;font-size:13px;color:#ef4444;'>"
+                    f"⚠️ {_perdidos} lead(s) marcado(s) como <b>Venda não Realizada</b> no período."
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+    with st.expander("📊 Taxa de Conversão por Operador", expanded=False):
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
+            "Eficiência individual — leads captados vs vendas realizadas por operador"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        _op1, _op2, _ = st.columns([2, 2, 4])
+        with _op1:
+            conv_de = st.date_input("📅 De", value=date.today().replace(day=1),
+                                    format="DD/MM/YYYY", key="kpi_conv_de")
+        with _op2:
+            conv_ate = st.date_input("📅 Até", value=date.today(),
+                                     format="DD/MM/YYYY", key="kpi_conv_ate")
+
+        df_cv = df_todos[
+            df_todos["data_obj"].apply(lambda d: d is not None and conv_de <= d <= conv_ate)
+        ].copy()
+
+        if df_cv.empty:
+            st.info("Nenhum lead no período selecionado.")
+        else:
+            _ops_cv = (
+                df_cv.groupby("origem")
+                .agg(
+                    leads   =("id",            "count"),
+                    vendas  =("status",        lambda x: (x == "Venda Realizada").sum()),
+                    valor   =("valor_proposta", "sum"),
+                )
+                .reset_index()
+            )
+            _ops_cv["taxa"]   = (_ops_cv["vendas"] / _ops_cv["leads"] * 100).round(1)
+            _ops_cv["ticket"] = _ops_cv.apply(
+                lambda r: r["valor"] / r["vendas"] if r["vendas"] > 0 else 0, axis=1
+            )
+            _ops_cv = _ops_cv.sort_values("taxa", ascending=False).reset_index(drop=True)
+
+            _max_taxa = float(_ops_cv["taxa"].max()) or 1.0
+
+            for _oi, _orow in _ops_cv.iterrows():
+                _cor_op = CORES_ORIGEM[_oi % len(CORES_ORIGEM)]
+                _bar_w  = int(_orow["taxa"] / _max_taxa * 100)
+                _taxa_cor = (
+                    "#22c55e" if _orow["taxa"] >= 20 else
+                    "#f59e0b" if _orow["taxa"] >= 10 else
+                    "#ef4444"
+                )
+                st.markdown(f"""
+                <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {_cor_op};
+                            border-radius:10px;padding:14px 18px;margin-bottom:10px;">
+                  <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                    <div style="min-width:140px;flex:2;">
+                      <div style="font-size:15px;font-weight:700;color:{_cor_op};">{_orow['origem']}</div>
+                    </div>
+                    <div style="flex:1;min-width:80px;text-align:center;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Leads</div>
+                      <div style="font-size:22px;font-weight:700;color:#e8eef8;">{int(_orow['leads'])}</div>
+                    </div>
+                    <div style="flex:1;min-width:80px;text-align:center;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Vendas</div>
+                      <div style="font-size:22px;font-weight:700;color:#22c55e;">{int(_orow['vendas'])}</div>
+                    </div>
+                    <div style="flex:1;min-width:100px;text-align:center;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Conversão</div>
+                      <div style="font-size:26px;font-weight:700;color:{_taxa_cor};">{_orow['taxa']}%</div>
+                      <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;">
+                        <div style="background:{_taxa_cor};border-radius:99px;height:5px;width:{_bar_w}%;"></div>
+                      </div>
+                    </div>
+                    <div style="flex:1;min-width:100px;text-align:center;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor Total</div>
+                      <div style="font-size:16px;font-weight:700;color:#f59e0b;">{fmt_brl(_orow['valor'])}</div>
+                    </div>
+                    <div style="flex:1;min-width:100px;text-align:center;">
+                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Ticket Médio</div>
+                      <div style="font-size:16px;font-weight:700;color:#4f8ef7;">{fmt_brl(_orow['ticket'])}</div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
