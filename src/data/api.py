@@ -13,8 +13,8 @@ from src.data.cache import (
 from src.utils.time import horas_uteis
 
 ORIGEM_MAP = {
-    "Livia":      "O2 Solution",
-    "Anny":       "O2 Solution",
+    "livia":      "O2 Solution",
+    "anny":       "O2 Solution",
     "kauany":     "O2 Solution",
     "emily":      "O2 Solution",
     "rodolfo":    "O2 Solution",
@@ -90,7 +90,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
         status_raw     = lead.get("status", "")
         status_pt      = STATUS_MAP.get(status_raw, status_raw)
         origem_raw     = (lead.get("tracking") or {}).get("source", "") or "Sem origem"
-        origem         = ORIGEM_MAP.get(origem_raw, origem_raw)
+        origem         = ORIGEM_MAP.get(origem_raw.lower(), origem_raw)
         equipe         = ((lead.get("contact") or {}).get("team") or {}).get("name", "")
         interesse      = ((lead.get("interests") or {}).get("interest_1") or {}).get("name", "")
         criado_em      = lead.get("created_at", "")
