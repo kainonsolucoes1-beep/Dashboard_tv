@@ -32,7 +32,7 @@ PERCEPTION_MAP = {
     "cold": "🧊 Frio",
 }
 
-DIAS_CRITICOS = 4
+DIAS_CRITICOS = 10
 
 
 def _fetch_leads_from_api(days: int, date_of: str = "creation"):
