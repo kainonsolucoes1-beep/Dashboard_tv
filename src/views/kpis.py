@@ -343,36 +343,60 @@ def render_kpis(df_todos: pd.DataFrame):
                     "#f59e0b" if _orow["taxa"] >= 10 else
                     "#ef4444"
                 )
-                st.markdown(f"""
-                <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {_cor_op};
-                            border-radius:10px;padding:14px 18px;margin-bottom:10px;">
-                  <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-                    <div style="min-width:140px;flex:2;">
-                      <div style="font-size:15px;font-weight:700;color:{_cor_op};">{_orow['origem']}</div>
-                    </div>
-                    <div style="flex:1;min-width:80px;text-align:center;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Leads</div>
-                      <div style="font-size:22px;font-weight:700;color:#e8eef8;">{int(_orow['leads'])}</div>
-                    </div>
-                    <div style="flex:1;min-width:80px;text-align:center;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Vendas</div>
-                      <div style="font-size:22px;font-weight:700;color:#22c55e;">{int(_orow['vendas'])}</div>
-                    </div>
-                    <div style="flex:1;min-width:100px;text-align:center;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Conversão</div>
-                      <div style="font-size:26px;font-weight:700;color:{_taxa_cor};">{_orow['taxa']}%</div>
-                      <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;">
-                        <div style="background:{_taxa_cor};border-radius:99px;height:5px;width:{_bar_w}%;"></div>
+                _exp_op = (
+                    f"👤 {_orow['origem']}  ·  "
+                    f"{int(_orow['leads'])} leads  ·  "
+                    f"{int(_orow['vendas'])} vendas  ·  "
+                    f"{_orow['taxa']}% conversão"
+                )
+                with st.expander(_exp_op, expanded=False):
+                    st.markdown(f"""
+                    <div style="background:#0a1628;border:1px solid #152a4a;border-left:4px solid {_cor_op};
+                                border-radius:10px;padding:14px 18px;margin-bottom:12px;">
+                      <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:80px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Leads</div>
+                          <div style="font-size:22px;font-weight:700;color:#e8eef8;">{int(_orow['leads'])}</div>
+                        </div>
+                        <div style="flex:1;min-width:80px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Vendas</div>
+                          <div style="font-size:22px;font-weight:700;color:#22c55e;">{int(_orow['vendas'])}</div>
+                        </div>
+                        <div style="flex:1;min-width:100px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Conversão</div>
+                          <div style="font-size:26px;font-weight:700;color:{_taxa_cor};">{_orow['taxa']}%</div>
+                          <div style="margin-top:4px;background:#152a4a;border-radius:99px;height:5px;">
+                            <div style="background:{_taxa_cor};border-radius:99px;height:5px;width:{_bar_w}%;"></div>
+                          </div>
+                        </div>
+                        <div style="flex:1;min-width:100px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor Total</div>
+                          <div style="font-size:16px;font-weight:700;color:#f59e0b;">{fmt_brl(_orow['valor'])}</div>
+                        </div>
+                        <div style="flex:1;min-width:100px;text-align:center;">
+                          <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Ticket Médio</div>
+                          <div style="font-size:16px;font-weight:700;color:#4f8ef7;">{fmt_brl(_orow['ticket'])}</div>
+                        </div>
                       </div>
                     </div>
-                    <div style="flex:1;min-width:100px;text-align:center;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Valor Total</div>
-                      <div style="font-size:16px;font-weight:700;color:#f59e0b;">{fmt_brl(_orow['valor'])}</div>
-                    </div>
-                    <div style="flex:1;min-width:100px;text-align:center;">
-                      <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;font-weight:600;">Ticket Médio</div>
-                      <div style="font-size:16px;font-weight:700;color:#4f8ef7;">{fmt_brl(_orow['ticket'])}</div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+
+                    _df_op_leads = df_cv[df_cv["origem"] == _orow["origem"]].copy()
+                    _df_op_leads = _df_op_leads.sort_values("data_obj", ascending=False).reset_index(drop=True)
+
+                    st.markdown("##### 📋 Leads do período")
+                    _COLS_OP = {
+                        "criado_em":      "Data",
+                        "nome":           "Cliente",
+                        "status":         "Status",
+                        "atendente":      "Atendente",
+                        "valor_proposta": "Valor (R$)",
+                        "perception":     "Temperatura",
+                    }
+                    _df_op_disp = _df_op_leads[[c for c in _COLS_OP if c in _df_op_leads.columns]].copy()
+                    _df_op_disp["valor_proposta"] = _df_op_leads["valor_proposta"].apply(
+                        lambda v: fmt_brl(v) if v > 0 else "—"
+                    )
+                    _df_op_disp = _df_op_disp.rename(columns=_COLS_OP)
+                    _alt = min(500, 40 + len(_df_op_disp) * 35)
+                    st.dataframe(_df_op_disp, use_container_width=True, hide_index=True, height=_alt)
