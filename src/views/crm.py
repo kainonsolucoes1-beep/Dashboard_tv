@@ -196,11 +196,24 @@ def render_crm():
 
         _default_vr_de  = date.today().replace(day=1)
         _default_vr_ate = date.today()
-        _vc1, _vc2, _ = st.columns([2, 2, 4])
-        with _vc1:
-            vr_de = st.date_input("📅 De", value=st.session_state.get("crm_vr_de", _default_vr_de), format="DD/MM/YYYY", key="crm_vr_de")
-        with _vc2:
-            vr_ate = st.date_input("📅 Até", value=st.session_state.get("crm_vr_ate", _default_vr_ate), format="DD/MM/YYYY", key="crm_vr_ate")
+        _vr_de_val  = st.session_state.get("crm_vr_de",  _default_vr_de)
+        _vr_ate_val = st.session_state.get("crm_vr_ate", _default_vr_ate)
+        _exp_lbl = f"🔎 Filtros · {_vr_de_val.strftime('%d/%m')} – {_vr_ate_val.strftime('%d/%m')}"
+
+        with st.expander(_exp_lbl, expanded=False):
+            _vc1, _vc2, _vc3 = st.columns([2, 2, 1])
+            with _vc1:
+                vr_de = st.date_input("📅 De", value=_vr_de_val, format="DD/MM/YYYY", key="crm_vr_de")
+            with _vc2:
+                vr_ate = st.date_input("📅 Até", value=_vr_ate_val, format="DD/MM/YYYY", key="crm_vr_ate")
+            with _vc3:
+                st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+                if st.button("🔄 Atualizar", key="crm_ranking_refresh", use_container_width=True):
+                    fetch_leads_80dias.clear()
+                    st.rerun(scope="fragment")
+
+        vr_de  = st.session_state.get("crm_vr_de",  _default_vr_de)
+        vr_ate = st.session_state.get("crm_vr_ate", _default_vr_ate)
 
         df_vr = df_vnd_all[
             df_vnd_all["atualizado_obj"].apply(lambda d: d is not None and vr_de <= d <= vr_ate)
