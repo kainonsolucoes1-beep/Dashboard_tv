@@ -663,11 +663,17 @@ def render_kpis(df_todos: pd.DataFrame):
             _qtd_pend    = len(_df_pendente)
 
             _tm1, _tm2, _tm3, _tm4 = st.columns(4)
+            _bg_hoje = (
+                "rgba(34,197,94,0.07)"  if _cor_hoje == "#22c55e" else
+                "rgba(245,158,11,0.07)" if _cor_hoje == "#f59e0b" else
+                "rgba(239,68,68,0.07)"
+            )
             with _tm1:
                 st.markdown(
-                    f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;"
+                    f"border-left:4px solid {_cor_hoje};background:{_bg_hoje};'>"
                     f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Hoje</div>"
-                    f"<div style='font-size:36px;font-weight:700;color:{_cor_hoje};line-height:1.1;'>{_qtd_hoje}</div>"
+                    f"<div style='font-size:40px;font-weight:700;color:{_cor_hoje};line-height:1.1;'>{_qtd_hoje}</div>"
                     f"<div style='font-size:12px;color:#7a9cc7;'>leads tratados</div>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -679,7 +685,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
                     f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Ontem</div>"
-                    f"<div style='font-size:36px;font-weight:700;color:#4f8ef7;line-height:1.1;'>{_qtd_ontem}</div>"
+                    f"<div style='font-size:34px;font-weight:700;color:#4f8ef7;line-height:1.1;'>{_qtd_ontem}</div>"
                     f"<div style='font-size:12px;color:#7a9cc7;'>leads tratados</div>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -689,9 +695,10 @@ def render_kpis(df_todos: pd.DataFrame):
                     modal_leads_status(_df_ontem_trat, "Tratados Ontem", "#4f8ef7")
             with _tm3:
                 st.markdown(
-                    f"<div class='card-status' style='text-align:center;padding:16px 8px;border-left:4px solid #ef4444;'>"
+                    f"<div class='card-status' style='text-align:center;padding:16px 8px;"
+                    f"border-left:4px solid #ef4444;background:rgba(239,68,68,0.08);'>"
                     f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Faltam tratar</div>"
-                    f"<div style='font-size:36px;font-weight:700;color:#ef4444;line-height:1.1;'>{_qtd_pend}</div>"
+                    f"<div style='font-size:40px;font-weight:700;color:#ef4444;line-height:1.1;'>{_qtd_pend}</div>"
                     f"<div style='font-size:12px;color:#7a9cc7;'>em Pendente agora</div>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -702,7 +709,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 st.markdown(
                     f"<div class='card-status' style='text-align:center;padding:16px 8px;'>"
                     f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.6px;'>Média 7 dias</div>"
-                    f"<div style='font-size:36px;font-weight:700;color:#8b5cf6;line-height:1.1;'>{_media7}</div>"
+                    f"<div style='font-size:34px;font-weight:700;color:#94a3b8;line-height:1.1;'>{_media7}</div>"
                     f"<div style='font-size:12px;color:#7a9cc7;'>por dia</div>"
                     f"</div>",
                     unsafe_allow_html=True,
