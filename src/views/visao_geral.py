@@ -87,11 +87,26 @@ def render_visao_geral(df_todos: pd.DataFrame):
 
     render_hoje_rt()
 
+    _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "maria eduarda", "clara", "kauany"}
+
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
-    st.markdown("#### 📊 Pipeline · SDR")
-    st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
+    _pip_h, _pip_r = st.columns([4, 2])
+    with _pip_h:
+        st.markdown("#### 📊 Pipeline · SDR")
+        st.markdown("<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>Leads contados pela <strong>data de criação</strong> no período selecionado</div>", unsafe_allow_html=True)
+    with _pip_r:
+        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
+        _pip_tipo = st.radio(
+            "Tipo", options=["SDR", "Orgânico"],
+            horizontal=True, key="visao_pip_tipo",
+            label_visibility="collapsed",
+        )
 
     df_sdr = df.copy()
+    if _pip_tipo == "SDR":
+        df_sdr = df_sdr[df_sdr["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES_VG)]
+    else:
+        df_sdr = df_sdr[df_sdr["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES_VG)]
 
     _ops_sdr = sorted(df_sdr["origem"].dropna().unique().tolist())
 
