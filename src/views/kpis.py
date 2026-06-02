@@ -303,17 +303,26 @@ def render_kpis(df_todos: pd.DataFrame):
             "</div>",
             unsafe_allow_html=True,
         )
-        _op1, _op2, _ = st.columns([2, 2, 4])
+        _op1, _op2, _op3 = st.columns([2, 2, 2])
         with _op1:
             conv_de = st.date_input("📅 De", value=date.today().replace(day=1),
                                     format="DD/MM/YYYY", key="kpi_conv_de")
         with _op2:
             conv_ate = st.date_input("📅 Até", value=date.today(),
                                      format="DD/MM/YYYY", key="kpi_conv_ate")
+        with _op3:
+            conv_tipo = st.radio(
+                "Tipo", options=["SDR", "Orgânico"],
+                horizontal=True, key="kpi_conv_tipo",
+            )
 
         df_cv = df_todos[
             df_todos["data_obj"].apply(lambda d: d is not None and conv_de <= d <= conv_ate)
         ].copy()
+        if conv_tipo == "SDR":
+            df_cv = df_cv[df_cv["origem"].apply(lambda o: str(o).lower() in _SDR_ORIGENS)]
+        else:
+            df_cv = df_cv[df_cv["origem"].apply(lambda o: str(o).lower() not in _SDR_ORIGENS)]
 
         if df_cv.empty:
             st.info("Nenhum lead no período selecionado.")
