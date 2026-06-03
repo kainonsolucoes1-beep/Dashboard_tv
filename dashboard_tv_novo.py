@@ -146,26 +146,33 @@ st.markdown("---")
 
 # ── Loading ────────────────────────────────────────────────────────────────────
 loading_ph = st.empty()
-loading_ph.markdown(
-    '<div class="loading-box">⏳ Carregando leads, aguarde...</div>',
-    unsafe_allow_html=True
-)
-df_todos, erro = merge_leads_curto()
-loading_ph.empty()
+_stale = st.session_state.get("_df_curto_stale", True)
 
-if erro:
-    st.error(erro)
-    st.stop()
+if "df_curto" not in st.session_state or _stale:
+    loading_ph.markdown(
+        '<div class="loading-box">⏳ Carregando leads, aguarde...</div>',
+        unsafe_allow_html=True
+    )
+    df_todos, erro = merge_leads_curto()
+    loading_ph.empty()
 
-if df_todos.empty:
-    st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
-    st.stop()
+    if erro:
+        st.error(erro)
+        st.stop()
 
-if not _is_admin and _auth_user in _USER_ORIGEM:
-    _orig = _USER_ORIGEM[_auth_user]
-    df_todos = df_todos[df_todos["origem"].str.strip() == _orig]
+    if df_todos.empty:
+        st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
+        st.stop()
 
-st.session_state["df_curto"] = df_todos
+    if not _is_admin and _auth_user in _USER_ORIGEM:
+        _orig = _USER_ORIGEM[_auth_user]
+        df_todos = df_todos[df_todos["origem"].str.strip() == _orig]
+
+    st.session_state["df_curto"] = df_todos
+    st.session_state["_df_curto_stale"] = False
+else:
+    loading_ph.empty()
+    df_todos = st.session_state["df_curto"]
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
