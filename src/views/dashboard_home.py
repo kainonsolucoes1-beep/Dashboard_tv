@@ -144,33 +144,31 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _pos = _medals[i] if i < 3 else f"#{i + 1}"
         _conv = row["conversao"]
         _conv_cor = "#22c55e" if _conv >= 30 else ("#f59e0b" if _conv >= 15 else "#ef4444")
-        _rows += f"""
-        <tr style="border-bottom:1px solid #152a4a;">
-            <td style="padding:14px 16px;font-size:22px;text-align:center;">{_pos}</td>
-            <td style="padding:14px 16px;color:#e8eef8;font-weight:600;font-size:15px;">👤 {row['origem']}</td>
-            <td style="padding:14px 16px;color:#4f8ef7;font-weight:700;font-size:22px;text-align:center;">{row['leads']}</td>
-            <td style="padding:14px 16px;color:#22c55e;font-weight:700;font-size:18px;text-align:center;">{int(row['vendas'])}</td>
-            <td style="padding:14px 16px;color:{_conv_cor};font-weight:700;font-size:15px;text-align:center;">{_conv}%</td>
-            <td style="padding:14px 16px;color:#f59e0b;font-weight:600;font-size:14px;text-align:right;">{fmt_brl(row['valor'])}</td>
-        </tr>
-        """
+        _rows += (
+            '<tr style="border-bottom:1px solid #152a4a;">'
+            f'<td style="padding:14px 16px;font-size:22px;text-align:center;">{_pos}</td>'
+            f'<td style="padding:14px 16px;color:#e8eef8;font-weight:600;font-size:15px;">&#128100; {row["origem"]}</td>'
+            f'<td style="padding:14px 16px;color:#4f8ef7;font-weight:700;font-size:22px;text-align:center;">{row["leads"]}</td>'
+            f'<td style="padding:14px 16px;color:#22c55e;font-weight:700;font-size:18px;text-align:center;">{int(row["vendas"])}</td>'
+            f'<td style="padding:14px 16px;color:{_conv_cor};font-weight:700;font-size:15px;text-align:center;">{_conv}%</td>'
+            f'<td style="padding:14px 16px;color:#f59e0b;font-weight:600;font-size:14px;text-align:right;">{fmt_brl(row["valor"])}</td>'
+            "</tr>"
+        )
 
-    st.markdown(f"""
-    <div class="card-status" style="padding:0;overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;">
-            <thead>
-                <tr style="background:#0d1f38;border-bottom:2px solid #152a4a;">
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;width:60px;">Pos</th>
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:left;">Operador</th>
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Leads</th>
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Vendas</th>
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Conversão</th>
-                    <th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:right;">Carteira</th>
-                </tr>
-            </thead>
-            <tbody>
-                {_rows}
-            </tbody>
-        </table>
-    </div>
-    """, unsafe_allow_html=True)
+    _table_html = (
+        '<div class="card-status" style="padding:0;overflow:hidden;">'
+        '<table style="width:100%;border-collapse:collapse;">'
+        "<thead>"
+        '<tr style="background:#0d1f38;border-bottom:2px solid #152a4a;">'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;width:60px;">Pos</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:left;">Operador</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Leads</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Vendas</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Convers&#227;o</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:right;">Carteira</th>'
+        "</tr>"
+        "</thead>"
+        f"<tbody>{_rows}</tbody>"
+        "</table></div>"
+    )
+    st.markdown(_table_html, unsafe_allow_html=True)
