@@ -73,16 +73,30 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     df_com_valor = df_todos[df_todos["valor_proposta"] > 0]
     ticket_medio = df_com_valor["valor_proposta"].mean() if len(df_com_valor) > 0 else 0.0
 
-    # ── 4 KPI cards ───────────────────────────────────────────────────────────
+    # ── KPI cards + Meta/Projeção na mesma faixa ─────────────────────────────
     _periodo_label = f"{_de_val.strftime('%d/%m')} – {_ate_val.strftime('%d/%m')}"
+    _meta = st.session_state.get("_meta_mensal", 100)
+    _leads_mes = len(df_mes)
+    _pct_meta = min(int(_leads_mes / max(_meta, 1) * 100), 100)
+    _cor_prog = "#22c55e" if _leads_mes >= _meta else ("#f59e0b" if _pct_meta >= 70 else "#ef4444")
+
+    _primeiro_dia = _de_val
+    _ultimo_dia   = _ate_val
+    _du_totais    = len(dias_uteis_lista(_primeiro_dia, _ultimo_dia))
+    _du_passados  = max(len(dias_uteis_lista(_primeiro_dia, hoje)), 1)
+    _projecao = int((_leads_mes / _du_passados) * _du_totais)
+    _pct_proj = min(int(_projecao / max(_meta, 1) * 100), 999)
+    _cor_proj = "#22c55e" if _projecao >= _meta else "#f59e0b"
+    _proj_label = "✅ Acima da meta" if _projecao >= _meta else f"⚠️ {_pct_proj}%"
+
     _kpis = [
-        ("📥", str(len(df_hoje)),         "Leads Captados Hoje",              "#4f8ef7"),
+        ("📥", str(len(df_hoje)),         "Leads Captados Hoje",                 "#4f8ef7"),
         ("📅", str(len(df_mes)),           f"Leads no Período · {_periodo_label}", "#8b5cf6"),
-        ("💰", fmt_brl(valor_carteira),    "Valor em Carteira",                "#22c55e"),
-        ("🎯", fmt_brl(ticket_medio),      "Ticket Médio",                     "#f59e0b"),
+        ("💰", fmt_brl(valor_carteira),    "Valor em Carteira",                   "#22c55e"),
+        ("🎯", fmt_brl(ticket_medio),      "Ticket Médio",                        "#f59e0b"),
     ]
-    _kcols = st.columns(4)
-    for _col, (icone, valor, label, cor) in zip(_kcols, _kpis):
+    _c0, _c1, _c2, _c3, _c4 = st.columns(5)
+    for _col, (icone, valor, label, cor) in zip([_c0, _c1, _c2, _c3], _kpis):
         with _col:
             st.markdown(f"""
             <div class="card-status" style="border-top:4px solid {cor};border-left:none;
@@ -93,67 +107,45 @@ def render_dashboard_home(df_todos: pd.DataFrame):
             </div>
             """, unsafe_allow_html=True)
 
+    with _c4:
+        with st.expander("⚙️", expanded=False):
+            _nova_meta = st.number_input("Meta leads/mês", min_value=1, value=_meta, step=5, key="meta_input")
+            if st.button("💾 Salvar", key="btn_salvar_meta", use_container_width=True):
+                st.session_state["_meta_mensal"] = int(_nova_meta)
+                st.rerun(scope="fragment")
+        st.markdown(f"""
+        <div class="card-status" style="border-top:4px solid #4f8ef7;border-left:none;
+                    text-align:center;padding:16px 12px;margin-bottom:8px;">
+            <div style="font-size:18px;margin-bottom:4px;">🎯</div>
+            <div style="font-size:28px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}
+                <span style="font-size:12px;color:#7a9cc7;font-weight:400;">/ {_meta}</span>
+            </div>
+            <div style="background:#152a4a;border-radius:4px;height:5px;overflow:hidden;margin:6px auto;max-width:80%;">
+                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
+            </div>
+            <div style="font-size:11px;color:#7a9cc7;font-weight:500;">Meta · {_pct_meta}%</div>
+        </div>
+        <div class="card-status" style="border-top:4px solid {_cor_proj};border-left:none;
+                    text-align:center;padding:16px 12px;">
+            <div style="font-size:18px;margin-bottom:4px;">📈</div>
+            <div style="font-size:28px;font-weight:700;color:{_cor_proj};line-height:1;">{_projecao}</div>
+            <div style="font-size:11px;color:#7a9cc7;margin-top:6px;font-weight:500;">Projeção</div>
+            <div style="font-size:11px;color:{_cor_proj};margin-top:3px;font-weight:600;">{_proj_label}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
 
-    # ── Rosca + Meta / Projeção ───────────────────────────────────────────────
-    col_rosca, col_meta = st.columns([6, 4])
-
-    with col_rosca:
-        st.markdown("#### 🍩 Distribuição por Status")
-        _STATUS_ROSCA = {"Pendente", "Agendado", "Proposta Enviada"}
-        df_rosca = df_todos[df_todos["status"].isin(_STATUS_ROSCA)]
+    # ── Rosca ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🍩 Distribuição por Status")
+    _STATUS_ROSCA = {"Pendente", "Agendado", "Proposta Enviada"}
+    df_rosca = df_todos[df_todos["status"].isin(_STATUS_ROSCA)]
+    _col_rosca, _ = st.columns([5, 5])
+    with _col_rosca:
         if not df_rosca.empty:
             st.plotly_chart(grafico_rosca(df_rosca), use_container_width=True, key="rosca_dash")
         else:
             st.info("Sem leads com esses status no período.")
-
-    with col_meta:
-        _meta = st.session_state.get("_meta_mensal", 100)
-        with st.expander("⚙️ Meta mensal", expanded=False):
-            _nova_meta = st.number_input(
-                "Leads / mês", min_value=1, value=_meta, step=5, key="meta_input"
-            )
-            if st.button("💾 Salvar meta", key="btn_salvar_meta", use_container_width=True):
-                st.session_state["_meta_mensal"] = int(_nova_meta)
-                st.rerun(scope="fragment")
-
-        _leads_mes = len(df_mes)
-        _pct_meta = min(int(_leads_mes / max(_meta, 1) * 100), 100)
-        _cor_prog = "#22c55e" if _leads_mes >= _meta else ("#f59e0b" if _pct_meta >= 70 else "#ef4444")
-
-        st.markdown(f"""
-        <div class="card-status" style="border-top:4px solid #4f8ef7;border-left:none;
-                    text-align:center;padding:16px 12px;margin-bottom:10px;">
-            <div style="font-size:22px;margin-bottom:6px;">🎯</div>
-            <div style="font-size:32px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}
-                <span style="font-size:14px;color:#7a9cc7;font-weight:400;">/ {_meta}</span>
-            </div>
-            <div style="background:#152a4a;border-radius:4px;height:5px;overflow:hidden;margin:8px auto;max-width:80%;">
-                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
-            </div>
-            <div style="font-size:12px;color:#7a9cc7;font-weight:500;">Meta Mensal · {_pct_meta}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Projeção — usa o período do filtro como janela
-        _primeiro_dia = _de_val
-        _ultimo_dia   = _ate_val
-        _du_totais    = len(dias_uteis_lista(_primeiro_dia, _ultimo_dia))
-        _du_passados  = max(len(dias_uteis_lista(_primeiro_dia, hoje)), 1)
-        _projecao = int((_leads_mes / _du_passados) * _du_totais)
-        _pct_proj = min(int(_projecao / max(_meta, 1) * 100), 999)
-        _cor_proj = "#22c55e" if _projecao >= _meta else "#f59e0b"
-        _proj_label = "✅ Acima da meta" if _projecao >= _meta else f"⚠️ {_pct_proj}% da meta projetada"
-
-        st.markdown(f"""
-        <div class="card-status" style="border-top:4px solid {_cor_proj};border-left:none;
-                    text-align:center;padding:16px 12px;">
-            <div style="font-size:22px;margin-bottom:6px;">📈</div>
-            <div style="font-size:32px;font-weight:700;color:{_cor_proj};line-height:1;">{_projecao}</div>
-            <div style="font-size:12px;color:#7a9cc7;margin-top:8px;font-weight:500;">Projeção do Mês</div>
-            <div style="font-size:11px;color:{_cor_proj};margin-top:4px;font-weight:600;">{_proj_label}</div>
-        </div>
-        """, unsafe_allow_html=True)
 
     st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
 
