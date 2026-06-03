@@ -38,6 +38,7 @@ from src.views.crm import render_crm
 from src.views.estagio import render_estagio_lead
 from src.views.fragments import render_funil_rt, render_leads_rt
 from src.views.kpis import render_kpis
+from src.views.dashboard_home import render_dashboard_home
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -176,9 +177,9 @@ else:
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
+    ["🏠 Dashboard", "📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
     if _is_admin else
-    ["📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📈 KPIs"]
+    ["🏠 Dashboard", "📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📈 KPIs"]
 )
 if "aba_ativa" not in st.session_state and st.session_state.get("_tab_sel") in _abas:
     st.session_state["aba_ativa"] = st.session_state["_tab_sel"]
@@ -192,7 +193,9 @@ aba_ativa = st.radio(
 st.session_state["_tab_sel"] = aba_ativa
 
 # ── ABAS ──────────────────────────────────────────────────────────────────────
-if "Visão Geral" in aba_ativa:
+if "Dashboard" in aba_ativa:
+    render_dashboard_home(df_todos)
+elif "Visão Geral" in aba_ativa:
     render_visao_geral(df_todos)
 elif "Funil" in aba_ativa:
     render_funil_rt()
