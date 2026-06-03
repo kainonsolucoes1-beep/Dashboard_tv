@@ -91,11 +91,10 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     for _col, (label, valor, icone, cor) in zip(_kcols, _kpis):
         with _col:
             st.markdown(f"""
-            <div class="card-status" style="padding:20px 22px;">
+            <div class="card-status" style="padding:12px 16px;">
                 <div style="font-size:12px;color:#7a9cc7;font-weight:500;
                             text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">{label}</div>
                 <div style="font-size:36px;font-weight:700;color:{cor};line-height:1;">{valor}</div>
-                <div style="font-size:18px;margin-top:10px;">{icone}</div>
             </div>
             """, unsafe_allow_html=True)
 
