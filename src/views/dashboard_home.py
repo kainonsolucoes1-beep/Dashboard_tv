@@ -86,10 +86,10 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         with _col:
             st.markdown(f"""
             <div class="card-status" style="border-top:4px solid {cor};border-left:none;
-                        text-align:center;padding:28px 16px;">
-                <div style="font-size:30px;margin-bottom:10px;">{icone}</div>
-                <div style="font-size:44px;font-weight:700;color:{cor};line-height:1;">{valor}</div>
-                <div style="font-size:13px;color:#7a9cc7;margin-top:10px;font-weight:500;">{label}</div>
+                        text-align:center;padding:16px 12px;">
+                <div style="font-size:22px;margin-bottom:6px;">{icone}</div>
+                <div style="font-size:32px;font-weight:700;color:{cor};line-height:1;">{valor}</div>
+                <div style="font-size:12px;color:#7a9cc7;margin-top:8px;font-weight:500;">{label}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -122,17 +122,17 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _cor_prog = "#22c55e" if _leads_mes >= _meta else ("#f59e0b" if _pct_meta >= 70 else "#ef4444")
 
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid #4f8ef7;margin-bottom:16px;">
-            <div style="font-size:14px;font-weight:700;color:#e8eef8;
-                        border-bottom:1px solid #152a4a;padding-bottom:8px;margin-bottom:14px;">🎯 Meta Mensal</div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
-                <div style="font-size:48px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}</div>
-                <div style="font-size:18px;color:#7a9cc7;">/ {_meta} leads</div>
+        <div class="card-status" style="border-left:4px solid #4f8ef7;margin-bottom:12px;padding:14px 16px;">
+            <div style="font-size:12px;font-weight:700;color:#e8eef8;
+                        border-bottom:1px solid #152a4a;padding-bottom:6px;margin-bottom:10px;">🎯 Meta Mensal</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+                <div style="font-size:32px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}</div>
+                <div style="font-size:14px;color:#7a9cc7;">/ {_meta} leads</div>
             </div>
-            <div style="background:#152a4a;border-radius:6px;height:10px;overflow:hidden;">
-                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:6px;"></div>
+            <div style="background:#152a4a;border-radius:4px;height:7px;overflow:hidden;">
+                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
             </div>
-            <div style="font-size:12px;color:#7a9cc7;margin-top:8px;">{_pct_meta}% da meta atingida</div>
+            <div style="font-size:11px;color:#7a9cc7;margin-top:6px;">{_pct_meta}% da meta atingida</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -147,14 +147,12 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _proj_label = "✅ Acima da meta" if _projecao >= _meta else f"⚠️ {_pct_proj}% da meta projetada"
 
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid {_cor_proj};">
-            <div style="font-size:14px;font-weight:700;color:#e8eef8;
-                        border-bottom:1px solid #152a4a;padding-bottom:8px;margin-bottom:14px;">📈 Projeção do Mês</div>
-            <div style="font-size:48px;font-weight:700;color:{_cor_proj};line-height:1;margin-bottom:10px;">{_projecao}</div>
-            <div style="font-size:12px;color:#7a9cc7;">
-                Base: {_leads_mes} leads em {_du_passados} dias úteis de {_du_totais} totais
-            </div>
-            <div style="font-size:13px;color:{_cor_proj};margin-top:6px;font-weight:600;">{_proj_label}</div>
+        <div class="card-status" style="border-left:4px solid {_cor_proj};padding:14px 16px;">
+            <div style="font-size:12px;font-weight:700;color:#e8eef8;
+                        border-bottom:1px solid #152a4a;padding-bottom:6px;margin-bottom:10px;">📈 Projeção do Mês</div>
+            <div style="font-size:32px;font-weight:700;color:{_cor_proj};line-height:1;margin-bottom:8px;">{_projecao}</div>
+            <div style="font-size:11px;color:#7a9cc7;">Base: {_leads_mes} leads · {_du_passados}/{_du_totais} dias úteis</div>
+            <div style="font-size:12px;color:{_cor_proj};margin-top:5px;font-weight:600;">{_proj_label}</div>
         </div>
         """, unsafe_allow_html=True)
 
