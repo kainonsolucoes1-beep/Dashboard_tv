@@ -52,7 +52,7 @@ def grafico_rosca(df):
         legend=dict(
             orientation="v", x=0.61, y=0.5,
             xanchor="left", yanchor="middle",
-            font=dict(color="#e8eef8", size=11),
+            font=dict(color="#e8eef8", size=15),
             bgcolor="rgba(0,0,0,0)",
         ),
         height=280,
