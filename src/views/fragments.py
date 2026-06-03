@@ -308,7 +308,10 @@ def render_hoje_rt():
 
 @st.fragment
 def render_leads_rt():
-    df_todos_rt, _ = merge_leads_curto()
+    df_todos_rt = st.session_state.get("df_curto")
+    if df_todos_rt is None or df_todos_rt.empty:
+        df_todos_rt, _ = merge_leads_curto()
+        st.session_state["df_curto"] = df_todos_rt
     df_rt = _df_com_filtros_globais(df_todos_rt) if not df_todos_rt.empty else df_todos_rt
 
     _hd_leads, _btn_leads = st.columns([5, 1])
@@ -328,6 +331,8 @@ def render_leads_rt():
         fetch_leads_80dias.clear()
         fetch_leads_criticos.clear()
         fetch_leads_hoje.clear()
+        df_fresh, _ = merge_leads_curto()
+        st.session_state["df_curto"] = df_fresh
         st.rerun(scope="fragment")
 
     df_sorted_orig = df_rt.copy()

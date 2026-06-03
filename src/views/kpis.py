@@ -109,12 +109,7 @@ def _fetch_br_states_geojson():
 
 @st.fragment
 def render_kpis(df_todos: pd.DataFrame):
-    _df_fresh, _ = merge_leads_curto()
-    if not _df_fresh.empty:
-        df_todos = _df_fresh
-        st.session_state["df_curto"] = df_todos
-    else:
-        df_todos = st.session_state.get("df_curto", df_todos)
+    df_todos = st.session_state.get("df_curto", df_todos)
 
     _hd, _btn = st.columns([5, 1])
     with _hd:

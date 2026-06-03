@@ -14,7 +14,10 @@ from src.ui.modals import modal_lead
 
 @st.fragment
 def render_crm():
-    df_todos, _ = merge_leads_curto()
+    df_todos = st.session_state.get("df_curto")
+    if df_todos is None or df_todos.empty:
+        df_todos, _ = merge_leads_curto()
+        st.session_state["df_curto"] = df_todos
 
     CORES_CRM = ["#4f8ef7", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#f97316"]
     SEMANA_PT = {
@@ -29,6 +32,9 @@ def render_crm():
     if _crm_atualizar:
         fetch_leads_30dias.clear()
         fetch_leads_criticos.clear()
+        df_fresh, _ = merge_leads_curto()
+        st.session_state["df_curto"] = df_fresh
+        st.session_state.pop("crm_df_longo", None)
         st.rerun(scope="fragment")
 
     aliases = load_base_aliases()
@@ -185,10 +191,15 @@ def render_crm():
     _SDR_NOMES_CRM = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora", "gabrieli"}
 
     with sub_ranking:
-        df_longo, _ = merge_leads_longo()
+        if "crm_df_longo" not in st.session_state:
+            df_longo, _ = merge_leads_longo()
+            st.session_state["crm_df_longo"] = df_longo
+        else:
+            df_longo = st.session_state["crm_df_longo"]
         if "conversion_goal" not in df_longo.columns:
             fetch_leads_80dias.clear()
             df_longo, _ = merge_leads_longo()
+            st.session_state["crm_df_longo"] = df_longo
         df_longo = apply_base_manual(df_longo, load_base_manual())
         df_longo = apply_valor_manual(df_longo, load_valor_manual())
         df_longo = apply_base_aliases(df_longo, aliases)
@@ -210,6 +221,7 @@ def render_crm():
                 st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
                 if st.button("🔄 Atualizar", key="crm_ranking_refresh", use_container_width=True):
                     fetch_leads_80dias.clear()
+                    st.session_state.pop("crm_df_longo", None)
                     st.rerun(scope="fragment")
 
         vr_de  = st.session_state.get("crm_vr_de",  _default_vr_de)

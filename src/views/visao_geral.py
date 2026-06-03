@@ -14,12 +14,7 @@ from src.views.fragments import render_hoje_rt
 
 @st.fragment
 def render_visao_geral(df_todos: pd.DataFrame):
-    _df_fresh, _ = merge_leads_curto()
-    if not _df_fresh.empty:
-        df_todos = _df_fresh
-        st.session_state["df_curto"] = df_todos
-    else:
-        df_todos = st.session_state.get("df_curto", df_todos)
+    df_todos = st.session_state.get("df_curto", df_todos)
 
     _SDR_NOMES_VG = {"isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny", "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora", "gabrieli"}
 
