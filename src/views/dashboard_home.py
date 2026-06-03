@@ -20,36 +20,51 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
     hoje = date.today()
 
-    # ── Filtro SDR / Orgânico ─────────────────────────────────────────────────
-    _grupo = st.session_state.get("_dash_grupo", "Todos")
+    # ── Filtro SDR / Orgânico + Data ──────────────────────────────────────────
+    _grupo  = st.session_state.get("_dash_grupo", "Todos")
+    _de_val = st.session_state.get("_dash_de",  hoje.replace(day=1))
+    _ate_val = st.session_state.get("_dash_ate", hoje)
+
     _grupo_label = "" if _grupo == "Todos" else f" · {_grupo}"
-    with st.expander(f"🔎 Filtros{_grupo_label}", expanded=False):
-        _novo_grupo = st.radio(
-            "Grupo",
-            options=["Todos", "SDR", "Orgânico"],
-            index=["Todos", "SDR", "Orgânico"].index(_grupo),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="dash_grupo_radio",
-        )
-        if _novo_grupo != _grupo:
-            st.session_state["_dash_grupo"] = _novo_grupo
-            st.rerun(scope="fragment")
+    _data_label  = f" · {_de_val.strftime('%d/%m')} – {_ate_val.strftime('%d/%m')}"
+    with st.expander(f"🔎 Filtros{_grupo_label}{_data_label}", expanded=False):
+        _col_g, _col_de, _col_ate, _col_btn = st.columns([3, 2, 2, 1])
+        with _col_g:
+            _novo_grupo = st.radio(
+                "Grupo",
+                options=["Todos", "SDR", "Orgânico"],
+                index=["Todos", "SDR", "Orgânico"].index(_grupo),
+                horizontal=True,
+                label_visibility="collapsed",
+                key="dash_grupo_radio",
+            )
+        with _col_de:
+            _novo_de = st.date_input("De", value=_de_val, format="DD/MM/YYYY", key="dash_de")
+        with _col_ate:
+            _novo_ate = st.date_input("Até", value=_ate_val, format="DD/MM/YYYY", key="dash_ate")
+        with _col_btn:
+            st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+            if st.button("✔ Aplicar", key="dash_aplicar", use_container_width=True):
+                st.session_state["_dash_grupo"] = _novo_grupo
+                st.session_state["_dash_de"]    = _novo_de
+                st.session_state["_dash_ate"]   = _novo_ate
+                st.rerun(scope="fragment")
+            st.markdown("</div>", unsafe_allow_html=True)
 
     if _grupo == "SDR":
         df_todos = df_todos[df_todos["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES)]
     elif _grupo == "Orgânico":
         df_todos = df_todos[df_todos["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES)]
 
+    df_todos = df_todos[
+        df_todos["data_obj"].apply(lambda d: d is not None and _de_val <= d <= _ate_val)
+    ]
+
     # ── Dados base ────────────────────────────────────────────────────────────
     df_hoje = df_todos[
         df_todos["data_obj"].apply(lambda d: d is not None and d == hoje)
     ]
-    df_mes = df_todos[
-        df_todos["data_obj"].apply(
-            lambda d: d is not None and d.year == hoje.year and d.month == hoje.month
-        )
-    ]
+    df_mes = df_todos
 
     _STATUS_ATIVOS = {"Pendente", "Agendado", "Proposta Enviada", "Aguardando Pagamento"}
     df_carteira = df_todos[df_todos["status"].isin(_STATUS_ATIVOS)]
@@ -59,11 +74,12 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     ticket_medio = df_com_valor["valor_proposta"].mean() if len(df_com_valor) > 0 else 0.0
 
     # ── 4 KPI cards ───────────────────────────────────────────────────────────
+    _periodo_label = f"{_de_val.strftime('%d/%m')} – {_ate_val.strftime('%d/%m')}"
     _kpis = [
-        ("📥", str(len(df_hoje)),         "Leads Captados Hoje",   "#4f8ef7"),
-        ("📅", str(len(df_mes)),           "Leads Captados no Mês", "#8b5cf6"),
-        ("💰", fmt_brl(valor_carteira),    "Valor em Carteira",     "#22c55e"),
-        ("🎯", fmt_brl(ticket_medio),      "Ticket Médio",          "#f59e0b"),
+        ("📥", str(len(df_hoje)),         "Leads Captados Hoje",              "#4f8ef7"),
+        ("📅", str(len(df_mes)),           f"Leads no Período · {_periodo_label}", "#8b5cf6"),
+        ("💰", fmt_brl(valor_carteira),    "Valor em Carteira",                "#22c55e"),
+        ("🎯", fmt_brl(ticket_medio),      "Ticket Médio",                     "#f59e0b"),
     ]
     _kcols = st.columns(4)
     for _col, (icone, valor, label, cor) in zip(_kcols, _kpis):
@@ -120,12 +136,11 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         </div>
         """, unsafe_allow_html=True)
 
-        # Projeção
-        _primeiro_dia = hoje.replace(day=1)
-        _ultimo_dia_num = calendar.monthrange(hoje.year, hoje.month)[1]
-        _ultimo_dia = date(hoje.year, hoje.month, _ultimo_dia_num)
-        _du_totais = len(dias_uteis_lista(_primeiro_dia, _ultimo_dia))
-        _du_passados = max(len(dias_uteis_lista(_primeiro_dia, hoje)), 1)
+        # Projeção — usa o período do filtro como janela
+        _primeiro_dia = _de_val
+        _ultimo_dia   = _ate_val
+        _du_totais    = len(dias_uteis_lista(_primeiro_dia, _ultimo_dia))
+        _du_passados  = max(len(dias_uteis_lista(_primeiro_dia, hoje)), 1)
         _projecao = int((_leads_mes / _du_passados) * _du_totais)
         _pct_proj = min(int(_projecao / max(_meta, 1) * 100), 999)
         _cor_proj = "#22c55e" if _projecao >= _meta else "#f59e0b"
