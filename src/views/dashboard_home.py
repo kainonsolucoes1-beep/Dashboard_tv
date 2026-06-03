@@ -4,7 +4,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from src.charts.rosca import grafico_rosca
+from src.charts.rosca import grafico_rosca, grafico_rosca_dashboard
 from src.utils.formatters import fmt_brl
 from src.utils.time import dias_uteis_lista
 
@@ -114,23 +114,25 @@ def render_dashboard_home(df_todos: pd.DataFrame):
                 st.session_state["_meta_mensal"] = int(_nova_meta)
                 st.rerun(scope="fragment")
         st.markdown(f"""
-        <div class="card-status" style="border-top:4px solid #4f8ef7;border-left:none;
-                    text-align:center;padding:16px 12px;margin-bottom:8px;">
-            <div style="font-size:18px;margin-bottom:4px;">🎯</div>
-            <div style="font-size:28px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}
-                <span style="font-size:12px;color:#7a9cc7;font-weight:400;">/ {_meta}</span>
+        <div class="card-status" style="border:1px solid rgba(255,255,255,0.06);border-left:none;
+                    border-top:none;padding:14px 16px;margin-bottom:8px;">
+            <div style="font-size:20px;margin-bottom:6px;">🎯</div>
+            <div style="font-size:12px;color:#7a9cc7;font-weight:500;margin-bottom:6px;">Meta Mensal</div>
+            <div style="font-size:34px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}</div>
+            <div style="font-size:12px;color:#7a9cc7;margin-top:6px;">
+                Meta: {_meta} leads
+                <span style="color:{_cor_prog};font-weight:600;margin-left:6px;">↑ {_pct_meta}%</span>
             </div>
-            <div style="background:#152a4a;border-radius:4px;height:5px;overflow:hidden;margin:6px auto;max-width:80%;">
-                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
-            </div>
-            <div style="font-size:11px;color:#7a9cc7;font-weight:500;">Meta · {_pct_meta}%</div>
         </div>
-        <div class="card-status" style="border-top:4px solid {_cor_proj};border-left:none;
-                    text-align:center;padding:16px 12px;">
-            <div style="font-size:18px;margin-bottom:4px;">📈</div>
-            <div style="font-size:28px;font-weight:700;color:{_cor_proj};line-height:1;">{_projecao}</div>
-            <div style="font-size:11px;color:#7a9cc7;margin-top:6px;font-weight:500;">Projeção</div>
-            <div style="font-size:11px;color:{_cor_proj};margin-top:3px;font-weight:600;">{_proj_label}</div>
+        <div class="card-status" style="border:1px solid rgba(255,255,255,0.06);border-left:none;
+                    border-top:none;padding:14px 16px;">
+            <div style="font-size:20px;margin-bottom:6px;">📈</div>
+            <div style="font-size:12px;color:#7a9cc7;font-weight:500;margin-bottom:6px;">Projeção do Mês</div>
+            <div style="font-size:34px;font-weight:700;color:{_cor_proj};line-height:1;">{_projecao}</div>
+            <div style="font-size:12px;color:#7a9cc7;margin-top:6px;">
+                Base: {_leads_mes} leads · {_du_passados}/{_du_totais} dias
+                <span style="color:{_cor_proj};font-weight:600;margin-left:6px;">{_proj_label}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -143,7 +145,7 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     _col_rosca, _ = st.columns([5, 5])
     with _col_rosca:
         if not df_rosca.empty:
-            st.plotly_chart(grafico_rosca(df_rosca), use_container_width=True, key="rosca_dash")
+            st.plotly_chart(grafico_rosca_dashboard(df_rosca), use_container_width=True, key="rosca_dash")
         else:
             st.info("Sem leads com esses status no período.")
 

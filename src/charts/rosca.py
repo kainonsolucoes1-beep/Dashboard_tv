@@ -10,6 +10,29 @@ CORES_STATUS = {
 }
 
 
+def grafico_rosca_dashboard(df):
+    """Versão com labels externos e linhas — estilo dashboard executivo."""
+    counts = df["status"].value_counts()
+    labels = counts.index.tolist()
+    values = counts.values.tolist()
+    colors = [CORES_STATUS.get(l, "#aaa") for l in labels]
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values, hole=0.60,
+        marker=dict(colors=colors, line=dict(color="#0d1f38", width=2)),
+        textinfo="label+percent",
+        textposition="outside",
+        textfont=dict(size=11, color="#e8eef8"),
+        hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
+        showlegend=False,
+    ))
+    fig.update_layout(
+        margin=dict(t=20, b=20, l=20, r=20),
+        height=300,
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
 def grafico_rosca(df):
     counts = df["status"].value_counts()
     labels = counts.index.tolist()
