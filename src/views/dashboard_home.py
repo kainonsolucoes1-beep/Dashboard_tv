@@ -9,10 +9,37 @@ from src.utils.formatters import fmt_brl
 from src.utils.time import dias_uteis_lista
 
 
+_SDR_NOMES = {
+    "isaac", "julia", "leticia", "rodolfo", "o2 solution", "anny",
+    "emilly", "emily", "maria eduarda", "clara", "kauany", "discadora", "gabrieli",
+}
+
+
 @st.fragment
 def render_dashboard_home(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
     hoje = date.today()
+
+    # ── Filtro SDR / Orgânico ─────────────────────────────────────────────────
+    _grupo = st.session_state.get("_dash_grupo", "Todos")
+    _grupo_label = "" if _grupo == "Todos" else f" · {_grupo}"
+    with st.expander(f"🔎 Filtros{_grupo_label}", expanded=False):
+        _novo_grupo = st.radio(
+            "Grupo",
+            options=["Todos", "SDR", "Orgânico"],
+            index=["Todos", "SDR", "Orgânico"].index(_grupo),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="dash_grupo_radio",
+        )
+        if _novo_grupo != _grupo:
+            st.session_state["_dash_grupo"] = _novo_grupo
+            st.rerun(scope="fragment")
+
+    if _grupo == "SDR":
+        df_todos = df_todos[df_todos["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES)]
+    elif _grupo == "Orgânico":
+        df_todos = df_todos[df_todos["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES)]
 
     # ── Dados base ────────────────────────────────────────────────────────────
     df_hoje = df_todos[
