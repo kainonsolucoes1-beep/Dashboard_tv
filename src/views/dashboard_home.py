@@ -122,17 +122,16 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _cor_prog = "#22c55e" if _leads_mes >= _meta else ("#f59e0b" if _pct_meta >= 70 else "#ef4444")
 
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid #4f8ef7;margin-bottom:10px;padding:10px 14px;">
-            <div style="font-size:12px;font-weight:700;color:#e8eef8;
-                        border-bottom:1px solid #152a4a;padding-bottom:4px;margin-bottom:6px;">🎯 Meta Mensal</div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
-                <div style="font-size:32px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}</div>
-                <div style="font-size:13px;color:#7a9cc7;">/ {_meta} leads</div>
+        <div class="card-status" style="border-top:4px solid #4f8ef7;border-left:none;
+                    text-align:center;padding:16px 12px;margin-bottom:10px;">
+            <div style="font-size:22px;margin-bottom:6px;">🎯</div>
+            <div style="font-size:32px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}
+                <span style="font-size:14px;color:#7a9cc7;font-weight:400;">/ {_meta}</span>
             </div>
-            <div style="background:#152a4a;border-radius:4px;height:6px;overflow:hidden;">
+            <div style="background:#152a4a;border-radius:4px;height:5px;overflow:hidden;margin:8px auto;max-width:80%;">
                 <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
             </div>
-            <div style="font-size:11px;color:#7a9cc7;margin-top:4px;">{_pct_meta}% da meta atingida</div>
+            <div style="font-size:12px;color:#7a9cc7;font-weight:500;">Meta Mensal · {_pct_meta}%</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -147,12 +146,12 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _proj_label = "✅ Acima da meta" if _projecao >= _meta else f"⚠️ {_pct_proj}% da meta projetada"
 
         st.markdown(f"""
-        <div class="card-status" style="border-left:4px solid {_cor_proj};padding:10px 14px;">
-            <div style="font-size:12px;font-weight:700;color:#e8eef8;
-                        border-bottom:1px solid #152a4a;padding-bottom:4px;margin-bottom:6px;">📈 Projeção do Mês</div>
-            <div style="font-size:32px;font-weight:700;color:{_cor_proj};line-height:1;margin-bottom:5px;">{_projecao}</div>
-            <div style="font-size:11px;color:#7a9cc7;">Base: {_leads_mes} leads · {_du_passados}/{_du_totais} dias úteis</div>
-            <div style="font-size:12px;color:{_cor_proj};margin-top:4px;font-weight:600;">{_proj_label}</div>
+        <div class="card-status" style="border-top:4px solid {_cor_proj};border-left:none;
+                    text-align:center;padding:16px 12px;">
+            <div style="font-size:22px;margin-bottom:6px;">📈</div>
+            <div style="font-size:32px;font-weight:700;color:{_cor_proj};line-height:1;">{_projecao}</div>
+            <div style="font-size:12px;color:#7a9cc7;margin-top:8px;font-weight:500;">Projeção do Mês</div>
+            <div style="font-size:11px;color:{_cor_proj};margin-top:4px;font-weight:600;">{_proj_label}</div>
         </div>
         """, unsafe_allow_html=True)
 
