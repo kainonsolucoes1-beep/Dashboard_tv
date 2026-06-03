@@ -71,8 +71,11 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     _pct_meta = min(int(_leads_mes / max(_meta, 1) * 100), 100)
     _cor_prog = "#22c55e" if _leads_mes >= _meta else ("#f59e0b" if _pct_meta >= 70 else "#ef4444")
 
-    _du_totais   = len(dias_uteis_lista(_de_val, _ate_val))
-    _du_passados = max(len(dias_uteis_lista(_de_val, hoje)), 1)
+    # Projeção sempre sobre o mês corrente completo (independe do filtro de data)
+    _primeiro_dia_mes = hoje.replace(day=1)
+    _ultimo_dia_mes   = date(hoje.year, hoje.month, calendar.monthrange(hoje.year, hoje.month)[1])
+    _du_totais   = len(dias_uteis_lista(_primeiro_dia_mes, _ultimo_dia_mes))
+    _du_passados = max(len(dias_uteis_lista(_primeiro_dia_mes, hoje)), 1)
     _projecao    = int((_leads_mes / _du_passados) * _du_totais)
     _pct_proj    = min(int(_projecao / max(_meta, 1) * 100), 999)
     _cor_proj    = "#22c55e" if _projecao >= _meta else "#f59e0b"
@@ -126,10 +129,16 @@ def render_dashboard_home(df_todos: pd.DataFrame):
             <div style="font-size:22px;margin-bottom:10px;">🎯</div>
             <div style="font-size:12px;color:#7a9cc7;font-weight:500;
                         text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Meta Mensal</div>
-            <div style="font-size:38px;font-weight:700;color:{_cor_prog};line-height:1;">{_leads_mes}</div>
-            <div style="font-size:12px;color:#7a9cc7;margin-top:10px;">
-                Meta: {_meta} leads
-                <span style="color:{_cor_prog};font-weight:600;margin-left:6px;">↑ {_pct_meta}%</span>
+            <div style="display:flex;align-items:baseline;gap:6px;line-height:1;">
+                <span style="font-size:38px;font-weight:700;color:{_cor_prog};">{_leads_mes}</span>
+                <span style="font-size:18px;color:#7a9cc7;font-weight:400;">/ {_meta}</span>
+            </div>
+            <div style="background:#152a4a;border-radius:4px;height:5px;overflow:hidden;margin:10px 0 6px;">
+                <div style="background:{_cor_prog};width:{_pct_meta}%;height:100%;border-radius:4px;"></div>
+            </div>
+            <div style="font-size:12px;color:#7a9cc7;">
+                {_pct_meta}% atingido
+                <span style="color:{_cor_prog};font-weight:600;margin-left:6px;">↑ {_leads_mes} de {_meta}</span>
             </div>
         </div>
         <div class="card-status" style="padding:20px 22px;">
