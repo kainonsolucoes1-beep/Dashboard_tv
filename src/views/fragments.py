@@ -195,6 +195,39 @@ def render_funil_rt():
         df_esteira_kpi = df_ec[(df_ec["perception"] == "🔥 Quente") & (~df_ec["status"].isin(_STATUS_ENC))] if not df_ec.empty else df_ec
         df_vendas_kpi  = df_ec[df_ec["status"] == "Venda Realizada"] if not df_ec.empty else df_ec
 
+        # ── Seletor rápido de mês ─────────────────────────────────────────────
+        import calendar as _cal
+        _today_ms  = date.today()
+        _MESES_PT  = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+        _meses_btn = []
+        for _i in range(5, -1, -1):
+            _tot = _today_ms.year * 12 + _today_ms.month - 1 - _i
+            _meses_btn.append((_tot // 12, _tot % 12 + 1))
+
+        _sel_mes = None
+        for _y, _m in _meses_btn:
+            if funil_de == date(_y, _m, 1) and funil_ate == date(_y, _m, _cal.monthrange(_y, _m)[1]):
+                _sel_mes = (_y, _m)
+                break
+
+        _mcols = st.columns(7)
+        for _ci, (_y, _m) in enumerate(_meses_btn):
+            _lbl = _MESES_PT[_m - 1] + (f" {_y}" if _y != _today_ms.year else "")
+            with _mcols[_ci]:
+                if st.button(_lbl, key=f"btn_mes_{_y}_{_m}", use_container_width=True,
+                             type="primary" if _sel_mes == (_y, _m) else "secondary"):
+                    st.session_state["_fv_funil_de"]  = date(_y, _m, 1)
+                    st.session_state["_fv_funil_ate"] = date(_y, _m, _cal.monthrange(_y, _m)[1])
+                    st.rerun(scope="fragment")
+        with _mcols[6]:
+            if st.button("Tudo", key="btn_mes_tudo", use_container_width=True,
+                         type="primary" if _sel_mes is None else "secondary"):
+                st.session_state["_fv_funil_de"]  = _today_ms - timedelta(days=79)
+                st.session_state["_fv_funil_ate"] = _today_ms
+                st.rerun(scope="fragment")
+
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
         _kpi_items = [
             ("💰", "Pote da Ganância",    df_pote_kpi,    "#8b5cf6", "btn_kpi_pote",    {"atendentes": _NOMES_EC, "show_perception": True}),
             ("🔥", "Propostas em Esteira", df_esteira_kpi, "#ef4444", "btn_kpi_esteira", {"atendentes": _NOMES_EC}),
