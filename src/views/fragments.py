@@ -193,12 +193,7 @@ def render_funil_rt():
 
         df_pote_kpi    = df_ec[(df_ec["perception"] != "🔥 Quente") & (~df_ec["status"].isin(_STATUS_ENC))] if not df_ec.empty else df_ec
         df_esteira_kpi = df_ec[(df_ec["perception"] == "🔥 Quente") & (~df_ec["status"].isin(_STATUS_ENC))] if not df_ec.empty else df_ec
-        # vendas: sem filtro de data para exibir todos os meses disponíveis
-        df_vendas_kpi  = df_todos_rt[
-            df_todos_rt["atendente"].apply(
-                lambda x: any(n.lower() in str(x).lower() for n in _NOMES_EC) if pd.notna(x) else False
-            ) & (df_todos_rt["status"] == "Venda Realizada")
-        ] if not df_todos_rt.empty else df_todos_rt
+        df_vendas_kpi  = df_ec[df_ec["status"] == "Venda Realizada"] if not df_ec.empty else df_ec
 
         _kpi_items = [
             ("💰", "Pote da Ganância",    df_pote_kpi,    "#8b5cf6", "btn_kpi_pote",    {"atendentes": _NOMES_EC, "show_perception": True}),
