@@ -837,30 +837,33 @@ def render_kpis(df_todos: pd.DataFrame):
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("""
-            <style>
-            div[data-testid="stMetric"] label { font-size:11px !important; }
-            div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size:20px !important; }
-            </style>
-            """, unsafe_allow_html=True)
-            _fc1, _fc2, _fc3, _fc4, _fc5, _fc6 = st.columns(6)
             _tx_pend   = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
             _tx_ag     = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
             _tx_prop   = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
             _tx_vnd    = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
             _tx_cancel = round(_values[5] / _values[0] * 100, 1) if _values[0] else 0
-            with _fc1:
-                st.metric("Leads Captados", _values[0])
-            with _fc2:
-                st.metric("Pendente", f"{_values[1]} ({_tx_pend}%)")
-            with _fc3:
-                st.metric("Taxa Agendamento", f"{_tx_ag}%")
-            with _fc4:
-                st.metric("Taxa de Proposta", f"{_tx_prop}%")
-            with _fc5:
-                st.metric("Taxa Conversão", f"{_tx_vnd}%")
-            with _fc6:
-                st.metric("Cancelamentos", f"{_values[5]} ({_tx_cancel}%)")
+            _metricas = [
+                ("Leads Captados",    str(_values[0]),              "#4f8ef7"),
+                ("Pendente",          f"{_values[1]} ({_tx_pend}%)", "#60a5fa"),
+                ("Taxa Agendamento",  f"{_tx_ag}%",                 "#8b5cf6"),
+                ("Taxa de Proposta",  f"{_tx_prop}%",               "#f59e0b"),
+                ("Taxa de Conversão", f"{_tx_vnd}%",                "#22c55e"),
+                ("Cancelamentos",     f"{_values[5]} ({_tx_cancel}%)", "#ef4444"),
+            ]
+            _itens_html = "".join(
+                f'<div style="flex:1;min-width:0;padding:0 8px;">'
+                f'<div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;'
+                f'letter-spacing:.5px;font-weight:600;white-space:nowrap;overflow:hidden;'
+                f'text-overflow:ellipsis;">{_lbl}</div>'
+                f'<div style="font-size:20px;font-weight:700;color:{_cor};margin-top:4px;'
+                f'white-space:nowrap;">{_val}</div>'
+                f'</div>'
+                for _lbl, _val, _cor in _metricas
+            )
+            st.markdown(
+                f'<div style="display:flex;flex-wrap:nowrap;gap:0;margin-top:14px;">{_itens_html}</div>',
+                unsafe_allow_html=True,
+            )
 
     with st.expander("💰 Vendas Realizadas", expanded=False):
         st.markdown(
