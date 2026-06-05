@@ -10,7 +10,7 @@ from src.data.transforms import merge_leads_curto, merge_leads_longo
 from src.utils.formatters import fmt_brl
 from src.utils.time import _ultimo_dia_util
 from src.ui.cards import render_card
-from src.ui.modals import modal_lead
+from src.ui.modals import modal_lead, modal_leads_status
 from src.views.operadores import render_painel_atendente
 
 USER_ATENDENTE = {
@@ -138,10 +138,131 @@ def render_funil_rt():
         if filtro_temp != "Todas":
             df_funil = df_funil[df_funil["perception"] == filtro_temp]
 
-    st.markdown("---")
-
     _funil_user     = st.session_state.get("username", "")
     _funil_is_admin = (_funil_user == "lucas")
+
+    # ── Pipeline · Equipe Comercial (admin only) ──────────────────────────────
+    if _funil_is_admin:
+        st.markdown("---")
+        st.markdown("#### 💰 Pipeline · Equipe Comercial")
+        st.markdown(
+            "<div style='color:#7a9cc7;font-size:12px;margin-top:-10px;margin-bottom:16px;'>"
+            "Leads contados pela <strong>última atualização</strong> — inclui leads antigos ainda em negociação"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        _ATENDENTES_EC   = ["Julia", "Rayanna"]
+        _ec_default_de   = date.today() - timedelta(days=80)
+        _ec_default_ate  = date.today()
+        ec_de      = st.session_state.get("ec_de",     _ec_default_de)
+        ec_ate     = st.session_state.get("ec_ate",    _ec_default_ate)
+        _origens_disp_ec = sorted(df_todos_rt["origem"].dropna().unique().tolist()) if not df_todos_rt.empty else []
+        ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
+        ec_origens = [o for o in ec_origens if o in _origens_disp_ec] or _origens_disp_ec
+
+        with st.expander("📅 Período · Origem", expanded=False):
+            with st.form("filtros_ec", border=False):
+                _ec1, _ec2, _ec3, _ec4 = st.columns([2, 2, 3, 1])
+                with _ec1:
+                    ec_de = st.date_input("De", value=ec_de, format="DD/MM/YYYY", key="ec_de")
+                with _ec2:
+                    ec_ate = st.date_input("Até", value=ec_ate, format="DD/MM/YYYY", key="ec_ate")
+                with _ec3:
+                    ec_origens = st.multiselect("🎯 Origem", options=_origens_disp_ec, default=ec_origens, key="ec_origens")
+                with _ec4:
+                    st.markdown("<div style='margin-top:24px'>", unsafe_allow_html=True)
+                    _ec_sub = st.form_submit_button("✔ Aplicar", use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                if _ec_sub:
+                    ec_de      = st.session_state.get("ec_de",      _ec_default_de)
+                    ec_ate     = st.session_state.get("ec_ate",     _ec_default_ate)
+                    ec_origens = st.session_state.get("ec_origens", _origens_disp_ec)
+
+        df_at = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
+        if not df_at.empty:
+            df_at = df_at[df_at.apply(
+                lambda r: (r["atualizado_obj"] or r["data_obj"]) is not None
+                          and ec_de <= (r["atualizado_obj"] or r["data_obj"]) <= ec_ate,
+                axis=1,
+            )]
+            if ec_origens:
+                df_at = df_at[df_at["origem"].isin(ec_origens)]
+            df_at = df_at[df_at["atendente"].apply(
+                lambda x: any(n.lower() in str(x).lower() for n in _ATENDENTES_EC) if pd.notna(x) else False
+            )]
+
+        _STATUS_ENC_EC = {"Venda Realizada", "Venda não Realizada"}
+
+        def _bloco_ec(df_sub, nome, qtd_cor, qtd_label, dir_label, dir_cor, separador=True):
+            sep = "border-bottom:1px solid #152a4a;margin-bottom:16px;padding-bottom:16px;" if separador else ""
+            return (
+                f'<div style="{sep}padding-top:2px;">'
+                f'<div style="font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">{nome}</div>'
+                '<div style="display:flex;gap:16px;align-items:flex-start;">'
+                f'<div style="min-width:72px;"><div style="font-size:40px;font-weight:700;color:{qtd_cor};line-height:1;">{len(df_sub)}</div>'
+                f'<div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">{qtd_label}</div></div>'
+                '<div style="width:1px;background:var(--border);align-self:stretch;margin:4px 0;"></div>'
+                f'<div style="flex:1;min-width:0;padding-top:4px;padding-left:12px;">'
+                f'<div style="font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">{dir_label}</div>'
+                f'<div style="font-size:22px;font-weight:700;color:{dir_cor};line-height:1;">{fmt_brl(df_sub["valor_proposta"].sum())}</div>'
+                '</div></div></div>'
+            )
+
+        df_pote_all    = df_at[(df_at["perception"] != "🔥 Quente") & (~df_at["status"].isin(_STATUS_ENC_EC))] if not df_at.empty else df_at
+        df_esteira_all = df_at[(df_at["perception"] == "🔥 Quente") & (~df_at["status"].isin(_STATUS_ENC_EC))] if not df_at.empty else df_at
+        df_vendas_all  = df_at[df_at["status"] == "Venda Realizada"] if not df_at.empty else df_at
+
+        a1, a2, a3, a4 = st.columns([1, 2, 2, 2])
+        with a1:
+            total_at = len(df_at[~df_at["status"].isin(_STATUS_ENC_EC)]) if not df_at.empty else 0
+            st.markdown(f"""
+            <div class="card-status" style="text-align:center;padding:24px 12px;height:100%;">
+                <div style="font-size:32px;margin-bottom:4px;">🤝</div>
+                <div style="font-size:40px;font-weight:700;color:#4f8ef7;line-height:1;">{total_at}</div>
+                <div style="color:#7a9cc7;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-top:6px;">Total de Leads</div>
+                <div style="color:#7a9cc7;font-size:11px;margin-top:4px;">Julia + Rayanna</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with a2:
+            linhas_pote = "".join(
+                _bloco_ec(df_pote_all[df_pote_all["atendente"].str.contains(n, case=False, na=False)],
+                          n, "#8b5cf6", "leads", "Carteira", "#f59e0b", separador=(i < len(_ATENDENTES_EC) - 1))
+                for i, n in enumerate(_ATENDENTES_EC)
+            )
+            st.markdown('<div class="card-status"><div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+                        '<span style="font-size:20px;">💰</span>'
+                        '<span style="color:#8b5cf6;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pote da Ganância</span>'
+                        f'</div>{linhas_pote}</div>', unsafe_allow_html=True)
+            if st.button("🔍 Ver leads", key="btn_acomp_pote", use_container_width=True):
+                modal_leads_status(df_pote_all, "Pote da Ganância", "#8b5cf6", atendentes=_ATENDENTES_EC, show_perception=True)
+        with a3:
+            linhas_esteira = "".join(
+                _bloco_ec(df_esteira_all[df_esteira_all["atendente"].str.contains(n, case=False, na=False)],
+                          n, "#ef4444", "leads", "Carteira", "#f59e0b", separador=(i < len(_ATENDENTES_EC) - 1))
+                for i, n in enumerate(_ATENDENTES_EC)
+            )
+            st.markdown('<div class="card-status"><div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+                        '<span style="font-size:20px;">🔥</span>'
+                        '<span style="color:#ef4444;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Propostas em Esteira</span>'
+                        f'</div>{linhas_esteira}</div>', unsafe_allow_html=True)
+            if st.button("🔍 Ver leads", key="btn_acomp_esteira", use_container_width=True):
+                modal_leads_status(df_esteira_all, "Propostas em Esteira", "#ef4444", atendentes=_ATENDENTES_EC)
+        with a4:
+            linhas_vendas = "".join(
+                _bloco_ec(df_vendas_all[df_vendas_all["atendente"].str.contains(n, case=False, na=False)],
+                          n, "#22c55e", "vendas", "Valor", "#22c55e", separador=(i < len(_ATENDENTES_EC) - 1))
+                for i, n in enumerate(_ATENDENTES_EC)
+            )
+            st.markdown('<div class="card-status"><div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+                        '<span style="font-size:20px;">✅</span>'
+                        '<span style="color:#22c55e;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Vendas Realizadas</span>'
+                        f'</div>{linhas_vendas}</div>', unsafe_allow_html=True)
+            if st.button("🔍 Ver leads", key="btn_acomp_vendas", use_container_width=True):
+                modal_leads_status(df_vendas_all, "Vendas Realizadas", "#22c55e", atendentes=_ATENDENTES_EC)
+
+    # ── Painéis individuais ───────────────────────────────────────────────────
+    st.markdown("---")
 
     if not _funil_is_admin:
         _nome_at = USER_ATENDENTE.get(_funil_user, _funil_user.capitalize())
@@ -156,23 +277,25 @@ def render_funil_rt():
         with col_ray:
             render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
 
+    # ── Leads em Carteira (expander) ──────────────────────────────────────────
     st.markdown("---")
-    _titulo_cons = "#### 📊 Meu Consolidado" if not _funil_is_admin else "#### 📊 Consolidado das Atendentes"
-    st.markdown(_titulo_cons)
+    with st.expander("📊 Leads em Carteira", expanded=False):
+        _titulo_cons = "#### 📊 Meu Consolidado" if not _funil_is_admin else "#### 📊 Consolidado das Atendentes"
+        st.markdown(_titulo_cons)
 
-    total_carteira = df_funil["valor_proposta"].sum()
-    leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
-    ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
+        total_carteira = df_funil["valor_proposta"].sum()
+        leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
+        ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
 
-    rc1, rc2, rc3, rc4 = st.columns(4)
-    with rc1:
-        render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e", small=True)
-    with rc2:
-        render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7", small=True)
-    with rc3:
-        render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444", small=True)
-    with rc4:
-        render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b", small=True)
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e", small=True)
+        with rc2:
+            render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7", small=True)
+        with rc3:
+            render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444", small=True)
+        with rc4:
+            render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b", small=True)
 
 
 def render_hoje_rt():
