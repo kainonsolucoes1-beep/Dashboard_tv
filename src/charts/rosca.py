@@ -21,7 +21,7 @@ def grafico_rosca_bases(df):
         labels=labels, values=values, hole=0.68,
         domain=dict(x=[0, 0.55]),
         marker=dict(colors=colors, line=dict(color="rgba(0,0,0,0)", width=0)),
-        textinfo="percent",
+        textinfo="value+percent",
         textfont=dict(size=11, color="#e8eef8"),
         hovertemplate="<b>%{label}</b><br>%{value} leads (%{percent})<extra></extra>",
     ))
