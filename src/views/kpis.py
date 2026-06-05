@@ -667,6 +667,7 @@ def render_kpis(df_todos: pd.DataFrame):
             _total_jorn = len(df_jorn)
             _jcols = st.columns(len(_JORNADA))
             _prev_n = _total_jorn
+            _BENCHMARK_CONV = 30.0  # % mínimo considerado saudável
 
             for _ji, (_jlabel, _jstatus, _jcor) in enumerate(_JORNADA):
                 _df_e = df_jorn if _jstatus is None else df_jorn[df_jorn["status"] == _jstatus]
@@ -674,16 +675,31 @@ def render_kpis(df_todos: pd.DataFrame):
                 _jpct_total = round(_jn / _total_jorn * 100, 1) if _total_jorn else 0
                 _jpct_prev  = round(_jn / _prev_n  * 100, 1) if _prev_n else 0
                 _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
+                _dropoff = (_prev_n - _jn) if _ji > 0 else 0
+
+                # cor da taxa de conversão baseada no benchmark
+                _conv_cor = "#22c55e" if _jpct_prev >= _BENCHMARK_CONV else "#ef4444"
 
                 _dias_html = (
-                    f"<div style='margin-top:10px;font-size:14px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                    f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
                     if _javg is not None else ""
                 )
                 _prev_html = (
-                    f"<div style='font-size:14px;color:{_jcor};margin-top:6px;font-weight:700;'>"
-                    f"↓ {_jpct_prev}% do anterior</div>"
+                    f"<div style='font-size:13px;color:{_conv_cor};margin-top:6px;font-weight:700;'>"
+                    f"↓ {_jpct_prev}% do anterior"
+                    f"<span style='color:#7a9cc7;font-weight:400;font-size:11px;'> (−{_dropoff})</span></div>"
                     if _ji > 0 else ""
                 )
+
+                # valor financeiro para Proposta Enviada e Venda Realizada
+                _valor_html = ""
+                if _jstatus in ("Proposta Enviada", "Venda Realizada") and not _df_e.empty:
+                    _val_etapa = _df_e["valor_proposta"].sum()
+                    if _val_etapa > 0:
+                        _valor_html = (
+                            f"<div style='margin-top:8px;font-size:13px;font-weight:600;color:#f59e0b;'>"
+                            f"{fmt_brl(_val_etapa)}</div>"
+                        )
 
                 with _jcols[_ji]:
                     st.markdown(
@@ -693,8 +709,8 @@ def render_kpis(df_todos: pd.DataFrame):
                         f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
                         f"letter-spacing:.7px;margin-bottom:8px;font-weight:600;'>{_jlabel}</div>"
                         f"<div style='font-size:44px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
-                        f"<div style='font-size:14px;color:#c9d8f0;margin-top:4px;'>{_jpct_total}% do total</div>"
-                        f"{_prev_html}{_dias_html}"
+                        f"<div style='font-size:13px;color:#c9d8f0;margin-top:4px;'>{_jpct_total}% do total</div>"
+                        f"{_prev_html}{_dias_html}{_valor_html}"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
