@@ -852,10 +852,10 @@ def render_kpis(df_todos: pd.DataFrame):
             ]
             _itens_html = "".join(
                 f'<div style="flex:1;min-width:0;padding:0 8px;">'
-                f'<div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;'
+                f'<div style="font-size:12px;color:#7a9cc7;text-transform:uppercase;'
                 f'letter-spacing:.5px;font-weight:600;white-space:nowrap;overflow:hidden;'
                 f'text-overflow:ellipsis;">{_lbl}</div>'
-                f'<div style="font-size:20px;font-weight:700;color:{_cor};margin-top:4px;'
+                f'<div style="font-size:26px;font-weight:700;color:{_cor};margin-top:4px;'
                 f'white-space:nowrap;">{_val}</div>'
                 f'</div>'
                 for _lbl, _val, _cor in _metricas
