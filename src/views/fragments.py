@@ -244,7 +244,7 @@ def render_funil_rt():
                         <div style="font-size:52px;font-weight:700;color:{_cor};line-height:1;">{_qtd}</div>
                         <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">leads no total</div>
                         <div style="font-size:22px;font-weight:600;color:#f59e0b;margin-top:10px;margin-bottom:14px;">{fmt_brl(_val)}</div>
-                        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">{_linhas_mes}</div>
+                        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;max-height:110px;overflow-y:auto;">{_linhas_mes}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
