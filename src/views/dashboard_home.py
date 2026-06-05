@@ -108,14 +108,14 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     col_rosca, col_cards = st.columns([6, 4])
 
     with col_rosca:
-        st.markdown("#### 🍩 Leads por Base de Clientes")
+        st.markdown("#### 🍩 Bases Trabalhadas Hoje")
         _aliases = load_base_aliases()
-        df_rosca = apply_base_aliases(df_todos.copy(), _aliases)
+        df_rosca = apply_base_aliases(df_hoje.copy(), _aliases)
         _fig_bases = grafico_rosca_bases(df_rosca)
         if _fig_bases is not None and "base" in df_rosca.columns and df_rosca["base"].notna().any():
             st.plotly_chart(_fig_bases, use_container_width=True, key="rosca_dash")
         else:
-            st.info("Nenhuma base registrada nos leads do período.")
+            st.info("Nenhuma base registrada nos leads de hoje.")
 
     with col_cards:
         with st.expander("⚙️ Meta mensal", expanded=False):
