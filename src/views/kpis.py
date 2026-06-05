@@ -802,6 +802,7 @@ def render_kpis(df_todos: pd.DataFrame):
         else:
             _ETAPAS = [
                 ("Total Captados",     None,                    "#4f8ef7"),
+                ("Pendente",           "Pendente",              "#60a5fa"),
                 ("Agendado",           "Agendado",              "#8b5cf6"),
                 ("Proposta Enviada",   "Proposta Enviada",      "#f59e0b"),
                 ("Venda Realizada",    "Venda Realizada",       "#22c55e"),
@@ -836,21 +837,24 @@ def render_kpis(df_todos: pd.DataFrame):
                 </div>
                 """, unsafe_allow_html=True)
 
-            _fc1, _fc2, _fc3, _fc4, _fc5 = st.columns(5)
-            _tx_ag     = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_prop   = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_vnd    = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
-            _tx_cancel = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
+            _fc1, _fc2, _fc3, _fc4, _fc5, _fc6 = st.columns(6)
+            _tx_pend   = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_ag     = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_prop   = round(_values[3] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_vnd    = round(_values[4] / _values[0] * 100, 1) if _values[0] else 0
+            _tx_cancel = round(_values[5] / _values[0] * 100, 1) if _values[0] else 0
             with _fc1:
                 st.metric("Leads Captados", _values[0])
             with _fc2:
-                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
+                st.metric("Pendente", f"{_values[1]} ({_tx_pend}%)")
             with _fc3:
-                st.metric("Taxa de Proposta", f"{_tx_prop}%")
+                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
             with _fc4:
-                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
+                st.metric("Taxa de Proposta", f"{_tx_prop}%")
             with _fc5:
-                st.metric("Cancelamentos", f"{_values[4]} ({_tx_cancel}%)")
+                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
+            with _fc6:
+                st.metric("Cancelamentos", f"{_values[5]} ({_tx_cancel}%)")
 
     with st.expander("💰 Vendas Realizadas", expanded=False):
         st.markdown(
