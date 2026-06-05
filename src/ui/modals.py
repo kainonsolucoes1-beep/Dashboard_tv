@@ -10,7 +10,7 @@ from src.utils.time import FERIADOS_BR, dias_uteis_lista
 
 
 @st.dialog("Detalhamento de Leads", width="large")
-def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None, show_perception=False):
+def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None, show_perception=False, group_by_month=False):
     """
     atendentes: lista de nomes para filtro por atendente (ex: ["Giovanna", "Rayanna"]).
     operadores: lista de nomes para filtro por origem/operador (ex: SDR).
@@ -63,6 +63,56 @@ def modal_leads_status(df_modal, label, cor, atendentes=None, operadores=None, s
             _temp_sel = st.selectbox("🌡️ Temperatura", options=_temp_opts, key="modal_filtro_temp")
             if _temp_sel != "Todos":
                 df_filtrado = df_filtrado[df_filtrado["perception"] == _temp_sel]
+
+    if group_by_month and "data_obj" in df_filtrado.columns and not df_filtrado.empty:
+        _MESES_PT_M = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+        _df_m = df_filtrado.copy()
+        _df_m["_mes_ano"] = _df_m["data_obj"].apply(
+            lambda d: (d.year, d.month) if d is not None else None
+        )
+        _grupos_m = (
+            _df_m.dropna(subset=["_mes_ano"])
+            .groupby("_mes_ano")
+            .agg(_qtd=("_mes_ano","count"), _val=("valor_proposta","sum"))
+            .reset_index()
+            .sort_values("_mes_ano", ascending=False)
+        )
+        _opcoes_mes = ["Todos os meses"] + [
+            f"{_MESES_PT_M[int(_r['_mes_ano'][1])-1]}/{str(int(_r['_mes_ano'][0]))[-2:]}"
+            for _, _r in _grupos_m.iterrows()
+        ]
+        _mes_map = {
+            f"{_MESES_PT_M[int(_r['_mes_ano'][1])-1]}/{str(int(_r['_mes_ano'][0]))[-2:]}": _r["_mes_ano"]
+            for _, _r in _grupos_m.iterrows()
+        }
+
+        _linhas_res = ""
+        for _, _r in _grupos_m.iterrows():
+            _y3, _m3 = int(_r["_mes_ano"][0]), int(_r["_mes_ano"][1])
+            _lbl3 = f"{_MESES_PT_M[_m3-1]}/{str(_y3)[-2:]}"
+            _linhas_res += (
+                f'<div style="display:flex;gap:24px;align-items:center;padding:6px 12px;'
+                f'background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;">'
+                f'<span style="color:#7a9cc7;font-size:13px;font-weight:600;min-width:52px;">{_lbl3}</span>'
+                f'<span style="color:{cor};font-size:14px;font-weight:700;">{int(_r["_qtd"])} leads</span>'
+                f'<span style="color:#f59e0b;font-size:13px;">{fmt_brl(_r["_val"])}</span>'
+                f'</div>'
+            )
+        st.markdown(
+            f'<div style="margin-bottom:14px;padding:12px;background:rgba(255,255,255,0.02);'
+            f'border-radius:8px;border:1px solid rgba(255,255,255,0.07);">'
+            f'<div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.7px;'
+            f'font-weight:600;margin-bottom:8px;">Resumo por mês</div>'
+            f'{_linhas_res}</div>',
+            unsafe_allow_html=True,
+        )
+
+        _sel_mes = st.selectbox("📅 Filtrar por mês", options=_opcoes_mes, key="modal_filtro_mes")
+        if _sel_mes != "Todos os meses" and _sel_mes in _mes_map:
+            _ym = _mes_map[_sel_mes]
+            df_filtrado = df_filtrado[df_filtrado["data_obj"].apply(
+                lambda d: d is not None and (d.year, d.month) == (int(_ym[0]), int(_ym[1]))
+            )]
 
     total       = len(df_filtrado)
     valor_total = df_filtrado["valor_proposta"].sum()
