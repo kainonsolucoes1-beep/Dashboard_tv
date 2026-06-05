@@ -148,11 +148,11 @@ def render_funil_rt():
         _cor_at  = USER_COR.get(_funil_user, "#4f8ef7")
         render_painel_atendente(df_funil, _nome_at, _cor_at, foto_path=None)
     else:
-        df_giovanna = df_funil[df_funil["atendente"].str.contains("Giovanna", case=False, na=False)]
+        df_giovanna = df_funil[df_funil["atendente"].str.contains("Julia", case=False, na=False)]
         df_rayanna  = df_funil[df_funil["atendente"].str.contains("Rayanna",  case=False, na=False)]
         col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
         with col_gio:
-            render_painel_atendente(df_giovanna, "Giovanna", "#8b5cf6", foto_path="fotos/giovanna.jpg")
+            render_painel_atendente(df_giovanna, "Julia", "#8b5cf6", foto_path="fotos/giovanna.jpg")
         with col_ray:
             render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
 
