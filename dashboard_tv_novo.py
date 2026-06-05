@@ -177,9 +177,9 @@ else:
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
-    ["🏠 Dashboard", "📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
+    ["🏠 Dashboard", "📊 SDR", "🔥 Comercial", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
     if _is_admin else
-    ["🏠 Dashboard", "📊 Visão Geral", "🔥 Funil de Vendas", "👤 Por Operador", "📈 KPIs"]
+    ["🏠 Dashboard", "📊 SDR", "🔥 Comercial", "👤 Por Operador", "📈 KPIs"]
 )
 if "aba_ativa" not in st.session_state and st.session_state.get("_tab_sel") in _abas:
     st.session_state["aba_ativa"] = st.session_state["_tab_sel"]
@@ -195,9 +195,9 @@ st.session_state["_tab_sel"] = aba_ativa
 # ── ABAS ──────────────────────────────────────────────────────────────────────
 if "Dashboard" in aba_ativa:
     render_dashboard_home(df_todos)
-elif "Visão Geral" in aba_ativa:
+elif "SDR" in aba_ativa:
     render_visao_geral(df_todos)
-elif "Funil" in aba_ativa:
+elif "Comercial" in aba_ativa:
     render_funil_rt()
 elif "Por Operador" in aba_ativa:
     render_detalhamento(df_todos)
