@@ -837,6 +837,12 @@ def render_kpis(df_todos: pd.DataFrame):
                 </div>
                 """, unsafe_allow_html=True)
 
+            st.markdown("""
+            <style>
+            div[data-testid="stMetric"] label { font-size:11px !important; }
+            div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size:20px !important; }
+            </style>
+            """, unsafe_allow_html=True)
             _fc1, _fc2, _fc3, _fc4, _fc5, _fc6 = st.columns(6)
             _tx_pend   = round(_values[1] / _values[0] * 100, 1) if _values[0] else 0
             _tx_ag     = round(_values[2] / _values[0] * 100, 1) if _values[0] else 0
@@ -848,11 +854,11 @@ def render_kpis(df_todos: pd.DataFrame):
             with _fc2:
                 st.metric("Pendente", f"{_values[1]} ({_tx_pend}%)")
             with _fc3:
-                st.metric("Taxa de Agendamento", f"{_tx_ag}%")
+                st.metric("Taxa Agendamento", f"{_tx_ag}%")
             with _fc4:
                 st.metric("Taxa de Proposta", f"{_tx_prop}%")
             with _fc5:
-                st.metric("Taxa de Conversão", f"{_tx_vnd}%")
+                st.metric("Taxa Conversão", f"{_tx_vnd}%")
             with _fc6:
                 st.metric("Cancelamentos", f"{_values[5]} ({_tx_cancel}%)")
 
