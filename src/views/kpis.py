@@ -658,6 +658,7 @@ def render_kpis(df_todos: pd.DataFrame):
 
             _JORNADA = [
                 ("Captados",         None,                   "#4f8ef7"),
+                ("Pendente",         "Pendente",             "#60a5fa"),
                 ("Agendado",         "Agendado",             "#8b5cf6"),
                 ("Proposta Enviada", "Proposta Enviada",     "#f59e0b"),
                 ("Venda Realizada",  "Venda Realizada",      "#22c55e"),
