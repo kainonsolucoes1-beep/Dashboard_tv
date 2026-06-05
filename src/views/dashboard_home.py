@@ -108,7 +108,7 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     col_rosca, col_cards = st.columns([6, 4])
 
     with col_rosca:
-        st.markdown("#### 🍩 Bases Trabalhadas Hoje")
+        st.markdown("#### 🍩 Captação por Base Hoje")
         _aliases = load_base_aliases()
         df_rosca = apply_base_aliases(df_hoje.copy(), _aliases)
         _fig_bases = grafico_rosca_bases(df_rosca)
