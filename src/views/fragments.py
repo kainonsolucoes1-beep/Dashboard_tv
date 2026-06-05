@@ -180,9 +180,16 @@ def render_funil_rt():
     if _funil_is_admin:
         _NOMES_EC   = ["Julia", "Rayanna"]
         _STATUS_ENC = {"Venda Realizada", "Venda não Realizada"}
-        df_ec = df_todos_rt[df_todos_rt["atendente"].apply(
+        df_ec_base = df_todos_rt.copy() if not df_todos_rt.empty else df_todos_rt
+        if not df_ec_base.empty:
+            df_ec_base = df_ec_base[df_ec_base["data_obj"].apply(
+                lambda d: d is not None and funil_de <= d <= funil_ate
+            )]
+            if funil_origem:
+                df_ec_base = df_ec_base[df_ec_base["origem"].isin(funil_origem)]
+        df_ec = df_ec_base[df_ec_base["atendente"].apply(
             lambda x: any(n.lower() in str(x).lower() for n in _NOMES_EC) if pd.notna(x) else False
-        )] if not df_todos_rt.empty else df_todos_rt
+        )] if not df_ec_base.empty else df_ec_base
 
         df_pote_kpi    = df_ec[(df_ec["perception"] != "🔥 Quente") & (~df_ec["status"].isin(_STATUS_ENC))] if not df_ec.empty else df_ec
         df_esteira_kpi = df_ec[(df_ec["perception"] == "🔥 Quente") & (~df_ec["status"].isin(_STATUS_ENC))] if not df_ec.empty else df_ec
