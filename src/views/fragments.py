@@ -205,15 +205,53 @@ def render_funil_rt():
             with _col:
                 _qtd = len(_df_k)
                 _val = _df_k["valor_proposta"].sum() if not _df_k.empty else 0.0
-                st.markdown(f"""
-                <div class="card-status" style="border-left:4px solid {_cor};padding:20px 22px;">
-                    <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;
-                                font-weight:600;margin-bottom:14px;">{_icone} {_titulo}</div>
-                    <div style="font-size:52px;font-weight:700;color:{_cor};line-height:1;">{_qtd}</div>
-                    <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">leads</div>
-                    <div style="font-size:22px;font-weight:600;color:#f59e0b;margin-top:10px;">{fmt_brl(_val)}</div>
-                </div>
-                """, unsafe_allow_html=True)
+
+                if _titulo == "Vendas Realizadas" and not _df_k.empty and "data_obj" in _df_k.columns:
+                    import calendar as _cal2
+                    _MESES_PT2 = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+                    _df_v = _df_k.copy()
+                    _df_v["_mes_ano"] = _df_v["data_obj"].apply(
+                        lambda d: (d.year, d.month) if d is not None else None
+                    )
+                    _grupos = (
+                        _df_v.dropna(subset=["_mes_ano"])
+                        .groupby("_mes_ano")
+                        .agg(_qtd_m=("_mes_ano", "count"), _val_m=("valor_proposta", "sum"))
+                        .reset_index()
+                        .sort_values("_mes_ano", ascending=False)
+                    )
+                    _linhas_mes = ""
+                    for _, _row in _grupos.iterrows():
+                        _y2, _m2 = _row["_mes_ano"]
+                        _lbl2 = f"{_MESES_PT2[_m2-1]}/{str(_y2)[-2:]}"
+                        _linhas_mes += (
+                            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                            f'padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
+                            f'<span style="color:#7a9cc7;font-size:12px;font-weight:600;">{_lbl2}</span>'
+                            f'<span style="color:#22c55e;font-size:13px;font-weight:700;">{int(_row["_qtd_m"])} leads</span>'
+                            f'<span style="color:#f59e0b;font-size:12px;">{fmt_brl(_row["_val_m"])}</span>'
+                            f'</div>'
+                        )
+                    st.markdown(f"""
+                    <div class="card-status" style="border-left:4px solid {_cor};padding:20px 22px;">
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;
+                                    font-weight:600;margin-bottom:14px;">{_icone} {_titulo}</div>
+                        <div style="font-size:52px;font-weight:700;color:{_cor};line-height:1;">{_qtd}</div>
+                        <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">leads no total</div>
+                        <div style="font-size:22px;font-weight:600;color:#f59e0b;margin-top:10px;margin-bottom:14px;">{fmt_brl(_val)}</div>
+                        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">{_linhas_mes}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="card-status" style="border-left:4px solid {_cor};padding:20px 22px;">
+                        <div style="font-size:11px;color:#7a9cc7;text-transform:uppercase;letter-spacing:.8px;
+                                    font-weight:600;margin-bottom:14px;">{_icone} {_titulo}</div>
+                        <div style="font-size:52px;font-weight:700;color:{_cor};line-height:1;">{_qtd}</div>
+                        <div style="font-size:13px;color:#7a9cc7;margin-top:4px;">leads</div>
+                        <div style="font-size:22px;font-weight:600;color:#f59e0b;margin-top:10px;">{fmt_brl(_val)}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 if st.button("🔍 Ver leads", key=_btn_key, use_container_width=True):
                     modal_leads_status(_df_k, _titulo, _cor, **_modal_kwargs)
 
