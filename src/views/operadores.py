@@ -12,7 +12,7 @@ from src.charts.acumulado import grafico_acumulado
 from src.charts.ranking import grafico_ranking_vendas
 
 
-def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_path=None):
+def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_path=None, show_table=True):
     total_at    = len(df_atendente)
     total_valor = df_atendente["valor_proposta"].sum()
     vendas_at   = int((df_atendente["status"] == "Venda Realizada").sum())
@@ -171,6 +171,9 @@ def render_painel_atendente(df_atendente, nome_atendente, cor_atendente, foto_pa
             st.info("Sem percepção classificada ainda.")
 
     st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
+
+    if not show_table:
+        return
 
     st.markdown("#### 📋 Leads em Carteira")
 

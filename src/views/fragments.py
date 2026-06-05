@@ -25,6 +25,41 @@ USER_COR = {
 }
 
 
+def _render_tabela_carteira(df_at, nome_at):
+    df_tab = df_at.copy()
+    df_tab["Valor"] = df_tab["valor_proposta"].apply(lambda v: fmt_brl(v) if v > 0 else "—")
+    df_tab["Atraso"] = df_tab["em_atraso"].apply(lambda x: "🔴 Em atraso" if x else "") if "em_atraso" in df_tab.columns else ""
+    col_map = {
+        "Atraso": "Situação", "nome": "Nome", "status": "Status",
+        "perception": "Temperatura", "Valor": "Valor da Proposta",
+        "origem": "Canal", "interesse": "Interesse",
+        "criado_em": "Cadastrado em", "atualizado_em": "Última Atualização",
+    }
+    df_tab["_sort"] = pd.to_datetime(df_tab["atualizado_em"], format="%d/%m/%Y %H:%M", errors="coerce")
+    df_orig = df_tab.sort_values("_sort", ascending=False).drop(columns=["_sort"]).reset_index(drop=True)
+    df_show = df_orig[[c for c in col_map if c in df_orig.columns]].rename(columns=col_map)
+    _sc, _ = st.columns([1, 2])
+    with _sc:
+        _term = st.text_input("Pesquisar", placeholder="🔍 Busque seus leads aqui...",
+                              label_visibility="collapsed", key=f"search_cart_{nome_at}")
+    if _term:
+        _mask = df_show.apply(lambda c: c.astype(str).str.contains(_term, case=False, na=False)).any(axis=1)
+        df_show = df_show[_mask].reset_index(drop=True)
+        df_orig = df_orig[_mask].reset_index(drop=True)
+    st.caption("💡 Clique em uma linha para ver os detalhes completos do lead.")
+    from src.ui.modals import modal_lead as _modal_lead
+    _key = f"tabela_cart_{nome_at}"
+    evt = st.dataframe(df_show, use_container_width=True, hide_index=True, height=350,
+                       selection_mode="single-row", on_select="rerun", key=_key)
+    sel = evt.selection.rows
+    _mk = f"modal_cart_{nome_at}"
+    if sel and st.session_state.get(_mk) != sel[0]:
+        st.session_state[_mk] = sel[0]
+        _modal_lead(df_orig.iloc[sel[0]])
+    if not sel:
+        st.session_state.pop(_mk, None)
+
+
 def _df_com_filtros_globais(df_base: pd.DataFrame) -> pd.DataFrame:
     data_de      = st.session_state.get("_fv_de",      date.today() - timedelta(days=30))
     data_ate     = st.session_state.get("_fv_ate",     date.today())
@@ -140,6 +175,22 @@ def render_funil_rt():
 
     _funil_user     = st.session_state.get("username", "")
     _funil_is_admin = (_funil_user == "lucas")
+
+    # ── Painéis individuais (sem tabela) ─────────────────────────────────────
+    st.markdown("---")
+
+    if not _funil_is_admin:
+        _nome_at = USER_ATENDENTE.get(_funil_user, _funil_user.capitalize())
+        _cor_at  = USER_COR.get(_funil_user, "#4f8ef7")
+        render_painel_atendente(df_funil, _nome_at, _cor_at, foto_path=None, show_table=True)
+    else:
+        df_julia   = df_funil[df_funil["atendente"].str.contains("Julia",   case=False, na=False)]
+        df_rayanna = df_funil[df_funil["atendente"].str.contains("Rayanna", case=False, na=False)]
+        col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
+        with col_gio:
+            render_painel_atendente(df_julia,   "Julia",   "#8b5cf6", foto_path="fotos/giovanna.jpg", show_table=False)
+        with col_ray:
+            render_painel_atendente(df_rayanna, "Rayanna", "#f59e0b", foto_path="fotos/rayanna.jpg",  show_table=False)
 
     # ── Pipeline · Equipe Comercial (admin only) ──────────────────────────────
     if _funil_is_admin:
@@ -261,41 +312,18 @@ def render_funil_rt():
             if st.button("🔍 Ver leads", key="btn_acomp_vendas", use_container_width=True):
                 modal_leads_status(df_vendas_all, "Vendas Realizadas", "#22c55e", atendentes=_ATENDENTES_EC)
 
-    # ── Painéis individuais ───────────────────────────────────────────────────
+    # ── Leads em Carteira (expander com tabelas) ──────────────────────────────
     st.markdown("---")
-
-    if not _funil_is_admin:
-        _nome_at = USER_ATENDENTE.get(_funil_user, _funil_user.capitalize())
-        _cor_at  = USER_COR.get(_funil_user, "#4f8ef7")
-        render_painel_atendente(df_funil, _nome_at, _cor_at, foto_path=None)
-    else:
-        df_giovanna = df_funil[df_funil["atendente"].str.contains("Julia", case=False, na=False)]
-        df_rayanna  = df_funil[df_funil["atendente"].str.contains("Rayanna",  case=False, na=False)]
-        col_gio, col_sep, col_ray = st.columns([1, 0.04, 1])
-        with col_gio:
-            render_painel_atendente(df_giovanna, "Julia", "#8b5cf6", foto_path="fotos/giovanna.jpg")
-        with col_ray:
-            render_painel_atendente(df_rayanna,  "Rayanna",  "#f59e0b", foto_path="fotos/rayanna.jpg")
-
-    # ── Leads em Carteira (expander) ──────────────────────────────────────────
-    st.markdown("---")
-    with st.expander("📊 Leads em Carteira", expanded=False):
-        _titulo_cons = "#### 📊 Meu Consolidado" if not _funil_is_admin else "#### 📊 Consolidado das Atendentes"
-        st.markdown(_titulo_cons)
-
-        total_carteira = df_funil["valor_proposta"].sum()
-        leads_com_val  = int((df_funil["valor_proposta"] > 0).sum())
-        ticket_medio   = total_carteira / leads_com_val if leads_com_val > 0 else 0
-
-        rc1, rc2, rc3, rc4 = st.columns(4)
-        with rc1:
-            render_card("💰", fmt_brl(total_carteira), "Total em Carteira", "#22c55e", small=True)
-        with rc2:
-            render_card("🎟️", fmt_brl(ticket_medio), "Ticket Médio", "#4f8ef7", small=True)
-        with rc3:
-            render_card("🔥", int((df_funil["perception"] == "🔥 Quente").sum()), "Leads Quentes", "#ef4444", small=True)
-        with rc4:
-            render_card("🌡️", int((df_funil["perception"] == "🌡️ Morno").sum()), "Leads Mornos", "#f59e0b", small=True)
+    with st.expander("📋 Leads em Carteira", expanded=False):
+        if _funil_is_admin:
+            _tab_cols = st.columns(2)
+            for _col, (_df_tab, _nome_tab) in zip(_tab_cols, [(df_julia, "Julia"), (df_rayanna, "Rayanna")]):
+                with _col:
+                    st.markdown(f"##### {_nome_tab}")
+                    _render_tabela_carteira(_df_tab, _nome_tab)
+        else:
+            _nome_at = USER_ATENDENTE.get(_funil_user, _funil_user.capitalize())
+            _render_tabela_carteira(df_funil, _nome_at)
 
 
 def render_hoje_rt():
