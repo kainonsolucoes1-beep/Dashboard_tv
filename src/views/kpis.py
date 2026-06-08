@@ -680,10 +680,20 @@ def render_kpis(df_todos: pd.DataFrame):
                 # cor da taxa de conversão baseada no benchmark
                 _conv_cor = "#22c55e" if _jpct_prev >= _BENCHMARK_CONV else "#ef4444"
 
-                _dias_html = (
-                    f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
-                    if _javg is not None else ""
-                )
+                if _javg is not None:
+                    if _jstatus == "Venda Realizada":
+                        _dias_html = (
+                            f"<div style='margin-top:12px;'>"
+                            f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
+                            f"letter-spacing:.6px;font-weight:600;'>tempo médio até a venda</div>"
+                            f"<div style='font-size:28px;font-weight:700;color:#22c55e;line-height:1.2;'>"
+                            f"⏱ {_javg} dias</div>"
+                            f"</div>"
+                        )
+                    else:
+                        _dias_html = f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                else:
+                    _dias_html = ""
                 _prev_html = (
                     f"<div style='font-size:13px;color:{_conv_cor};margin-top:6px;font-weight:700;'>"
                     f"↓ {_jpct_prev}% do anterior"
