@@ -714,8 +714,25 @@ def render_kpis(df_todos: pd.DataFrame):
                         f"</div>",
                         unsafe_allow_html=True,
                     )
+                    if st.button("Ver leads", key=f"jorn_ver_{_ji}", use_container_width=True):
+                        _atual = st.session_state.get("_jorn_etapa_sel")
+                        st.session_state["_jorn_etapa_sel"] = None if _atual == _jlabel else _jlabel
+                        st.session_state["_jorn_df_sel"] = _df_e.copy()
                 if _jstatus is not None:
                     _prev_n = _jn
+
+            _etapa_sel = st.session_state.get("_jorn_etapa_sel")
+            if _etapa_sel:
+                _df_show = st.session_state.get("_jorn_df_sel", pd.DataFrame())
+                st.markdown(
+                    f"<div style='margin-top:16px;font-size:13px;font-weight:600;"
+                    f"color:#c9d8f0;border-top:1px solid #1e3a5f;padding-top:12px;'>"
+                    f"Leads em: <span style='color:#4f8ef7;'>{_etapa_sel}</span>"
+                    f" <span style='color:#7a9cc7;font-size:11px;font-weight:400;'>({len(_df_show)} leads)</span></div>",
+                    unsafe_allow_html=True,
+                )
+                _cols_show = [c for c in ["nome", "origem", "status", "data", "valor_proposta"] if c in _df_show.columns]
+                st.dataframe(_df_show[_cols_show], use_container_width=True, hide_index=True)
 
             # Venda não Realizada — saída do funil
             _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
