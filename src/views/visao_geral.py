@@ -86,7 +86,7 @@ def render_visao_geral(df_todos: pd.DataFrame):
         df = df[df["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES_VG)]
     elif filtro_grupo == "Orgânico":
         df = df[df["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES_VG)]
-    elif selecionados:
+    if selecionados:
         df = df[df["origem"].isin(selecionados)]
     if filtro_status != "Todos":
         df = df[df["status"] == filtro_status]
