@@ -669,6 +669,7 @@ def render_kpis(df_todos: pd.DataFrame):
             _prev_n = _total_jorn
             _BENCHMARK_CONV = 30.0  # % mínimo considerado saudável
 
+            _conv_strip = []
             for _ji, (_jlabel, _jstatus, _jcor) in enumerate(_JORNADA):
                 _df_e = df_jorn if _jstatus is None else df_jorn[df_jorn["status"] == _jstatus]
                 _jn   = len(_df_e)
@@ -676,51 +677,45 @@ def render_kpis(df_todos: pd.DataFrame):
                 _jpct_prev  = round(_jn / _prev_n  * 100, 1) if _prev_n else 0
                 _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
                 _dropoff = (_prev_n - _jn) if _ji > 0 else 0
-
-                # cor da taxa de conversão baseada no benchmark
                 _conv_cor = "#22c55e" if _jpct_prev >= _BENCHMARK_CONV else "#ef4444"
+
+                if _ji > 0:
+                    _conv_strip.append((_jlabel, _jpct_prev, _dropoff, _conv_cor))
 
                 if _javg is not None:
                     if _jstatus == "Venda Realizada":
                         _dias_html = (
-                            f"<div style='margin-top:12px;'>"
-                            f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
+                            f"<div style='margin-top:10px;'>"
+                            f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
                             f"letter-spacing:.6px;font-weight:600;'>tempo médio até a venda</div>"
-                            f"<div style='font-size:28px;font-weight:700;color:#22c55e;line-height:1.2;'>"
+                            f"<div style='font-size:24px;font-weight:700;color:#22c55e;line-height:1.2;'>"
                             f"⏱ {_javg} dias</div>"
                             f"</div>"
                         )
                     else:
-                        _dias_html = f"<div style='margin-top:8px;font-size:12px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                        _dias_html = f"<div style='margin-top:6px;font-size:11px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
                 else:
                     _dias_html = ""
-                _prev_html = (
-                    f"<div style='font-size:13px;color:{_conv_cor};margin-top:6px;font-weight:700;'>"
-                    f"↓ {_jpct_prev}% do anterior"
-                    f"<span style='color:#7a9cc7;font-weight:400;font-size:11px;'> (−{_dropoff})</span></div>"
-                    if _ji > 0 else ""
-                )
 
-                # valor financeiro para Proposta Enviada e Venda Realizada
                 _valor_html = ""
                 if _jstatus in ("Proposta Enviada", "Venda Realizada") and not _df_e.empty:
                     _val_etapa = _df_e["valor_proposta"].sum()
                     if _val_etapa > 0:
                         _valor_html = (
-                            f"<div style='margin-top:8px;font-size:13px;font-weight:600;color:#f59e0b;'>"
+                            f"<div style='margin-top:6px;font-size:12px;font-weight:600;color:#f59e0b;'>"
                             f"{fmt_brl(_val_etapa)}</div>"
                         )
 
                 with _jcols[_ji]:
                     st.markdown(
                         f"<div class='card-status' style='border-left:4px solid {_jcor};"
-                        f"text-align:center;padding:20px 12px;min-height:180px;"
+                        f"text-align:center;padding:14px 10px;min-height:120px;"
                         f"display:flex;flex-direction:column;justify-content:space-between;'>"
-                        f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
-                        f"letter-spacing:.7px;margin-bottom:8px;font-weight:600;'>{_jlabel}</div>"
-                        f"<div style='font-size:44px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
-                        f"<div style='font-size:13px;color:#c9d8f0;margin-top:4px;'>{_jpct_total}% do total</div>"
-                        f"{_prev_html}{_dias_html}{_valor_html}"
+                        f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
+                        f"letter-spacing:.7px;margin-bottom:6px;font-weight:600;'>{_jlabel}</div>"
+                        f"<div style='font-size:38px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
+                        f"<div style='font-size:12px;color:#c9d8f0;margin-top:2px;'>{_jpct_total}% do total</div>"
+                        f"{_dias_html}{_valor_html}"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
@@ -730,6 +725,18 @@ def render_kpis(df_todos: pd.DataFrame):
                         st.session_state["_jorn_df_sel"] = _df_e.copy()
                 if _jstatus is not None:
                     _prev_n = _jn
+
+            # faixa de conversão entre etapas
+            _strip_html = "<div style='display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:2px;flex-wrap:wrap;'>"
+            for _sl, _sp, _sd, _sc in _conv_strip:
+                _strip_html += (
+                    f"<div style='font-size:11px;color:#7a9cc7;'>→</div>"
+                    f"<div style='background:#0d1f35;border-radius:6px;padding:4px 10px;"
+                    f"font-size:11px;font-weight:600;color:{_sc};white-space:nowrap;'>"
+                    f"{_sl}: {_sp}% <span style='color:#4a5a6a;font-weight:400;'>(−{_sd})</span></div>"
+                )
+            _strip_html += "</div>"
+            st.markdown(_strip_html, unsafe_allow_html=True)
 
             _etapa_sel = st.session_state.get("_jorn_etapa_sel")
             if _etapa_sel:
