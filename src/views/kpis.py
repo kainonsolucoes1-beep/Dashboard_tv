@@ -972,15 +972,16 @@ def render_kpis(df_todos: pd.DataFrame):
 
         def _delta_badge(v, is_money=False):
             if v == 0:
-                return "<span style='background:#152a4a;color:#7a9cc7;font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;'>= ant.</span>"
+                return "<span style='background:#152a4a;color:#7a9cc7;font-size:11px;padding:3px 10px;border-radius:99px;font-weight:600;'>= período anterior</span>"
             _bc  = "#22c55e" if v > 0 else "#ef4444"
             _bbg = "#22c55e22" if v > 0 else "#ef444422"
             _bs  = "▲" if v > 0 else "▼"
             _bt  = fmt_brl(abs(v)) if is_money else str(abs(int(v)))
+            _suffix = "" if is_money else " vs período anterior"
             return (
-                f"<span style='background:{_bbg};color:{_bc};font-size:10px;"
-                f"padding:2px 7px;border-radius:99px;font-weight:600;"
-                f"border:1px solid {_bc};'>{_bs} {_bt}</span>"
+                f"<span style='background:{_bbg};color:{_bc};font-size:11px;"
+                f"padding:3px 10px;border-radius:99px;font-weight:600;"
+                f"border:1px solid {_bc};'>{_bs} {_bt}{_suffix}</span>"
             )
 
         _g1, _g2, _g3 = st.columns(3)
@@ -1003,25 +1004,32 @@ def render_kpis(df_todos: pd.DataFrame):
                 f"</div>", unsafe_allow_html=True,
             )
         with _g3:
+            _vnd_label = f"{_total_vnd} venda" if _total_vnd == 1 else f"{_total_vnd} vendas"
             st.markdown(
                 f"<div class='card-status' style='text-align:center;padding:14px 10px;'>"
                 f"<div style='font-size:22px;font-weight:700;color:#f59e0b;'>{fmt_brl(_ticket_vnd)}</div>"
-                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:12px;'>Ticket Médio</div>"
+                f"<div style='color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-top:8px;'>Ticket Médio</div>"
+                f"<div style='color:#4a5a6a;font-size:11px;margin-top:4px;'>baseado em {_vnd_label}</div>"
                 f"</div>", unsafe_allow_html=True,
             )
 
+        _meta_restam = max(0, meta_vendas - _total_vnd)
+        _meta_msg = "Meta atingida! 🎉" if _meta_pct >= 100 else f"Faltam {_meta_restam} venda{'s' if _meta_restam != 1 else ''}"
         st.markdown(
-            f"<div style='margin-top:12px;background:#0a1628;border:1px solid #152a4a;"
-            f"border-radius:10px;padding:14px 18px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-            f"<span style='color:#7a9cc7;font-size:12px;font-weight:600;text-transform:uppercase;"
-            f"letter-spacing:.6px;'>🎯 Meta Mensal</span>"
-            f"<span style='font-size:20px;font-weight:700;color:{_meta_cor};'>{_meta_pct}%"
-            f"<span style='font-size:13px;color:#7a9cc7;font-weight:400;margin-left:6px;'>"
-            f"({_total_vnd} / {meta_vendas})</span></span>"
+            f"<div style='margin-top:14px;background:#0a1628;border:1px solid {_meta_cor}44;"
+            f"border-radius:12px;padding:16px 20px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;'>"
+            f"<div>"
+            f"<div style='color:#7a9cc7;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;'>🎯 Meta de Vendas</div>"
+            f"<div style='color:{_meta_cor};font-size:13px;font-weight:600;margin-top:2px;'>{_meta_msg}</div>"
             f"</div>"
-            f"<div style='background:#152a4a;border-radius:99px;height:14px;'>"
-            f"<div style='background:{_meta_cor};border-radius:99px;height:14px;"
+            f"<div style='text-align:right;'>"
+            f"<div style='font-size:32px;font-weight:700;color:{_meta_cor};line-height:1;'>{_meta_pct}%</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-top:2px;'>{_total_vnd} / {meta_vendas} vendas</div>"
+            f"</div>"
+            f"</div>"
+            f"<div style='background:#152a4a;border-radius:99px;height:10px;'>"
+            f"<div style='background:{_meta_cor};border-radius:99px;height:10px;"
             f"width:{_meta_pct}%;transition:width .4s;'></div>"
             f"</div></div>",
             unsafe_allow_html=True,
