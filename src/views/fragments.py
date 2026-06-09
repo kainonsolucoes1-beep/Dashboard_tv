@@ -249,16 +249,40 @@ def render_funil_rt():
 
 
 def render_hoje_rt():
-    st.markdown("#### 📅 Hoje")
-    df_base, _ = fetch_leads_hoje()
+    hoje = date.today()
+    if "_hoje_data_sel" not in st.session_state:
+        st.session_state["_hoje_data_sel"] = hoje
+    data_sel = st.session_state["_hoje_data_sel"]
+
+    _hn_t, _hn_prev, _hn_next = st.columns([5, 0.45, 0.45])
+    with _hn_t:
+        _label_dia = "Hoje" if data_sel == hoje else data_sel.strftime("%d/%m/%Y")
+        st.markdown(f"#### 📅 {_label_dia}")
+    with _hn_prev:
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        if st.button("◀", key="hoje_prev", use_container_width=True):
+            st.session_state["_hoje_data_sel"] = data_sel - timedelta(days=1)
+    with _hn_next:
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        if st.button("▶", key="hoje_next", use_container_width=True, disabled=(data_sel >= hoje)):
+            st.session_state["_hoje_data_sel"] = min(data_sel + timedelta(days=1), hoje)
+
+    df_curto = st.session_state.get("df_curto")
+    if df_curto is not None and not df_curto.empty:
+        df_base = df_curto
+    elif data_sel == hoje:
+        df_base, _ = fetch_leads_hoje()
+    else:
+        st.info("Dados não disponíveis para este período.")
+        return
+
     if df_base.empty:
         return
 
     selecionados = st.session_state.get("visao_origem", [])
-    hoje            = date.today()
-    ultimo_util     = _ultimo_dia_util(hoje)
+    ultimo_util  = _ultimo_dia_util(data_sel)
 
-    nomes_dia = {0:"segunda",1:"terça",2:"quarta",3:"quinta",4:"sexta"}
+    nomes_dia = {0: "segunda", 1: "terça", 2: "quarta", 3: "quinta", 4: "sexta"}
     nome_util = nomes_dia.get(ultimo_util.weekday(), str(ultimo_util))
 
     _ORIGENS_SDR_HOJE = {"julia", "isaac", "leticia", "rodolfo", "maria eduarda", "clara", "kauany", "o2 solution", "gabrieli"}
@@ -269,7 +293,7 @@ def render_hoje_rt():
         df_base_hoje = df_base_hoje[df_base_hoje["origem"].isin(selecionados)]
 
     df_ontem_v = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == ultimo_util)]
-    df_hoje_v  = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == hoje)]
+    df_hoje_v  = df_base_hoje[df_base_hoje["data_obj"].apply(lambda d: d == data_sel)]
 
     leads_hoje  = len(df_hoje_v)
     leads_ontem = len(df_ontem_v)
@@ -296,6 +320,8 @@ def render_hoje_rt():
     cor_meta  = "#22c55e" if progresso >= 1.0 else "#f59e0b" if progresso >= 0.5 else "#ef4444"
     h1, h2 = st.columns(2)
 
+    _label_captados = "Leads Captados Hoje" if data_sel == hoje else f"Leads em {data_sel.strftime('%d/%m/%Y')}"
+
     with h1:
         linhas_op = ""
         for _, row in operadores_hoje.iterrows():
@@ -307,14 +333,14 @@ def render_hoje_rt():
                 '</div>'
             )
         if not linhas_op:
-            linhas_op = '<span style="color:var(--text-sub);font-size:15px;">Nenhum lead hoje</span>'
+            linhas_op = '<span style="color:var(--text-sub);font-size:15px;">Nenhum lead neste dia</span>'
 
         st.markdown(
             '<div class="card-total" style="display:flex;gap:28px;align-items:flex-start;">'
             '<div style="min-width:130px;">'
             '<span class="card-icone">🌅</span>'
             f'<div class="card-valor" style="color:#4f8ef7;">{leads_hoje}</div>'
-            '<div class="card-label">Leads Captados Hoje</div>'
+            f'<div class="card-label">{_label_captados}</div>'
             f'<div style="margin-top:10px;font-size:15px;font-weight:600;color:{cor_seta};">{seta}</div>'
             f'<div style="font-size:13px;color:var(--text-sub);margin-top:4px;">{nome_util.capitalize()}: {leads_ontem} leads</div>'
             '</div>'
@@ -352,8 +378,8 @@ def render_hoje_rt():
         </div>
         """, unsafe_allow_html=True)
 
-    if progresso >= 1.0:
-        _today_str = str(date.today())
+    if data_sel == hoje and progresso >= 1.0:
+        _today_str = str(hoje)
         if st.session_state.get("meta_rocket_date") != _today_str:
             st.session_state["meta_rocket_date"] = _today_str
             st.markdown("""
