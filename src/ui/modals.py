@@ -7,6 +7,7 @@ from src.charts.rosca import CORES_STATUS
 from src.charts.temperatura import CORES_PERCEPTION
 from src.utils.formatters import fmt_brl
 from src.utils.time import FERIADOS_BR, dias_uteis_lista
+from src.ui.modal_historico import render_modal_historico
 
 
 @st.dialog("Detalhamento de Leads", width="large")
@@ -276,6 +277,12 @@ def modal_lead(lead: pd.Series):
             if ag_status:
                 status_ag_map = {"pending": "⏳ Pendente", "done": "✅ Realizado", "canceled": "❌ Cancelado"}
                 st.markdown(f"**Situação:** {status_ag_map.get(ag_status, ag_status)}")
+
+    st.markdown("---")
+    lead_id  = lead.get("id")
+    lead_nom = lead.get("nome", "") or ""
+    if lead_id:
+        render_modal_historico(lead_id=int(lead_id), lead_nome=lead_nom)
 
     if msg_lead:
         st.markdown("---")
