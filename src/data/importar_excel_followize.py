@@ -31,24 +31,24 @@ def processar_excel_followize(
         print(f"❌ Formato não suportado: {path.suffix}. Use .xlsx ou .xls")
         return {"sucesso": False, "erro": "Formato não suportado"}
 
-    print(f"📂 Lendo arquivo: {path.name}")
+    print(f"Lendo arquivo: {path.name}")
     historico = HistoricoIncremental(caminho_historico)
     resultado = historico.adicionar_do_excel(caminho_excel)
 
     if not resultado.get("sucesso"):
-        print(f"❌ Erro ao processar: {resultado.get('erro', 'desconhecido')}")
+        print(f"ERRO ao processar: {resultado.get('erro', 'desconhecido')}")
         return resultado
 
-    print(f"✅ Importação concluída!")
-    print(f"📊 Leads processados : {resultado['leads_processados']}")
-    print(f"➕ Anotações novas   : {resultado['novos']}")
-    print(f"♻️  Duplicatas        : {resultado['duplicatas']}")
-    print(f"💾 Salvo em          : {caminho_historico}")
+    print(f"Importacao concluida!")
+    print(f"Leads processados : {resultado['leads_processados']}")
+    print(f"Anotacoes novas   : {resultado['novos']}")
+    print(f"Duplicatas        : {resultado['duplicatas']}")
+    print(f"Salvo em          : {caminho_historico}")
 
     meta = historico.metadata
-    print(f"\n📋 Totais acumulados no histórico:")
-    print(f"   Leads  : {meta['total_leads']}")
-    print(f"   Notas  : {meta['total_anotacoes']}")
+    print(f"\nTotais acumulados no historico:")
+    print(f"  Leads : {meta['total_leads']}")
+    print(f"  Notas : {meta['total_anotacoes']}")
 
     return resultado
 
@@ -65,7 +65,7 @@ def mesclar_historico_com_api(
         historico = HistoricoIncremental(caminho_historico)
         return historico.exportar_para_dataframe(df_leads)
     except Exception as e:
-        print(f"⚠️  Não foi possível mesclar histórico: {e}")
+        print(f"AVISO: Nao foi possivel mesclar historico: {e}")
         df_leads = df_leads.copy()
         df_leads["historico"] = [[] for _ in range(len(df_leads))]
         return df_leads
