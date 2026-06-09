@@ -1390,7 +1390,7 @@ def render_kpis(df_todos: pd.DataFrame):
                     showgrid=False, tickfont=dict(color="#22c55e", size=11), zeroline=False,
                 ),
                 hovermode="x unified",
-                bargap=0.6,
+                bargap=0.8,
             )
             st.plotly_chart(fig_ev, use_container_width=True, key="kpis_evolucao_semanal")
 
