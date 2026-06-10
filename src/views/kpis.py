@@ -733,21 +733,6 @@ def render_kpis(df_todos: pd.DataFrame):
                 if _jstatus is not None:
                     _prev_n = _jn
 
-            # faixa de conversão entre etapas
-            _strip_html = "<div style='display:flex;gap:6px;align-items:center;margin-top:10px;margin-bottom:2px;flex-wrap:wrap;'>"
-            for _sl, _sp, _sd, _sc, _sdelta in _conv_strip:
-                _delta_badge = (
-                    f"<span style='font-size:10px;color:#4f8ef7;font-weight:500;'>{_sdelta}</span> "
-                    if _sdelta else ""
-                )
-                _strip_html += (
-                    f"<div style='font-size:11px;color:#7a9cc7;'>→ {_delta_badge}</div>"
-                    f"<div style='background:#0d1f35;border-radius:6px;padding:4px 10px;"
-                    f"font-size:11px;font-weight:600;color:{_sc};white-space:nowrap;'>"
-                    f"{_sl}: {_sp}% <span style='color:#4a5a6a;font-weight:400;'>(−{_sd})</span></div>"
-                )
-            _strip_html += "</div>"
-            st.markdown(_strip_html, unsafe_allow_html=True)
 
             _etapa_sel = st.session_state.get("_jorn_etapa_sel")
             if _etapa_sel:
