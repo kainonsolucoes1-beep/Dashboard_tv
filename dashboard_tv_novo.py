@@ -71,6 +71,7 @@ _authenticator = stauth.Authenticate(
     cookie_key="chave_secreta_dashboard_2024",
     cookie_expiry_days=1,
     auto_hash=False,
+    login_sleep_time=0,
 )
 # ── Tela de login ──────────────────────────────────────────────────────────────
 if st.session_state.get("authentication_status") is not True:
@@ -104,9 +105,12 @@ if st.session_state.get("authentication_status") is not True:
         <div style="font-size:13px;color:#7a9cc7;letter-spacing:.4px;">Dashboard de Acompanhamento de Leads</div>
     </div>
     """, unsafe_allow_html=True)
-    _authenticator.login(location="main")
+    try:
+        _authenticator.login(location="main")
+    except Exception as _login_err:
+        st.error(f"Erro ao renderizar login: {_login_err}")
     if st.session_state.get("authentication_status") is False:
-        st.error("Usuário ou senha incorretos.")
+        st.error("Usuario ou senha incorretos.")
     st.stop()
 
 _auth_status = st.session_state.get("authentication_status")
