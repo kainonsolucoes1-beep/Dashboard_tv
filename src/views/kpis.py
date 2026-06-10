@@ -252,7 +252,7 @@ def render_kpis(df_todos: pd.DataFrame):
         unsafe_allow_html=True,
     )
 
-    with st.expander("📈 Aquisição", expanded=False):
+    with st.expander("📈 Aquisição  ·  1 indicador", expanded=False):
         with st.expander("📡 Origem dos Leads", expanded=False):
             st.markdown(
                 "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
@@ -350,7 +350,7 @@ def render_kpis(df_todos: pd.DataFrame):
 
 
 
-    with st.expander("⚙️ Operação", expanded=False):
+    with st.expander("⚙️ Operação  ·  3 indicadores", expanded=False):
         with st.expander("📅 Leads Tratados por Dia", expanded=False):
             st.markdown(
                 "<style>"
@@ -788,7 +788,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 )
 
 
-    with st.expander("💰 Conversão", expanded=False):
+    with st.expander("💰 Conversão  ·  5 indicadores", expanded=False):
         with st.expander("📊 Distribuição por Etapa", expanded=False):
             st.markdown(
                 "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
