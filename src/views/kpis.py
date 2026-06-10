@@ -657,82 +657,91 @@ def render_kpis(df_todos: pd.DataFrame):
             ).dt.days.fillna(0).astype(int)
 
             _JORNADA = [
-                ("Captados",         None,                   "#4f8ef7"),
-                ("Pendente",         "Pendente",             "#60a5fa"),
-                ("Agendado",         "Agendado",             "#8b5cf6"),
-                ("Proposta Enviada", "Proposta Enviada",     "#f59e0b"),
-                ("Venda Realizada",  "Venda Realizada",      "#22c55e"),
+                ("Captados",         None,                "#4f8ef7"),
+                ("Pendente",         "Pendente",          "#60a5fa"),
+                ("Agendado",         "Agendado",          "#8b5cf6"),
+                ("Proposta Enviada", "Proposta Enviada",  "#f59e0b"),
+                ("Venda Realizada",  "Venda Realizada",   "#22c55e"),
             ]
 
             _total_jorn = len(df_jorn)
-            _jcols = st.columns(len(_JORNADA))
-            _prev_n = _total_jorn
-            _BENCHMARK_CONV = 30.0  # % mínimo considerado saudável
 
-            _conv_strip = []
-            _prev_avg_dias = 0.0
-            for _ji, (_jlabel, _jstatus, _jcor) in enumerate(_JORNADA):
+            # Pré-calcula dados de cada etapa
+            _stages = []
+            _prev_n_s = _total_jorn
+            _prev_avg_s = 0.0
+            for _jlabel, _jstatus, _jcor in _JORNADA:
                 _df_e = df_jorn if _jstatus is None else df_jorn[df_jorn["status"] == _jstatus]
-                _jn   = len(_df_e)
-                _jpct_total = round(_jn / _total_jorn * 100, 1) if _total_jorn else 0
-                _jpct_prev  = round(_jn / _prev_n  * 100, 1) if _prev_n else 0
+                _jn = len(_df_e)
+                _jpct = round(_jn / _total_jorn * 100, 1) if _total_jorn else 0
                 _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
-                _dropoff = (_prev_n - _jn) if _ji > 0 else 0
-                _conv_cor = "#22c55e" if _jpct_prev >= _BENCHMARK_CONV else "#ef4444"
-                _delta_dias = None
-                if _ji > 0 and _javg is not None:
-                    _d = round(_javg - _prev_avg_dias, 1)
-                    _delta_dias = f"+{_d}d" if _d > 0 else "< 1d"
-
-                if _ji > 0:
-                    _conv_strip.append((_jlabel, _jpct_prev, _dropoff, _conv_cor, _delta_dias))
-
+                _delta = None
                 if _javg is not None:
-                    if _jstatus == "Venda Realizada":
-                        _dias_html = (
-                            f"<div style='margin-top:10px;'>"
+                    _d = round(_javg - _prev_avg_s, 1)
+                    _delta = f"+{_d}d" if _d > 0 else "< 1d"
+                    _prev_avg_s = _javg
+                _drop = _prev_n_s - _jn if _jstatus else 0
+                _valor = _df_e["valor_proposta"].sum() if _jstatus in ("Proposta Enviada", "Venda Realizada") and not _df_e.empty else None
+                _stages.append({
+                    "label": _jlabel, "status": _jstatus, "cor": _jcor,
+                    "n": _jn, "pct": _jpct, "avg": _javg, "delta": _delta,
+                    "drop": _drop, "df": _df_e, "valor": _valor,
+                })
+                if _jstatus:
+                    _prev_n_s = _jn
+
+            # Pipeline: [stage, conector, stage, ...]
+            _pipe_cols = st.columns([3, 1, 3, 1, 3, 1, 3, 1, 3])
+            _si = 0
+            for _ci, _pcol in enumerate(_pipe_cols):
+                if _ci % 2 == 0:
+                    _s = _stages[_si]
+                    _fill = max(8, int(_s["pct"]))
+                    _dias_str = f"⏱ {_s['avg']}d desde captação" if _s["avg"] is not None else "⏱ —"
+                    _valor_str = (
+                        f"<div style='font-size:11px;color:#f59e0b;font-weight:600;"
+                        f"margin-top:4px;position:relative;'>{fmt_brl(_s['valor'])}</div>"
+                    ) if _s["valor"] and _s["valor"] > 0 else ""
+                    with _pcol:
+                        st.markdown(
+                            f"<div style='position:relative;background:#0d1f38;border-radius:12px;"
+                            f"border-top:3px solid {_s['cor']};padding:16px 10px 14px;"
+                            f"overflow:hidden;min-height:165px;'>"
+                            f"<div style='position:absolute;bottom:0;left:0;right:0;height:{_fill}%;"
+                            f"background:{_s['cor']};opacity:0.08;border-radius:0 0 12px 12px;'></div>"
                             f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
-                            f"letter-spacing:.6px;font-weight:600;'>tempo médio até a venda</div>"
-                            f"<div style='font-size:24px;font-weight:700;color:#22c55e;line-height:1.2;'>"
-                            f"⏱ {_javg} dias</div>"
-                            f"</div>"
+                            f"letter-spacing:.7px;font-weight:600;margin-bottom:8px;position:relative;'>"
+                            f"{_s['label']}</div>"
+                            f"<div style='font-size:44px;font-weight:800;color:{_s['cor']};"
+                            f"line-height:1;position:relative;'>{_s['n']}</div>"
+                            f"<div style='margin-top:8px;position:relative;'>"
+                            f"<span style='background:{_s['cor']}22;color:{_s['cor']};font-size:11px;"
+                            f"font-weight:700;padding:3px 10px;border-radius:99px;'>{_s['pct']}%</span></div>"
+                            f"<div style='font-size:11px;color:#4a5a6a;margin-top:10px;position:relative;'>"
+                            f"{_dias_str}</div>"
+                            f"{_valor_str}"
+                            f"</div>",
+                            unsafe_allow_html=True,
                         )
-                    else:
-                        _dias_html = f"<div style='margin-top:6px;font-size:11px;color:#7a9cc7;'>⏱ {_javg}d desde captação</div>"
+                        if st.button("Ver leads", key=f"jorn_ver_{_si}", use_container_width=True):
+                            _atual = st.session_state.get("_jorn_etapa_sel")
+                            st.session_state["_jorn_etapa_sel"] = None if _atual == _s["label"] else _s["label"]
+                            st.session_state["_jorn_df_sel"] = _s["df"].copy()
+                    _si += 1
                 else:
-                    _dias_html = ""
-
-                _valor_html = ""
-                if _jstatus in ("Proposta Enviada", "Venda Realizada") and not _df_e.empty:
-                    _val_etapa = _df_e["valor_proposta"].sum()
-                    if _val_etapa > 0:
-                        _valor_html = (
-                            f"<div style='margin-top:6px;font-size:12px;font-weight:600;color:#f59e0b;'>"
-                            f"{fmt_brl(_val_etapa)}</div>"
+                    _s_next = _stages[(_ci + 1) // 2]
+                    with _pcol:
+                        st.markdown(
+                            f"<div style='display:flex;flex-direction:column;align-items:center;"
+                            f"justify-content:center;min-height:165px;gap:4px;'>"
+                            f"<div style='font-size:10px;color:#4f8ef7;font-weight:600;"
+                            f"white-space:nowrap;text-align:center;'>{_s_next['delta'] or ''}</div>"
+                            f"<div style='font-size:20px;color:#1e3a5f;'>➜</div>"
+                            f"<div style='font-size:10px;color:#ef4444;white-space:nowrap;"
+                            f"text-align:center;'>−{_s_next['drop']}</div>"
+                            f"</div>",
+                            unsafe_allow_html=True,
                         )
-
-                with _jcols[_ji]:
-                    st.markdown(
-                        f"<div class='card-status' style='border-left:4px solid {_jcor};"
-                        f"text-align:center;padding:14px 10px;min-height:120px;"
-                        f"display:flex;flex-direction:column;justify-content:space-between;'>"
-                        f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
-                        f"letter-spacing:.7px;margin-bottom:6px;font-weight:600;'>{_jlabel}</div>"
-                        f"<div style='font-size:38px;font-weight:700;color:{_jcor};line-height:1.1;'>{_jn}</div>"
-                        f"<div style='font-size:12px;color:#c9d8f0;margin-top:2px;'>{_jpct_total}% do total</div>"
-                        f"{_dias_html}{_valor_html}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if st.button("Ver leads", key=f"jorn_ver_{_ji}", use_container_width=True):
-                        _atual = st.session_state.get("_jorn_etapa_sel")
-                        st.session_state["_jorn_etapa_sel"] = None if _atual == _jlabel else _jlabel
-                        st.session_state["_jorn_df_sel"] = _df_e.copy()
-                if _javg is not None:
-                    _prev_avg_dias = _javg
-                if _jstatus is not None:
-                    _prev_n = _jn
-
 
             _etapa_sel = st.session_state.get("_jorn_etapa_sel")
             if _etapa_sel:
@@ -747,7 +756,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 _cols_show = [c for c in ["nome", "origem", "status", "data", "valor_proposta"] if c in _df_show.columns]
                 st.dataframe(_df_show[_cols_show], use_container_width=True, hide_index=True)
 
-            # Venda não Realizada — saída do funil
+            # Saída do funil — Venda não Realizada
             _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
             _jn_vnr  = len(_df_vnr)
             _pct_vnr = round(_jn_vnr / _total_jorn * 100, 1) if _total_jorn else 0
@@ -771,7 +780,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
                 f"letter-spacing:.7px;font-weight:600;margin-bottom:8px;'>↳ Saída do funil</div>"
                 f"<div class='card-status' style='border-left:4px solid #ef4444;"
-                f"text-align:center;padding:20px 12px;min-height:180px;"
+                f"text-align:center;padding:20px 12px;"
                 f"display:flex;flex-direction:column;justify-content:space-between;'>"
                 f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
                 f"letter-spacing:.7px;font-weight:600;'>Venda não Realizada</div>"
@@ -780,49 +789,6 @@ def render_kpis(df_todos: pd.DataFrame):
                 f"</div></div>",
                 unsafe_allow_html=True,
             )
-
-            st.markdown(
-                "<div style='margin-top:16px;margin-bottom:4px;font-size:11px;color:#7a9cc7;"
-                "text-transform:uppercase;letter-spacing:.6px;font-weight:600;'>"
-                "⏱ Tempo médio até cada estágio</div>",
-                unsafe_allow_html=True,
-            )
-
-            _jbar_labels, _jbar_vals, _jbar_cores = [], [], []
-            for _jlabel, _jstatus, _jcor in _JORNADA:
-                if _jstatus is None:
-                    continue
-                _df_e = df_jorn[df_jorn["status"] == _jstatus]
-                _jbar_labels.append(_jlabel)
-                _jbar_cores.append(_jcor)
-                _jbar_vals.append(round(_df_e["_dias"].mean(), 1) if not _df_e.empty else 0)
-            # Adiciona Venda não Realizada ao gráfico de tempo
-            _jbar_labels.append("Venda não Realizada")
-            _jbar_cores.append("#ef4444")
-            _jbar_vals.append(round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else 0)
-
-            _fig_jorn = go.Figure()
-            _fig_jorn.add_trace(go.Bar(
-                x=_jbar_vals,
-                y=_jbar_labels,
-                orientation="h",
-                marker_color=_jbar_cores,
-                text=[f"{v} dias" for v in _jbar_vals],
-                textposition="outside",
-                hovertemplate="<b>%{y}</b><br>%{x} dias em média<extra></extra>",
-            ))
-            _fig_jorn.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#c9d8f0", family="DM Sans"),
-                margin=dict(t=8, b=8, l=0, r=80),
-                height=190,
-                xaxis=dict(showgrid=True, gridcolor="#152a4a", tickfont=dict(size=11),
-                           ticksuffix=" d", title=None),
-                yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#c9d8f0")),
-                bargap=0.35,
-            )
-            st.plotly_chart(_fig_jorn, use_container_width=True, key="chart_jornada")
 
     with st.expander("📊 Distribuição por Etapa", expanded=False):
         st.markdown(
