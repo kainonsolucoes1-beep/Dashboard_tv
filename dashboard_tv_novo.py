@@ -13,9 +13,6 @@ from src.utils.time import FERIADOS_BR, dias_uteis_lista, horas_uteis, _ultimo_d
 from src.utils.formatters import fmt_brl, foto_base64
 from src.ui.styles import inject_css
 from src.auth.token import _renovar_token_auto
-from src.auth.security_ip import get_client_ip, is_ip_interno
-from src.auth.security_2fa import validar_2fa_streamlit
-from config_ips import USUARIOS_REMOTOS
 from src.data.cache import (
     _ler_cache_disco, _cache_disco_disponivel, _watcher_pkl,
     CACHE_30_PATH, CACHE_80_PATH, CACHE_HOJE_PATH, CACHE_CRITICOS_PATH,
@@ -192,12 +189,6 @@ if st.session_state.get("authentication_status") is not True:
 _auth_status = st.session_state.get("authentication_status")
 _auth_name   = st.session_state.get("name", "")
 _auth_user   = st.session_state.get("username", "")
-
-# ── 2FA por IP ────────────────────────────────────────────────────────────────
-_ip = get_client_ip()
-if not is_ip_interno(_ip) and USUARIOS_REMOTOS.get(_auth_user, False):
-    _email_2fa = _CREDENTIALS["usernames"].get(_auth_user, {}).get("email", "")
-    validar_2fa_streamlit(_email_2fa)
 
 _is_admin = (_auth_user == "lucas")
 _USER_ORIGEM = {
