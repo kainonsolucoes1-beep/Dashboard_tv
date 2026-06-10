@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import smtplib
@@ -5,6 +6,8 @@ from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 
 import streamlit as st
+
+_log = logging.getLogger(__name__)
 
 _VALIDADE_MINUTOS = 5
 _MAX_TENTATIVAS = 3
@@ -19,7 +22,7 @@ def enviar_2fa_email(email: str, codigo: str) -> bool:
     smtp_password = os.getenv("SMTP_PASSWORD")
 
     if not smtp_email or not smtp_password:
-        print(f"[2FA] Código para {email}: {codigo}")
+        _log.warning("[2FA] Código para %s: %s", email, codigo)
         return True
 
     try:
@@ -39,7 +42,7 @@ def enviar_2fa_email(email: str, codigo: str) -> bool:
             server.sendmail(smtp_email, email, msg.as_string())
         return True
     except Exception as e:
-        print(f"[2FA] Erro ao enviar email: {e}")
+        _log.error("[2FA] Erro ao enviar email: %s", e)
         return False
 
 
