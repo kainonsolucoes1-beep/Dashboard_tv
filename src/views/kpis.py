@@ -137,11 +137,26 @@ def render_kpis(df_todos: pd.DataFrame):
         df_todos["data_obj"].apply(lambda d: d is not None and _filtro_de <= d <= _filtro_ate)
     ]
 
+    # ── Período anterior (mesmo intervalo, mês -1) ─────────────────────────────
+    import calendar as _cal
+    def _shift_mes(d):
+        m, y = (d.month - 1, d.year) if d.month > 1 else (12, d.year - 1)
+        return d.replace(year=y, month=m, day=min(d.day, _cal.monthrange(y, m)[1]))
+
+    _prev_de  = _shift_mes(_filtro_de)
+    _prev_ate = _shift_mes(_filtro_ate)
+    df_prev = df_todos[
+        df_todos["data_obj"].apply(lambda d: d is not None and _prev_de <= d <= _prev_ate)
+    ]
+
     # ── 4 Cards de resumo ──────────────────────────────────────────────────────
-    _tot = len(df_filtrado)
-    _vendas = int((df_filtrado["status"] == "Venda Realizada").sum())
-    _conv = round(_vendas / _tot * 100, 1) if _tot else 0.0
-    _cor_conv = "#22c55e" if _conv >= 15 else "#f59e0b" if _conv >= 8 else "#ef4444"
+    _tot       = len(df_filtrado)
+    _tot_prev  = len(df_prev)
+    _vendas    = int((df_filtrado["status"] == "Venda Realizada").sum())
+    _vnd_prev  = int((df_prev["status"] == "Venda Realizada").sum())
+    _conv      = round(_vendas / _tot * 100, 1) if _tot else 0.0
+    _conv_prev = round(_vnd_prev / _tot_prev * 100, 1) if _tot_prev else 0.0
+    _cor_conv  = "#22c55e" if _conv >= 15 else "#f59e0b" if _conv >= 8 else "#ef4444"
 
     try:
         _df_crit = fetch_leads_criticos()
@@ -155,18 +170,42 @@ def render_kpis(df_todos: pd.DataFrame):
 
     _cor_atraso = "#ef4444" if _atraso > 10 else "#f59e0b" if _atraso > 0 else "#22c55e"
 
+    def _badge_pct(atual, anterior, sufixo="%"):
+        if not anterior:
+            return ""
+        delta = round((atual - anterior) / anterior * 100, 1)
+        cor   = "#22c55e" if delta >= 0 else "#ef4444"
+        seta  = "▲" if delta >= 0 else "▼"
+        return (
+            f"<span style='font-size:12px;color:{cor};font-weight:700;margin-right:6px;'>"
+            f"{seta} {abs(delta)}{sufixo}</span>"
+            f"<span style='font-size:11px;color:#7a9cc7;'>vs mês anterior</span>"
+        )
+
+    def _badge_pp(atual, anterior):
+        if not anterior:
+            return ""
+        delta = round(atual - anterior, 1)
+        cor   = "#22c55e" if delta >= 0 else "#ef4444"
+        seta  = "▲" if delta >= 0 else "▼"
+        return (
+            f"<span style='font-size:12px;color:{cor};font-weight:700;margin-right:6px;'>"
+            f"{seta} {abs(delta)} p.p.</span>"
+            f"<span style='font-size:11px;color:#7a9cc7;'>vs mês anterior</span>"
+        )
+
     _c1, _c2, _c3, _c4 = st.columns(4)
     _card_style = (
         "background:#111c2d;border:1px solid #1e3a5f;border-radius:12px;"
-        "padding:20px 22px;min-height:110px;"
+        "padding:20px 22px;min-height:120px;"
     )
     with _c1:
         st.markdown(
             f"<div style='{_card_style}border-left:3px solid #4f8ef7;'>"
             f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
             f"letter-spacing:.6px;margin-bottom:10px;'>Leads Recebidos</div>"
-            f"<div style='font-size:38px;font-weight:800;color:#e8eef8;line-height:1;'>{_tot}</div>"
-            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>{_filtro_de.strftime('%d/%m')} – {_filtro_ate.strftime('%d/%m/%Y')}</div>"
+            f"<div style='font-size:38px;font-weight:800;color:#e8eef8;line-height:1;margin-bottom:10px;'>{_tot}</div>"
+            f"<div>{_badge_pct(_tot, _tot_prev)}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -175,8 +214,8 @@ def render_kpis(df_todos: pd.DataFrame):
             f"<div style='{_card_style}border-left:3px solid #22c55e;'>"
             f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
             f"letter-spacing:.6px;margin-bottom:10px;'>Vendas Realizadas</div>"
-            f"<div style='font-size:38px;font-weight:800;color:#22c55e;line-height:1;'>{_vendas}</div>"
-            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Mês atual</div>"
+            f"<div style='font-size:38px;font-weight:800;color:#22c55e;line-height:1;margin-bottom:10px;'>{_vendas}</div>"
+            f"<div>{_badge_pct(_vendas, _vnd_prev)}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -185,19 +224,21 @@ def render_kpis(df_todos: pd.DataFrame):
             f"<div style='{_card_style}border-left:3px solid {_cor_conv};'>"
             f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
             f"letter-spacing:.6px;margin-bottom:10px;'>Taxa de Conversão</div>"
-            f"<div style='font-size:38px;font-weight:800;color:{_cor_conv};line-height:1;'>{_conv}%</div>"
-            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Leads recebidos → venda</div>"
+            f"<div style='font-size:38px;font-weight:800;color:{_cor_conv};line-height:1;margin-bottom:10px;'>{_conv}%</div>"
+            f"<div>{_badge_pp(_conv, _conv_prev)}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
     with _c4:
+        _icone_atraso = "⚠️" if _atraso > 0 else "✅"
+        _label_atraso = "Precisam de ação" if _atraso > 0 else "Tudo em dia"
         st.markdown(
             f"<div style='{_card_style}border-left:3px solid {_cor_atraso};'>"
             f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
             f"letter-spacing:.6px;margin-bottom:10px;'>Leads em Atraso</div>"
-            f"<div style='font-size:38px;font-weight:800;color:{_cor_atraso};line-height:1;'>{_atraso}</div>"
-            f"<div style='font-size:12px;color:{_cor_atraso};margin-top:8px;'>"
-            f"{'Precisam de ação' if _atraso > 0 else 'Tudo em dia'}</div>"
+            f"<div style='font-size:38px;font-weight:800;color:{_cor_atraso};line-height:1;margin-bottom:10px;'>{_atraso}</div>"
+            f"<div><span style='font-size:13px;'>{_icone_atraso}</span> "
+            f"<span style='font-size:12px;color:{_cor_atraso};font-weight:600;'>{_label_atraso}</span></div>"
             f"</div>",
             unsafe_allow_html=True,
         )
