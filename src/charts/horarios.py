@@ -33,8 +33,8 @@ def grafico_horarios_pico(df: pd.DataFrame):
     top3_cap = _top3(cap_counts)
     top3_vnd = _top3(vnd_counts)
 
-    colors_cap = ["#f59e0b" if h in top3_cap else "#4f8ef7" for h in HORAS]
-    colors_vnd = ["#16a34a" if h in top3_vnd else "#22c55e" for h in HORAS]
+    colors_cap = ["#38bdf8" if h in top3_cap else "#1e5fa8" for h in HORAS]
+    colors_vnd = ["#22c55e" if h in top3_vnd else "#15803d" for h in HORAS]
     labels = [f"{h:02d}h" for h in HORAS]
 
     fig = go.Figure()
@@ -43,6 +43,13 @@ def grafico_horarios_pico(df: pd.DataFrame):
         x=labels,
         y=cap_counts,
         marker_color=colors_cap,
+        marker_line=dict(
+            color=["#7dd3fc" if h in top3_cap else "rgba(0,0,0,0)" for h in HORAS],
+            width=1.5,
+        ),
+        text=[str(v) if v > 0 else "" for v in cap_counts],
+        textposition="outside",
+        textfont=dict(color="#e8eef8", size=11),
         yaxis="y",
         hovertemplate="<b>%{x}</b><br>%{y} capturas<extra></extra>",
     ))
@@ -51,23 +58,32 @@ def grafico_horarios_pico(df: pd.DataFrame):
         x=labels,
         y=vnd_counts,
         marker_color=colors_vnd,
+        marker_line=dict(
+            color=["#86efac" if h in top3_vnd else "rgba(0,0,0,0)" for h in HORAS],
+            width=1.5,
+        ),
+        text=[str(v) if v > 0 else "" for v in vnd_counts],
+        textposition="outside",
+        textfont=dict(color="#e8eef8", size=11),
         yaxis="y",
         hovertemplate="<b>%{x}</b><br>%{y} vendas<extra></extra>",
     ))
-    fig.add_trace(go.Scatter(
-        name="Conversão (%)",
-        x=labels,
-        y=conv_counts,
-        mode="lines+markers",
-        line=dict(color="#e879f9", width=2, dash="dot"),
-        marker=dict(size=6, color="#e879f9"),
-        yaxis="y2",
-        hovertemplate="<b>%{x}</b><br>%{y}% conversão<extra></extra>",
-    ))
+    has_conversao = any(v > 0 for v in conv_counts)
+    if has_conversao:
+        fig.add_trace(go.Scatter(
+            name="Conversão (%)",
+            x=labels,
+            y=conv_counts,
+            mode="lines+markers",
+            line=dict(color="#e879f9", width=2, dash="dot"),
+            marker=dict(size=6, color="#e879f9"),
+            yaxis="y2",
+            hovertemplate="<b>%{x}</b><br>%{y}% conversão<extra></extra>",
+        ))
 
-    fig.update_layout(
+    _layout = dict(
         barmode="group",
-        margin=dict(t=20, b=20, l=10, r=50),
+        margin=dict(t=30, b=20, l=10, r=50),
         height=320,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -75,11 +91,13 @@ def grafico_horarios_pico(df: pd.DataFrame):
         xaxis=dict(showgrid=False, color="#7a9cc7", tickfont=dict(color="#e8eef8", size=11)),
         yaxis=dict(showgrid=True, gridcolor="#152a4a", color="#7a9cc7",
                    tickfont=dict(color="#e8eef8", size=12), zeroline=False),
-        yaxis2=dict(
+        hovermode="x unified",
+    )
+    if has_conversao:
+        _layout["yaxis2"] = dict(
             overlaying="y", side="right",
             showgrid=False, tickfont=dict(color="#e879f9", size=11),
             zeroline=False, rangemode="tozero",
-        ),
-        hovermode="x unified",
-    )
+        )
+    fig.update_layout(**_layout)
     return fig, top3_cap, top3_vnd, cap_counts, vnd_counts

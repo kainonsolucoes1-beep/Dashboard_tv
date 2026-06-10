@@ -297,7 +297,7 @@ def render_kpis(df_todos: pd.DataFrame):
                             f"<span style='color:#e8eef8;font-weight:400;font-size:12px;'>({_vnd_c[h - 9]} vendas)</span>"
                             f"</span>"
                             for h in _pico_vnd
-                        ) if _pico_vnd else "<span style='color:#7a9cc7;font-size:13px;'>—</span>"
+                        ) if _pico_vnd else "<span style='color:#4a5a6a;font-size:12px;font-style:italic;'>Sem vendas no período</span>"
                     )
                     + "</div>",
                     unsafe_allow_html=True,
