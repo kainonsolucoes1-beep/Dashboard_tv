@@ -690,58 +690,50 @@ def render_kpis(df_todos: pd.DataFrame):
                 if _jstatus:
                     _prev_n_s = _jn
 
-            # Pipeline: [stage, conector, stage, ...]
-            _pipe_cols = st.columns([3, 1, 3, 1, 3, 1, 3, 1, 3])
-            _si = 0
-            for _ci, _pcol in enumerate(_pipe_cols):
-                if _ci % 2 == 0:
-                    _s = _stages[_si]
-                    _fill = max(8, int(_s["pct"]))
-                    _dias_str = f"⏱ {_s['avg']}d desde captação" if _s["avg"] is not None else "⏱ —"
-                    _valor_str = (
-                        f"<div style='font-size:11px;color:#f59e0b;font-weight:600;"
-                        f"margin-top:4px;position:relative;'>{fmt_brl(_s['valor'])}</div>"
-                    ) if _s["valor"] and _s["valor"] > 0 else ""
-                    with _pcol:
-                        st.markdown(
-                            f"<div style='position:relative;background:#0d1f38;border-radius:12px;"
-                            f"border-top:3px solid {_s['cor']};padding:16px 10px 14px;"
-                            f"overflow:hidden;min-height:165px;'>"
-                            f"<div style='position:absolute;bottom:0;left:0;right:0;height:{_fill}%;"
-                            f"background:{_s['cor']};opacity:0.08;border-radius:0 0 12px 12px;'></div>"
-                            f"<div style='font-size:10px;color:#7a9cc7;text-transform:uppercase;"
-                            f"letter-spacing:.7px;font-weight:600;margin-bottom:8px;position:relative;'>"
-                            f"{_s['label']}</div>"
-                            f"<div style='font-size:44px;font-weight:800;color:{_s['cor']};"
-                            f"line-height:1;position:relative;'>{_s['n']}</div>"
-                            f"<div style='margin-top:8px;position:relative;'>"
-                            f"<span style='background:{_s['cor']}22;color:{_s['cor']};font-size:11px;"
-                            f"font-weight:700;padding:3px 10px;border-radius:99px;'>{_s['pct']}%</span></div>"
-                            f"<div style='font-size:11px;color:#4a5a6a;margin-top:10px;position:relative;'>"
-                            f"{_dias_str}</div>"
-                            f"{_valor_str}"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
-                        if st.button("Ver leads", key=f"jorn_ver_{_si}", use_container_width=True):
-                            _atual = st.session_state.get("_jorn_etapa_sel")
-                            st.session_state["_jorn_etapa_sel"] = None if _atual == _s["label"] else _s["label"]
-                            st.session_state["_jorn_df_sel"] = _s["df"].copy()
-                    _si += 1
-                else:
-                    _s_next = _stages[(_ci + 1) // 2]
-                    with _pcol:
-                        st.markdown(
-                            f"<div style='display:flex;flex-direction:column;align-items:center;"
-                            f"justify-content:center;min-height:165px;gap:4px;'>"
-                            f"<div style='font-size:10px;color:#4f8ef7;font-weight:600;"
-                            f"white-space:nowrap;text-align:center;'>{_s_next['delta'] or ''}</div>"
-                            f"<div style='font-size:20px;color:#1e3a5f;'>➜</div>"
-                            f"<div style='font-size:10px;color:#ef4444;white-space:nowrap;"
-                            f"text-align:center;'>−{_s_next['drop']}</div>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+            # Funil Plotly
+            _fig_funil = go.Figure(go.Funnel(
+                y=[s["label"] for s in _stages],
+                x=[s["n"] for s in _stages],
+                textinfo="value+percent initial",
+                textposition="inside",
+                textfont=dict(color="#ffffff", size=13, family="DM Sans"),
+                opacity=0.92,
+                marker=dict(
+                    color=[s["cor"] for s in _stages],
+                    line=dict(width=2, color="#0a1525"),
+                ),
+                connector=dict(
+                    line=dict(color="#152a4a", width=1, dash="dot"),
+                    fillcolor="#0a1525",
+                ),
+                hovertemplate=(
+                    "<b>%{y}</b><br>%{x} leads<br>"
+                    "%{percentInitial:.1%} do total<extra></extra>"
+                ),
+            ))
+            _fig_funil.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d8f0", family="DM Sans"),
+                height=320,
+                margin=dict(t=10, b=10, l=0, r=100),
+            )
+            st.plotly_chart(_fig_funil, use_container_width=True, key="chart_funil_jornada")
+
+            # Linha de tempo + botões "Ver leads"
+            _btn_cols = st.columns(len(_stages))
+            for _bi, (_bcol, _s) in enumerate(zip(_btn_cols, _stages)):
+                with _bcol:
+                    _t = f"⏱ {_s['avg']}d desde captação" if _s["avg"] is not None else ""
+                    st.markdown(
+                        f"<div style='text-align:center;font-size:11px;color:#4a5a6a;"
+                        f"margin-bottom:4px;'>{_t}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if st.button(f"Ver {_s['label'].split()[0]}", key=f"jorn_ver_{_bi}", use_container_width=True):
+                        _atual = st.session_state.get("_jorn_etapa_sel")
+                        st.session_state["_jorn_etapa_sel"] = None if _atual == _s["label"] else _s["label"]
+                        st.session_state["_jorn_df_sel"] = _s["df"].copy()
 
             _etapa_sel = st.session_state.get("_jorn_etapa_sel")
             if _etapa_sel:
