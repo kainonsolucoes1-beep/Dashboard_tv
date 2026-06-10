@@ -88,10 +88,11 @@ if st.session_state.get("authentication_status") is not True:
         background: #111c2d !important;
         border: 1px solid #1e3a5f !important;
         border-radius: 24px !important;
-        padding: 44px 52px !important;
+        padding: 56px 64px !important;
         box-shadow: 0 20px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(79,142,247,.08) !important;
     }
-    [data-testid="stForm"] h2 {
+    [data-testid="stForm"] h2,
+    [data-testid="stForm"] > div > div > div > p {
         display: none !important;
     }
     [data-testid="stForm"] input {
@@ -136,11 +137,19 @@ if st.session_state.get("authentication_status") is not True:
         <div style="font-size:32px;font-weight:800;color:#e8eef8;margin:18px 0 8px;
                     letter-spacing:-.8px;">O2 Solution</div>
         <div style="font-size:13px;color:#4f8ef7;letter-spacing:1.2px;text-transform:uppercase;
-                    font-weight:600;">Sales Hub · Dashboard de Leads</div>
+                    font-weight:600;">Sales Hub</div>
     </div>
     """, unsafe_allow_html=True)
     try:
-        _authenticator.login(location="main")
+        _authenticator.login(
+            location="main",
+            fields={
+                "Form name": "Acesso",
+                "Username": "Usuário",
+                "Password": "Senha",
+                "Login": "Entrar",
+            },
+        )
     except Exception as _login_err:
         st.error(f"Erro ao renderizar login: {_login_err}")
     if st.session_state.get("authentication_status") is False:
