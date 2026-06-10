@@ -160,36 +160,51 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     # ── Linha 3: Ranking ──────────────────────────────────────────────────────
     st.markdown("#### 🏆 Ranking de Captação — Mês Atual")
 
-    if df_todos.empty:
+    _df_rank_src = st.session_state.get("df_todos_all", df_todos).copy()
+    if _grupo == "SDR":
+        _df_rank_src = _df_rank_src[_df_rank_src["origem"].apply(lambda o: str(o).lower() in _SDR_NOMES)]
+    elif _grupo == "Orgânico":
+        _df_rank_src = _df_rank_src[_df_rank_src["origem"].apply(lambda o: str(o).lower() not in _SDR_NOMES)]
+    _df_rank_src = _df_rank_src[
+        _df_rank_src["data_obj"].apply(lambda d: d is not None and _de_val <= d <= _ate_val)
+    ]
+
+    if _df_rank_src.empty:
         st.info("Sem leads captados no período.")
         return
 
+    _user_origem = st.session_state.get("_user_origem_filtro")
+
     _rank = (
-        df_todos.groupby("origem")
+        _df_rank_src.groupby("origem")
         .agg(
             leads=("id", "count"),
-            vendas=("status", lambda x: (x == "Venda Realizada").sum()),
+            tratados=("status", lambda x: (x != "Pendente").sum()),
+            agendados=("status", lambda x: (x == "Agendado").sum()),
             valor=("valor_proposta", "sum"),
         )
         .reset_index()
         .sort_values("leads", ascending=False)
         .reset_index(drop=True)
     )
-    _rank["conversao"] = (_rank["vendas"] / _rank["leads"].clip(lower=1) * 100).round(1)
 
     _medals = ["🥇", "🥈", "🥉"]
     _rows = ""
     for i, row in _rank.iterrows():
         _pos = _medals[i] if i < 3 else f"#{i + 1}"
-        _conv = row["conversao"]
-        _conv_cor = "#22c55e" if _conv >= 30 else ("#f59e0b" if _conv >= 15 else "#ef4444")
+        _is_me = _user_origem and str(row["origem"]).strip().lower() == str(_user_origem).strip().lower()
+        _row_bg = "background:rgba(79,142,247,0.08);border-left:3px solid #4f8ef7;" if _is_me else ""
+        _trat_pct = round(row["tratados"] / row["leads"] * 100) if row["leads"] else 0
+        _trat_cor = "#22c55e" if _trat_pct >= 70 else ("#f59e0b" if _trat_pct >= 40 else "#ef4444")
         _rows += (
-            '<tr style="border-bottom:1px solid #152a4a;">'
+            f'<tr style="border-bottom:1px solid #152a4a;{_row_bg}">'
             f'<td style="padding:14px 16px;font-size:22px;text-align:center;">{_pos}</td>'
-            f'<td style="padding:14px 16px;color:#e8eef8;font-weight:600;font-size:15px;">&#128100; {row["origem"]}</td>'
+            f'<td style="padding:14px 16px;color:#e8eef8;font-weight:600;font-size:15px;">&#128100; {row["origem"]}'
+            + (" <span style='font-size:11px;color:#4f8ef7;font-weight:400;'>(você)</span>" if _is_me else "") +
+            f'</td>'
             f'<td style="padding:14px 16px;color:#4f8ef7;font-weight:700;font-size:22px;text-align:center;">{row["leads"]}</td>'
-            f'<td style="padding:14px 16px;color:#22c55e;font-weight:700;font-size:18px;text-align:center;">{int(row["vendas"])}</td>'
-            f'<td style="padding:14px 16px;color:{_conv_cor};font-weight:700;font-size:15px;text-align:center;">{_conv}%</td>'
+            f'<td style="padding:14px 16px;color:{_trat_cor};font-weight:700;font-size:18px;text-align:center;">{int(row["tratados"])} <span style="font-size:11px;color:#4a5a6a;font-weight:400;">({_trat_pct}%)</span></td>'
+            f'<td style="padding:14px 16px;color:#8b5cf6;font-weight:700;font-size:18px;text-align:center;">{int(row["agendados"])}</td>'
             f'<td style="padding:14px 16px;color:#f59e0b;font-weight:600;font-size:14px;text-align:right;">{fmt_brl(row["valor"])}</td>'
             "</tr>"
         )
@@ -202,8 +217,8 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;width:60px;">Pos</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:left;">Operador</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Leads</th>'
-        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Vendas</th>'
-        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Convers&#227;o</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Tratados</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Agendados</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:right;">Carteira</th>'
         "</tr>"
         "</thead>"

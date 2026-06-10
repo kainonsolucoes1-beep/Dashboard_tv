@@ -180,6 +180,8 @@ if "df_curto" not in st.session_state or _stale:
         st.warning("Nenhum lead encontrado. Verifique o token de acesso.")
         st.stop()
 
+    st.session_state["df_todos_all"] = df_todos.copy()
+
     if not _is_admin and _auth_user in _USER_ORIGEM:
         _orig = _USER_ORIGEM[_auth_user]
         df_todos = df_todos[df_todos["origem"].str.strip() == _orig]
