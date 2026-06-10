@@ -96,6 +96,7 @@ if st.session_state.get("authentication_status") is not True:
         color: #e8eef8 !important;
         font-size: 20px !important;
         font-weight: 700 !important;
+        margin-top: -12px !important;
         margin-bottom: 28px !important;
         letter-spacing: -.3px !important;
     }
