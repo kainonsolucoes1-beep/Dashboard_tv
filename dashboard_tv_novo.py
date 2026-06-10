@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as _components
 import requests
 import pandas as pd
 import plotly.graph_objects as go
@@ -132,7 +133,7 @@ if st.session_state.get("authentication_status") is not True:
         color: #fff !important;
         border: none !important;
         border-radius: 10px !important;
-        padding: 14px 0 !important;
+        padding: 14px 48px !important;
         font-size: 15px !important;
         font-weight: 700 !important;
         letter-spacing: .5px !important;
@@ -171,6 +172,16 @@ if st.session_state.get("authentication_status") is not True:
         )
     except Exception as _login_err:
         st.error(f"Erro ao renderizar login: {_login_err}")
+    _components.html("""<script>
+(function(){
+    function clear(){
+        var els=window.parent.document.querySelectorAll('input[placeholder]');
+        els.forEach(function(e){e.placeholder='';});
+    }
+    clear();
+    new MutationObserver(clear).observe(window.parent.document.body,{childList:true,subtree:true});
+})();
+</script>""", height=0)
     if st.session_state.get("authentication_status") is False:
         st.error("Usuario ou senha incorretos.")
     st.stop()
