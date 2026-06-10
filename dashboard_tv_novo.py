@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as _components
 import requests
 import pandas as pd
 import plotly.graph_objects as go
@@ -173,7 +172,7 @@ if st.session_state.get("authentication_status") is not True:
         )
     except Exception as _login_err:
         st.error(f"Erro ao renderizar login: {_login_err}")
-    _components.html("""<script>
+    st.html("""<script>
 (function(){
     function clear(){
         var els=window.parent.document.querySelectorAll('input[placeholder]');
@@ -182,7 +181,7 @@ if st.session_state.get("authentication_status") is not True:
     clear();
     new MutationObserver(clear).observe(window.parent.document.body,{childList:true,subtree:true});
 })();
-</script>""", height=0)
+</script>""")
     if st.session_state.get("authentication_status") is False:
         st.error("Usuario ou senha incorretos.")
     st.stop()
@@ -211,7 +210,7 @@ if st.session_state.get("_prev_auth_user") != _auth_user:
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 col_titulo, col_hora, col_btn, col_user = st.columns([3, 2, 1, 1])
 with col_titulo:
-    st.title("📺 Dashboard · O2 Solution")
+    st.title("🚀 Sales Hub · O2 Solution")
 with col_hora:
     st.markdown(
         f"<div class='update-time' style='margin-top:16px'>🕐 Atualizado: "
