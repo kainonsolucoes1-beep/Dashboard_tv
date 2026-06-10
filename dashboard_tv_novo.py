@@ -47,7 +47,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 _logo = Image.open(os.path.join(SCRIPT_DIR, "logo o2 atualizada.png"))
 st.set_page_config(
-    page_title="O2 Solution · Sales Hub",
+    page_title="Sales Hub - O2 Solution",
     page_icon=_logo,
     layout="wide",
     initial_sidebar_state="collapsed",
