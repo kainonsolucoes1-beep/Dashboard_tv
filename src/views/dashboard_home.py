@@ -180,7 +180,7 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         .agg(
             leads=("id", "count"),
             tratados=("status", lambda x: (x != "Pendente").sum()),
-            agendados=("status", lambda x: (x == "Agendado").sum()),
+            propostas=("status", lambda x: (x == "Proposta Enviada").sum()),
             valor=("valor_proposta", "sum"),
         )
         .reset_index()
@@ -204,7 +204,7 @@ def render_dashboard_home(df_todos: pd.DataFrame):
             f'</td>'
             f'<td style="padding:14px 16px;color:#4f8ef7;font-weight:700;font-size:22px;text-align:center;">{row["leads"]}</td>'
             f'<td style="padding:14px 16px;color:{_trat_cor};font-weight:700;font-size:18px;text-align:center;">{int(row["tratados"])} <span style="font-size:11px;color:#4a5a6a;font-weight:400;">({_trat_pct}%)</span></td>'
-            f'<td style="padding:14px 16px;color:#8b5cf6;font-weight:700;font-size:18px;text-align:center;">{int(row["agendados"])}</td>'
+            f'<td style="padding:14px 16px;color:#8b5cf6;font-weight:700;font-size:18px;text-align:center;">{int(row["propostas"])}</td>'
             f'<td style="padding:14px 16px;color:#f59e0b;font-weight:600;font-size:14px;text-align:right;">{fmt_brl(row["valor"])}</td>'
             "</tr>"
         )
@@ -218,7 +218,7 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:left;">Operador</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Leads</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Tratados</th>'
-        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Agendados</th>'
+        '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:center;">Proposta</th>'
         '<th style="padding:10px 16px;color:#7a9cc7;font-size:11px;text-transform:uppercase;letter-spacing:.7px;text-align:right;">Carteira</th>'
         "</tr>"
         "</thead>"
