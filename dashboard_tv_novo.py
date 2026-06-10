@@ -105,7 +105,12 @@ if st.session_state.get("authentication_status") is not True:
     </div>
     """, unsafe_allow_html=True)
     try:
-        _authenticator.login(location="main")
+        import inspect as _inspect
+        _login_sig = _inspect.signature(_authenticator.login)
+        if "form_name" in _login_sig.parameters:
+            _authenticator.login("Login", location="main")
+        else:
+            _authenticator.login(location="main")
     except Exception as _login_err:
         st.error(f"Erro ao renderizar login: {_login_err}")
     if st.session_state.get("authentication_status") is False:
