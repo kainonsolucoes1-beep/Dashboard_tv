@@ -300,24 +300,38 @@ def inject_css():
     /* ── Nav bar horizontal (st.radio) ─────────────────────────────── */
     div[data-testid="stRadio"] > div { gap: 0 !important; }
     div[data-testid="stRadio"] [role="radiogroup"] {
-        display: flex !important; flex-wrap: wrap !important; gap: 6px !important;
-        background: var(--bg-card) !important; padding: 8px 10px !important;
-        border-radius: 12px !important; border: 1px solid var(--border) !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+        background: #0d1827 !important;
+        padding: 10px 12px !important;
+        border-radius: 14px !important;
+        border: 1px solid #1a2f4a !important;
+        box-shadow: 0 4px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label {
-        padding: 7px 15px !important; border-radius: 8px !important;
-        color: var(--text-sub) !important; font-size: 13px !important;
-        font-weight: 500 !important; cursor: pointer !important;
-        border: 1px solid transparent !important; white-space: nowrap !important;
-        transition: background .15s, color .15s, border-color .15s !important;
+        padding: 10px 20px !important;
+        border-radius: 10px !important;
+        color: #6b8bb0 !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        border: 1px solid transparent !important;
+        white-space: nowrap !important;
+        letter-spacing: .2px !important;
+        transition: background .15s, color .15s, border-color .15s, box-shadow .15s !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-        background: rgba(79,142,247,.1) !important; color: var(--text-main) !important;
-        border-color: rgba(79,142,247,.35) !important;
+        background: rgba(79,142,247,.12) !important;
+        color: #c8d8f0 !important;
+        border-color: rgba(79,142,247,.3) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) {
-        background: rgba(79,142,247,.18) !important; color: #4f8ef7 !important;
-        border-color: rgba(79,142,247,.55) !important; font-weight: 600 !important;
+        background: linear-gradient(135deg, #1a3a6e, #2d5ca8) !important;
+        color: #e8f0ff !important;
+        border-color: rgba(79,142,247,.6) !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 12px rgba(59,130,246,.35) !important;
     }
     div[data-testid="stRadio"] [role="radiogroup"] label > div:first-child { display: none !important; }
     </style>
