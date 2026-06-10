@@ -91,7 +91,13 @@ if st.session_state.get("authentication_status") is not True:
         padding: 56px 64px !important;
         box-shadow: 0 20px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(79,142,247,.08) !important;
     }
-    [data-testid="stForm"] h2,
+    [data-testid="stForm"] h2 {
+        color: #e8eef8 !important;
+        font-size: 20px !important;
+        font-weight: 700 !important;
+        margin-bottom: 28px !important;
+        letter-spacing: -.3px !important;
+    }
     [data-testid="stForm"] > div > div > div > p {
         display: none !important;
     }
@@ -102,6 +108,10 @@ if st.session_state.get("authentication_status") is not True:
         border-radius: 10px !important;
         padding: 12px 16px !important;
         font-size: 15px !important;
+    }
+    [data-testid="stForm"] input::placeholder {
+        color: transparent !important;
+        opacity: 0 !important;
     }
     [data-testid="stForm"] input:focus {
         border-color: #4f8ef7 !important;
@@ -114,18 +124,17 @@ if st.session_state.get("authentication_status") is not True:
         letter-spacing: .4px !important;
         text-transform: uppercase !important;
     }
-    [data-testid="stForm"] [data-testid="stBaseButton-secondaryFormSubmit"],
-    [data-testid="stForm"] button[kind="secondaryFormSubmit"] {
+    [data-testid="stForm"] button {
         background: linear-gradient(135deg, #1e4080, #4f8ef7) !important;
         color: #fff !important;
         border: none !important;
         border-radius: 10px !important;
-        padding: 12px 0 !important;
+        padding: 14px 32px !important;
         font-size: 15px !important;
         font-weight: 700 !important;
         letter-spacing: .5px !important;
         width: 100% !important;
-        margin-top: 8px !important;
+        margin-top: 12px !important;
         transition: opacity .2s !important;
     }
     [data-testid="stForm"] button:hover {
