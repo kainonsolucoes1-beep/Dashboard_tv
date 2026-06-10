@@ -76,32 +76,67 @@ _authenticator = stauth.Authenticate(
 if st.session_state.get("authentication_status") is not True:
     st.markdown("""
     <style>
+    [data-testid="stAppViewContainer"] {
+        background: radial-gradient(ellipse at 50% 0%, #0d1f38 0%, #060d18 70%) !important;
+    }
     [data-testid="stMainBlockContainer"] {
-        padding-top: 2rem !important;
-        max-width: 420px !important;
+        padding-top: 0 !important;
+        max-width: 540px !important;
         margin: 0 auto !important;
     }
     [data-testid="stForm"] {
-        background: #1a2332 !important;
-        border: 1px solid #2a3f5f !important;
-        border-radius: 20px !important;
-        padding: 32px 36px !important;
-        box-shadow: 0 8px 40px rgba(0,0,0,.6) !important;
+        background: #111c2d !important;
+        border: 1px solid #1e3a5f !important;
+        border-radius: 24px !important;
+        padding: 44px 52px !important;
+        box-shadow: 0 20px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(79,142,247,.08) !important;
+    }
+    [data-testid="stForm"] h2 {
+        display: none !important;
     }
     [data-testid="stForm"] input {
-        background: #0d1b2a !important;
+        background: #0a1525 !important;
         color: #e8eef8 !important;
-        border: 1px solid #2a3f5f !important;
-        border-radius: 8px !important;
+        border: 1px solid #1e3a5f !important;
+        border-radius: 10px !important;
+        padding: 12px 16px !important;
+        font-size: 15px !important;
     }
-    [data-testid="stForm"] label, [data-testid="stForm"] p {
+    [data-testid="stForm"] input:focus {
+        border-color: #4f8ef7 !important;
+        box-shadow: 0 0 0 3px rgba(79,142,247,.15) !important;
+    }
+    [data-testid="stForm"] label {
         color: #7a9cc7 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        letter-spacing: .4px !important;
+        text-transform: uppercase !important;
+    }
+    [data-testid="stForm"] [data-testid="stBaseButton-secondaryFormSubmit"],
+    [data-testid="stForm"] button[kind="secondaryFormSubmit"] {
+        background: linear-gradient(135deg, #1e4080, #4f8ef7) !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 0 !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        letter-spacing: .5px !important;
+        width: 100% !important;
+        margin-top: 8px !important;
+        transition: opacity .2s !important;
+    }
+    [data-testid="stForm"] button:hover {
+        opacity: .88 !important;
     }
     </style>
-    <div style="text-align:center;padding:48px 0 28px;">
-        <div style="font-size:52px;line-height:1;">📺</div>
-        <div style="font-size:28px;font-weight:700;color:#e8eef8;margin:14px 0 6px;letter-spacing:-.5px;">O2 Solution</div>
-        <div style="font-size:13px;color:#7a9cc7;letter-spacing:.4px;">Dashboard de Acompanhamento de Leads</div>
+    <div style="text-align:center;padding:64px 0 36px;">
+        <div style="font-size:58px;line-height:1;filter:drop-shadow(0 4px 16px rgba(79,142,247,.4));">🚀</div>
+        <div style="font-size:32px;font-weight:800;color:#e8eef8;margin:18px 0 8px;
+                    letter-spacing:-.8px;">O2 Solution</div>
+        <div style="font-size:13px;color:#4f8ef7;letter-spacing:1.2px;text-transform:uppercase;
+                    font-weight:600;">Sales Hub · Dashboard de Leads</div>
     </div>
     """, unsafe_allow_html=True)
     try:
