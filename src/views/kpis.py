@@ -111,19 +111,35 @@ def _fetch_br_states_geojson():
 def render_kpis(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
 
-    # ── Botão Atualizar ────────────────────────────────────────────────────────
-    _btn_col, _ = st.columns([1, 5])
-    with _btn_col:
-        if st.button("🔄 Atualizar", key="kpis_refresh", use_container_width=True):
-            fetch_leads_30dias.clear()
-            fetch_leads_criticos.clear()
-            df_novo, _ = merge_leads_curto()
-            st.session_state["df_curto"] = df_novo
-            st.rerun(scope="fragment")
+    # ── Filtros ───────────────────────────────────────────────────────────────
+    with st.expander("🔧 Filtros", expanded=False):
+        _f1, _f2, _f3 = st.columns([2, 2, 1])
+        with _f1:
+            _filtro_de = st.date_input(
+                "De", value=date.today().replace(day=1),
+                format="DD/MM/YYYY", key="kpi_filtro_de",
+            )
+        with _f2:
+            _filtro_ate = st.date_input(
+                "Até", value=date.today(),
+                format="DD/MM/YYYY", key="kpi_filtro_ate",
+            )
+        with _f3:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("🔄 Atualizar", key="kpis_refresh", use_container_width=True):
+                fetch_leads_30dias.clear()
+                fetch_leads_criticos.clear()
+                df_novo, _ = merge_leads_curto()
+                st.session_state["df_curto"] = df_novo
+                st.rerun(scope="fragment")
+
+    df_filtrado = df_todos[
+        df_todos["data_obj"].apply(lambda d: d is not None and _filtro_de <= d <= _filtro_ate)
+    ]
 
     # ── 4 Cards de resumo ──────────────────────────────────────────────────────
-    _tot = len(df_todos)
-    _vendas = int((df_todos["status"] == "Venda Realizada").sum())
+    _tot = len(df_filtrado)
+    _vendas = int((df_filtrado["status"] == "Venda Realizada").sum())
     _conv = round(_vendas / _tot * 100, 1) if _tot else 0.0
     _cor_conv = "#22c55e" if _conv >= 15 else "#f59e0b" if _conv >= 8 else "#ef4444"
 
@@ -150,7 +166,7 @@ def render_kpis(df_todos: pd.DataFrame):
             f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
             f"letter-spacing:.6px;margin-bottom:10px;'>Leads Recebidos</div>"
             f"<div style='font-size:38px;font-weight:800;color:#e8eef8;line-height:1;'>{_tot}</div>"
-            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Período carregado</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>{_filtro_de.strftime('%d/%m')} – {_filtro_ate.strftime('%d/%m/%Y')}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
