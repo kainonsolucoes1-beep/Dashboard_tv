@@ -70,6 +70,7 @@ _authenticator = stauth.Authenticate(
     cookie_name="dashboard_o2",
     cookie_key="chave_secreta_dashboard_2024",
     cookie_expiry_days=1,
+    auto_hash=False,
 )
 # ── Tela de login ──────────────────────────────────────────────────────────────
 if st.session_state.get("authentication_status") is not True:
