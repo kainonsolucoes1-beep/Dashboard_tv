@@ -695,39 +695,62 @@ def render_kpis(df_todos: pd.DataFrame):
                     if _jstatus:
                         _prev_n_s = _jn
 
-                # ── Pipeline de cards ────────────────────────────────────────
+                # ── Pipeline de cards clicáveis ──────────────────────────────
                 _etapa_atual = st.session_state.get("_jorn_etapa_sel")
-                _pipe_cols = st.columns(len(_stages) * 2 - 1)
+                _sel_idx = next(
+                    (i for i, s in enumerate(_stages) if s["label"] == _etapa_atual), -1
+                )
+                _sel_css = ""
+                if _sel_idx >= 0:
+                    _nth   = _sel_idx * 2 + 1
+                    _sc    = _stages[_sel_idx]["cor"]
+                    _sel_css = (
+                        f"div:has(.jp-mk) [data-testid='stHorizontalBlock']"
+                        f" > [data-testid='stColumn']:nth-child({_nth})"
+                        f" [data-testid='stButton'] button {{"
+                        f"border:2px solid {_sc} !important;"
+                        f"box-shadow:0 0 20px {_sc}55 !important;"
+                        f"background:#0d1827 !important;"
+                        f"color:{_sc} !important;}}"
+                    )
 
+                st.markdown(
+                    f"""<div class="jp-mk"></div><style>
+                    div:has(.jp-mk) [data-testid="stHorizontalBlock"]
+                    [data-testid="stButton"] button {{
+                        height:120px !important;
+                        white-space:pre-line !important;
+                        text-align:center !important;
+                        border-radius:14px !important;
+                        padding:10px 6px !important;
+                        background:#111820 !important;
+                        border:1px solid #1c2a3d !important;
+                        color:#c9d8f0 !important;
+                        line-height:1.9 !important;
+                        transition:border-color .2s,box-shadow .2s,background .2s !important;
+                    }}
+                    div:has(.jp-mk) [data-testid="stHorizontalBlock"]
+                    [data-testid="stButton"] button:hover {{
+                        border-color:#3b6fd4 !important;
+                        background:#0d1827 !important;
+                    }}
+                    div:has(.jp-mk) [data-testid="stHorizontalBlock"]
+                    [data-testid="stButton"] button p::first-line {{
+                        font-size:28px !important;
+                        font-weight:700 !important;
+                    }}
+                    {_sel_css}
+                    </style>""",
+                    unsafe_allow_html=True,
+                )
+
+                _pipe_cols = st.columns(len(_stages) * 2 - 1)
                 for _ci, _s in enumerate(_stages):
                     with _pipe_cols[_ci * 2]:
-                        _sel = _etapa_atual == _s["label"]
-                        _border = f"2px solid {_s['cor']}" if _sel else "1px solid #1c2a3d"
-                        _bg = "#0d1827" if _sel else "#111820"
-                        _shadow = f"0 0 18px {_s['cor']}50" if _sel else "0 4px 12px rgba(0,0,0,.35)"
-                        _avg_html = (
-                            f"<div style='font-size:11px;color:#7a9cc7;margin-top:5px;'>"
-                            f"⏱ {_s['avg']}d</div>"
-                        ) if _s["avg"] else ""
-                        st.markdown(
-                            f"<div style='background:{_bg};border:{_border};"
-                            f"border-radius:14px;padding:18px 8px 12px;text-align:center;"
-                            f"box-shadow:{_shadow};margin-bottom:6px;'>"
-                            f"<div style='font-size:10px;color:{_s['cor']};font-weight:700;"
-                            f"text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>"
-                            f"{_s['label']}</div>"
-                            f"<div style='font-size:34px;font-weight:700;color:{_s['cor']};"
-                            f"line-height:1;'>{_s['n']}</div>"
-                            f"<div style='font-size:12px;color:#7a9cc7;margin-top:4px;'>"
-                            f"{_s['pct']}%</div>"
-                            f"{_avg_html}</div>",
-                            unsafe_allow_html=True,
-                        )
-                        if st.button(
-                            "✕ Fechar" if _sel else "Ver leads",
-                            key=f"jorn_card_{_ci}",
-                            use_container_width=True,
-                        ):
+                        _avg_line = f"\n⏱ {_s['avg']}d" if _s["avg"] else ""
+                        _label = f"{_s['n']}\n{_s['label']}\n{_s['pct']}%{_avg_line}"
+                        if st.button(_label, key=f"jorn_card_{_ci}", use_container_width=True):
+                            _sel = _etapa_atual == _s["label"]
                             st.session_state["_jorn_etapa_sel"] = None if _sel else _s["label"]
                             st.session_state["_jorn_df_sel"] = _s["df"].copy()
                             st.session_state["_jorn_stage_data"] = None if _sel else _s
@@ -736,7 +759,7 @@ def render_kpis(df_todos: pd.DataFrame):
                         with _pipe_cols[_ci * 2 + 1]:
                             st.markdown(
                                 "<div style='text-align:center;font-size:22px;color:#2a4a6a;"
-                                "padding-top:22px;'>→</div>",
+                                "padding-top:45px;'>→</div>",
                                 unsafe_allow_html=True,
                             )
 
