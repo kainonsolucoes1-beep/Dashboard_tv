@@ -111,17 +111,9 @@ def _fetch_br_states_geojson():
 def render_kpis(df_todos: pd.DataFrame):
     df_todos = st.session_state.get("df_curto", df_todos)
 
-    _hd, _btn = st.columns([5, 1])
-    with _hd:
-        st.markdown("#### 📈 KPIs")
-        st.markdown(
-            "<p style='color:#7a9cc7;font-size:13px;margin-top:-4px;'>"
-            "Indicadores de performance operacional."
-            "</p>",
-            unsafe_allow_html=True,
-        )
-    with _btn:
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    # ── Botão Atualizar ────────────────────────────────────────────────────────
+    _btn_col, _ = st.columns([1, 5])
+    with _btn_col:
         if st.button("🔄 Atualizar", key="kpis_refresh", use_container_width=True):
             fetch_leads_30dias.clear()
             fetch_leads_criticos.clear()
@@ -129,6 +121,72 @@ def render_kpis(df_todos: pd.DataFrame):
             st.session_state["df_curto"] = df_novo
             st.rerun(scope="fragment")
 
+    # ── 4 Cards de resumo ──────────────────────────────────────────────────────
+    _tot = len(df_todos)
+    _vendas = int((df_todos["status"] == "Venda Realizada").sum())
+    _conv = round(_vendas / _tot * 100, 1) if _tot else 0.0
+    _cor_conv = "#22c55e" if _conv >= 15 else "#f59e0b" if _conv >= 8 else "#ef4444"
+
+    try:
+        _df_crit = fetch_leads_criticos()
+        _is_admin_kpi = st.session_state.get("_is_admin", False)
+        _user_orig = st.session_state.get("_user_origem_filtro")
+        if not _is_admin_kpi and _user_orig:
+            _df_crit = _df_crit[_df_crit["origem"].str.strip() == _user_orig]
+        _atraso = len(_df_crit)
+    except Exception:
+        _atraso = 0
+
+    _cor_atraso = "#ef4444" if _atraso > 10 else "#f59e0b" if _atraso > 0 else "#22c55e"
+
+    _c1, _c2, _c3, _c4 = st.columns(4)
+    _card_style = (
+        "background:#111c2d;border:1px solid #1e3a5f;border-radius:12px;"
+        "padding:20px 22px;min-height:110px;"
+    )
+    with _c1:
+        st.markdown(
+            f"<div style='{_card_style}border-left:3px solid #4f8ef7;'>"
+            f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.6px;margin-bottom:10px;'>Leads Recebidos</div>"
+            f"<div style='font-size:38px;font-weight:800;color:#e8eef8;line-height:1;'>{_tot}</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Período carregado</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    with _c2:
+        st.markdown(
+            f"<div style='{_card_style}border-left:3px solid #22c55e;'>"
+            f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.6px;margin-bottom:10px;'>Vendas Realizadas</div>"
+            f"<div style='font-size:38px;font-weight:800;color:#22c55e;line-height:1;'>{_vendas}</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Mês atual</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    with _c3:
+        st.markdown(
+            f"<div style='{_card_style}border-left:3px solid {_cor_conv};'>"
+            f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.6px;margin-bottom:10px;'>Taxa de Conversão</div>"
+            f"<div style='font-size:38px;font-weight:800;color:{_cor_conv};line-height:1;'>{_conv}%</div>"
+            f"<div style='font-size:12px;color:#7a9cc7;margin-top:8px;'>Leads recebidos → venda</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    with _c4:
+        st.markdown(
+            f"<div style='{_card_style}border-left:3px solid {_cor_atraso};'>"
+            f"<div style='font-size:12px;color:#7a9cc7;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.6px;margin-bottom:10px;'>Leads em Atraso</div>"
+            f"<div style='font-size:38px;font-weight:800;color:{_cor_atraso};line-height:1;'>{_atraso}</div>"
+            f"<div style='font-size:12px;color:{_cor_atraso};margin-top:8px;'>"
+            f"{'Precisam de ação' if _atraso > 0 else 'Tudo em dia'}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     st.markdown("---")
 
     with st.expander("📡 Origem dos Leads", expanded=False):
