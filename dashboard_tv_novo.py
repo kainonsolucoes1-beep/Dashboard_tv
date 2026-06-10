@@ -109,7 +109,10 @@ if st.session_state.get("authentication_status") is not True:
         padding: 12px 16px !important;
         font-size: 15px !important;
     }
-    [data-testid="stForm"] input::placeholder {
+    [data-testid="stForm"] input::placeholder,
+    [data-testid="stForm"] input::-webkit-input-placeholder,
+    [data-testid="stForm"] input::-moz-placeholder,
+    [data-testid="stForm"] input:-ms-input-placeholder {
         color: transparent !important;
         opacity: 0 !important;
     }
@@ -124,12 +127,12 @@ if st.session_state.get("authentication_status") is not True:
         letter-spacing: .4px !important;
         text-transform: uppercase !important;
     }
-    [data-testid="stForm"] button {
+    [data-testid="stFormSubmitButton"] button {
         background: linear-gradient(135deg, #1e4080, #4f8ef7) !important;
         color: #fff !important;
         border: none !important;
         border-radius: 10px !important;
-        padding: 14px 32px !important;
+        padding: 14px 0 !important;
         font-size: 15px !important;
         font-weight: 700 !important;
         letter-spacing: .5px !important;
@@ -137,8 +140,15 @@ if st.session_state.get("authentication_status") is not True:
         margin-top: 12px !important;
         transition: opacity .2s !important;
     }
-    [data-testid="stForm"] button:hover {
+    [data-testid="stFormSubmitButton"] button:hover {
         opacity: .88 !important;
+    }
+    [data-testid="stForm"] [data-testid="stBaseButton-minimal"] {
+        background: transparent !important;
+        border: none !important;
+        padding: 6px !important;
+        width: auto !important;
+        color: #7a9cc7 !important;
     }
     </style>
     <div style="text-align:center;padding:64px 0 36px;">
