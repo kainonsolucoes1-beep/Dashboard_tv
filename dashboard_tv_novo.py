@@ -128,6 +128,9 @@ st.session_state["_user_origem_filtro"] = _USER_ORIGEM.get(_auth_user) if not _i
 
 if st.session_state.get("_prev_auth_user") != _auth_user:
     st.session_state.pop("df_funil", None)
+    st.session_state.pop("df_curto", None)
+    st.session_state.pop("df_todos_all", None)
+    st.session_state["_df_curto_stale"] = True
     st.session_state["_prev_auth_user"] = _auth_user
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
