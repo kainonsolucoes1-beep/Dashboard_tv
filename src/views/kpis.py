@@ -670,6 +670,7 @@ def render_kpis(df_todos: pd.DataFrame):
             _BENCHMARK_CONV = 30.0  # % mínimo considerado saudável
 
             _conv_strip = []
+            _prev_avg_dias = 0.0
             for _ji, (_jlabel, _jstatus, _jcor) in enumerate(_JORNADA):
                 _df_e = df_jorn if _jstatus is None else df_jorn[df_jorn["status"] == _jstatus]
                 _jn   = len(_df_e)
@@ -678,9 +679,13 @@ def render_kpis(df_todos: pd.DataFrame):
                 _javg = round(_df_e["_dias"].mean(), 1) if _jstatus and not _df_e.empty else None
                 _dropoff = (_prev_n - _jn) if _ji > 0 else 0
                 _conv_cor = "#22c55e" if _jpct_prev >= _BENCHMARK_CONV else "#ef4444"
+                _delta_dias = None
+                if _ji > 0 and _javg is not None:
+                    _d = round(_javg - _prev_avg_dias, 1)
+                    _delta_dias = f"+{_d}d" if _d > 0 else "< 1d"
 
                 if _ji > 0:
-                    _conv_strip.append((_jlabel, _jpct_prev, _dropoff, _conv_cor))
+                    _conv_strip.append((_jlabel, _jpct_prev, _dropoff, _conv_cor, _delta_dias))
 
                 if _javg is not None:
                     if _jstatus == "Venda Realizada":
@@ -693,7 +698,7 @@ def render_kpis(df_todos: pd.DataFrame):
                             f"</div>"
                         )
                     else:
-                        _dias_html = f"<div style='margin-top:6px;font-size:11px;color:#7a9cc7;'>⏱ {_javg} dias em média</div>"
+                        _dias_html = f"<div style='margin-top:6px;font-size:11px;color:#7a9cc7;'>⏱ {_javg}d desde captação</div>"
                 else:
                     _dias_html = ""
 
@@ -723,14 +728,20 @@ def render_kpis(df_todos: pd.DataFrame):
                         _atual = st.session_state.get("_jorn_etapa_sel")
                         st.session_state["_jorn_etapa_sel"] = None if _atual == _jlabel else _jlabel
                         st.session_state["_jorn_df_sel"] = _df_e.copy()
+                if _javg is not None:
+                    _prev_avg_dias = _javg
                 if _jstatus is not None:
                     _prev_n = _jn
 
             # faixa de conversão entre etapas
-            _strip_html = "<div style='display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:2px;flex-wrap:wrap;'>"
-            for _sl, _sp, _sd, _sc in _conv_strip:
+            _strip_html = "<div style='display:flex;gap:6px;align-items:center;margin-top:10px;margin-bottom:2px;flex-wrap:wrap;'>"
+            for _sl, _sp, _sd, _sc, _sdelta in _conv_strip:
+                _delta_badge = (
+                    f"<span style='font-size:10px;color:#4f8ef7;font-weight:500;'>{_sdelta}</span> "
+                    if _sdelta else ""
+                )
                 _strip_html += (
-                    f"<div style='font-size:11px;color:#7a9cc7;'>→</div>"
+                    f"<div style='font-size:11px;color:#7a9cc7;'>→ {_delta_badge}</div>"
                     f"<div style='background:#0d1f35;border-radius:6px;padding:4px 10px;"
                     f"font-size:11px;font-weight:600;color:{_sc};white-space:nowrap;'>"
                     f"{_sl}: {_sp}% <span style='color:#4a5a6a;font-weight:400;'>(−{_sd})</span></div>"
