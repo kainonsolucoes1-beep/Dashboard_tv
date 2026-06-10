@@ -865,7 +865,7 @@ def render_kpis(df_todos: pd.DataFrame):
                 unsafe_allow_html=True,
             )
 
-    with st.expander("💰 Vendas Realizadas", expanded=False):
+    with st.expander("💰 Detalhamento de Vendas", expanded=False):
         st.markdown(
             "<div style='color:#7a9cc7;font-size:12px;margin-bottom:14px;'>"
             "Ranking de vendas por operador · delta vs período anterior · acompanhamento de meta"
