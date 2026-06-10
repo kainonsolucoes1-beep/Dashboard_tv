@@ -5,6 +5,7 @@ Armazena em JSON local, evita duplicatas via hash MD5.
 
 import json
 import hashlib
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -15,7 +16,10 @@ import pandas as pd
 class HistoricoIncremental:
     """Histórico incremental de anotações de leads exportados do Followize."""
 
-    def __init__(self, caminho_json: str = "data/historico_consolidado.json"):
+    def __init__(self, caminho_json: str = None):
+        if caminho_json is None:
+            projeto_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            caminho_json = os.path.join(projeto_dir, "data", "historico_consolidado.json")
         self._path = Path(caminho_json)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._dados = self._carregar()
