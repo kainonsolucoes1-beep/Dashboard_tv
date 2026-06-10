@@ -695,35 +695,53 @@ def render_kpis(df_todos: pd.DataFrame):
                     if _jstatus:
                         _prev_n_s = _jn
 
-                # Funil Plotly
-                _fig_funil = go.Figure(go.Funnel(
-                    y=[s["label"] for s in _stages],
-                    x=[s["n"] for s in _stages],
-                    textinfo="value+percent initial",
-                    textposition="inside",
-                    textfont=dict(color="#ffffff", size=13, family="DM Sans"),
-                    opacity=0.92,
-                    marker=dict(
-                        color=[s["cor"] for s in _stages],
-                        line=dict(width=2, color="#0a1525"),
+                # Sankey Plotly
+                _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
+                _jn_vnr  = len(_df_vnr)
+                _avg_vnr = round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else None
+
+                _sk_labels = ["Captados"] + [s["label"] for s in _stages[1:]] + ["Venda não Realizada"]
+                _sk_node_colors = ["#4f8ef7"] + [s["cor"] for s in _stages[1:]] + ["#ef4444"]
+                _sk_src  = [0] * (len(_stages) - 1 + 1)
+                _sk_tgt  = list(range(1, len(_stages))) + [len(_stages)]
+                _sk_vals = [s["n"] for s in _stages[1:]] + [_jn_vnr]
+                _sk_link_colors = (
+                    ["rgba(96,165,250,.28)"]   +   # Pendente
+                    ["rgba(139,92,246,.28)"]   +   # Agendado
+                    ["rgba(245,158,11,.28)"]   +   # Proposta Enviada
+                    ["rgba(34,197,94,.38)"]    +   # Venda Realizada
+                    ["rgba(239,68,68,.32)"]        # Venda não Realizada
+                )
+
+                _fig_sankey = go.Figure(go.Sankey(
+                    arrangement="snap",
+                    node=dict(
+                        pad=22,
+                        thickness=26,
+                        line=dict(color="#0a1525", width=1.5),
+                        label=_sk_labels,
+                        color=_sk_node_colors,
+                        hovertemplate="<b>%{label}</b><br>%{value} leads<extra></extra>",
                     ),
-                    connector=dict(
-                        line=dict(color="#152a4a", width=1, dash="dot"),
-                        fillcolor="#0a1525",
-                    ),
-                    hovertemplate=(
-                        "<b>%{y}</b><br>%{x} leads<br>"
-                        "%{percentInitial:.1%} do total<extra></extra>"
+                    link=dict(
+                        source=_sk_src,
+                        target=_sk_tgt,
+                        value=_sk_vals,
+                        color=_sk_link_colors,
+                        hovertemplate=(
+                            "<b>%{source.label} → %{target.label}</b><br>"
+                            "%{value} leads<extra></extra>"
+                        ),
                     ),
                 ))
-                _fig_funil.update_layout(
+                _fig_sankey.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#c9d8f0", family="DM Sans"),
-                    height=320,
-                    margin=dict(t=10, b=10, l=0, r=100),
+                    font=dict(color="#c9d8f0", family="DM Sans", size=13),
+                    height=360,
+                    margin=dict(t=16, b=16, l=16, r=16),
                 )
-                st.plotly_chart(_fig_funil, use_container_width=True, key="chart_funil_jornada")
+                st.plotly_chart(_fig_sankey, use_container_width=True, key="chart_sankey_jornada")
 
                 # Linha de tempo + botões "Ver leads"
                 _btn_cols = st.columns(len(_stages))
@@ -753,39 +771,6 @@ def render_kpis(df_todos: pd.DataFrame):
                     _cols_show = [c for c in ["nome", "origem", "status", "data", "valor_proposta"] if c in _df_show.columns]
                     st.dataframe(_df_show[_cols_show], use_container_width=True, hide_index=True)
 
-                # Saída do funil — Venda não Realizada
-                _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
-                _jn_vnr  = len(_df_vnr)
-                _pct_vnr = round(_jn_vnr / _total_jorn * 100, 1) if _total_jorn else 0
-                _avg_vnr = round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else None
-                _tempo_vnr_html = (
-                    "<div style='display:flex;gap:24px;justify-content:center;margin-top:10px;'>"
-                    "<div><div style='font-size:12px;color:#7a9cc7;'>% do total</div>"
-                    "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_pct_vnr) + "%</div></div>"
-                    "<div style='width:1px;background:#1e3a5f;align-self:stretch;'></div>"
-                    "<div><div style='font-size:12px;color:#7a9cc7;'>Tempo médio</div>"
-                    "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_avg_vnr) + " dias</div></div>"
-                    "</div>"
-                ) if _avg_vnr is not None else (
-                    "<div style='margin-top:10px;'>"
-                    "<div style='font-size:12px;color:#7a9cc7;'>% do total</div>"
-                    "<div style='font-size:22px;font-weight:700;color:#ef4444;'>" + str(_pct_vnr) + "%</div>"
-                    "</div>"
-                )
-                st.markdown(
-                    f"<div style='margin-top:14px;border-top:1px dashed #1e3a5f;padding-top:14px;'>"
-                    f"<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
-                    f"letter-spacing:.7px;font-weight:600;margin-bottom:8px;'>↳ Saída do funil</div>"
-                    f"<div class='card-status' style='border-left:4px solid #ef4444;"
-                    f"text-align:center;padding:20px 12px;"
-                    f"display:flex;flex-direction:column;justify-content:space-between;'>"
-                    f"<div style='font-size:12px;color:#7a9cc7;text-transform:uppercase;"
-                    f"letter-spacing:.7px;font-weight:600;'>Venda não Realizada</div>"
-                    f"<div style='font-size:44px;font-weight:700;color:#ef4444;line-height:1.1;'>{_jn_vnr}</div>"
-                    f"{_tempo_vnr_html}"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
 
 
     with st.expander("💰 Conversão  ·  5 indicadores", expanded=False):
