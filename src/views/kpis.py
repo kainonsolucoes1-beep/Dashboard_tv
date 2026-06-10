@@ -695,81 +695,129 @@ def render_kpis(df_todos: pd.DataFrame):
                     if _jstatus:
                         _prev_n_s = _jn
 
-                # Sankey Plotly
-                _df_vnr  = df_jorn[df_jorn["status"] == "Venda não Realizada"]
-                _jn_vnr  = len(_df_vnr)
-                _avg_vnr = round(_df_vnr["_dias"].mean(), 1) if not _df_vnr.empty else None
+                # ── Pipeline de cards ────────────────────────────────────────
+                _etapa_atual = st.session_state.get("_jorn_etapa_sel")
+                _pipe_cols = st.columns(len(_stages) * 2 - 1)
 
-                _sk_labels = ["Captados"] + [s["label"] for s in _stages[1:]] + ["Venda não Realizada"]
-                _sk_node_colors = ["#4f8ef7"] + [s["cor"] for s in _stages[1:]] + ["#ef4444"]
-                _sk_src  = [0] * (len(_stages) - 1 + 1)
-                _sk_tgt  = list(range(1, len(_stages))) + [len(_stages)]
-                _sk_vals = [s["n"] for s in _stages[1:]] + [_jn_vnr]
-                _sk_link_colors = (
-                    ["rgba(96,165,250,.28)"]   +   # Pendente
-                    ["rgba(139,92,246,.28)"]   +   # Agendado
-                    ["rgba(245,158,11,.28)"]   +   # Proposta Enviada
-                    ["rgba(34,197,94,.38)"]    +   # Venda Realizada
-                    ["rgba(239,68,68,.32)"]        # Venda não Realizada
-                )
-
-                _fig_sankey = go.Figure(go.Sankey(
-                    arrangement="snap",
-                    node=dict(
-                        pad=22,
-                        thickness=26,
-                        line=dict(color="#0a1525", width=1.5),
-                        label=_sk_labels,
-                        color=_sk_node_colors,
-                        hovertemplate="<b>%{label}</b><br>%{value} leads<extra></extra>",
-                    ),
-                    link=dict(
-                        source=_sk_src,
-                        target=_sk_tgt,
-                        value=_sk_vals,
-                        color=_sk_link_colors,
-                        hovertemplate=(
-                            "<b>%{source.label} → %{target.label}</b><br>"
-                            "%{value} leads<extra></extra>"
-                        ),
-                    ),
-                ))
-                _fig_sankey.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#c9d8f0", family="DM Sans", size=13),
-                    height=360,
-                    margin=dict(t=16, b=16, l=16, r=16),
-                )
-                st.plotly_chart(_fig_sankey, use_container_width=True, key="chart_sankey_jornada")
-
-                # Linha de tempo + botões "Ver leads"
-                _btn_cols = st.columns(len(_stages))
-                for _bi, (_bcol, _s) in enumerate(zip(_btn_cols, _stages)):
-                    with _bcol:
-                        _t = f"⏱ {_s['avg']}d desde captação" if _s["avg"] is not None else ""
+                for _ci, _s in enumerate(_stages):
+                    with _pipe_cols[_ci * 2]:
+                        _sel = _etapa_atual == _s["label"]
+                        _border = f"2px solid {_s['cor']}" if _sel else "1px solid #1c2a3d"
+                        _bg = "#0d1827" if _sel else "#111820"
+                        _shadow = f"0 0 18px {_s['cor']}50" if _sel else "0 4px 12px rgba(0,0,0,.35)"
+                        _avg_html = (
+                            f"<div style='font-size:11px;color:#7a9cc7;margin-top:5px;'>"
+                            f"⏱ {_s['avg']}d</div>"
+                        ) if _s["avg"] else ""
                         st.markdown(
-                            f"<div style='text-align:center;font-size:11px;color:#4a5a6a;"
-                            f"margin-bottom:4px;'>{_t}</div>",
+                            f"<div style='background:{_bg};border:{_border};"
+                            f"border-radius:14px;padding:18px 8px 12px;text-align:center;"
+                            f"box-shadow:{_shadow};margin-bottom:6px;'>"
+                            f"<div style='font-size:10px;color:{_s['cor']};font-weight:700;"
+                            f"text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;'>"
+                            f"{_s['label']}</div>"
+                            f"<div style='font-size:34px;font-weight:700;color:{_s['cor']};"
+                            f"line-height:1;'>{_s['n']}</div>"
+                            f"<div style='font-size:12px;color:#7a9cc7;margin-top:4px;'>"
+                            f"{_s['pct']}%</div>"
+                            f"{_avg_html}</div>",
                             unsafe_allow_html=True,
                         )
-                        if st.button(f"Ver {_s['label'].split()[0]}", key=f"jorn_ver_{_bi}", use_container_width=True):
-                            _atual = st.session_state.get("_jorn_etapa_sel")
-                            st.session_state["_jorn_etapa_sel"] = None if _atual == _s["label"] else _s["label"]
+                        if st.button(
+                            "✕ Fechar" if _sel else "Ver leads",
+                            key=f"jorn_card_{_ci}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["_jorn_etapa_sel"] = None if _sel else _s["label"]
                             st.session_state["_jorn_df_sel"] = _s["df"].copy()
+                            st.session_state["_jorn_stage_data"] = None if _sel else _s
 
+                    if _ci < len(_stages) - 1:
+                        with _pipe_cols[_ci * 2 + 1]:
+                            st.markdown(
+                                "<div style='text-align:center;font-size:22px;color:#2a4a6a;"
+                                "padding-top:22px;'>→</div>",
+                                unsafe_allow_html=True,
+                            )
+
+                # ── Detalhe da etapa selecionada ─────────────────────────────
                 _etapa_sel = st.session_state.get("_jorn_etapa_sel")
                 if _etapa_sel:
+                    _s_data  = st.session_state.get("_jorn_stage_data") or {}
                     _df_show = st.session_state.get("_jorn_df_sel", pd.DataFrame())
+                    _cor_sel = _s_data.get("cor", "#4f8ef7")
+                    _avg_sel = _s_data.get("avg")
+                    _avg_line = (
+                        f"<div style='font-size:12px;color:#7a9cc7;margin-top:6px;'>"
+                        f"⏱ Tempo médio desde captação: "
+                        f"<b style='color:#c9d8f0;'>{_avg_sel} dias</b></div>"
+                    ) if _avg_sel else ""
                     st.markdown(
-                        f"<div style='margin-top:16px;font-size:13px;font-weight:600;"
-                        f"color:#c9d8f0;border-top:1px solid #1e3a5f;padding-top:12px;'>"
-                        f"Leads em: <span style='color:#4f8ef7;'>{_etapa_sel}</span>"
-                        f" <span style='color:#7a9cc7;font-size:11px;font-weight:400;'>({len(_df_show)} leads)</span></div>",
+                        f"<div style='margin-top:8px;padding:14px 18px;"
+                        f"background:#0a111e;border:1px solid {_cor_sel}55;"
+                        f"border-radius:12px;margin-bottom:10px;'>"
+                        f"<div style='font-size:13px;font-weight:700;color:{_cor_sel};'>"
+                        f"{_etapa_sel} — "
+                        f"<span style='color:#c9d8f0;'>{len(_df_show)} leads</span></div>"
+                        f"{_avg_line}</div>",
                         unsafe_allow_html=True,
                     )
                     _cols_show = [c for c in ["nome", "origem", "status", "data", "valor_proposta"] if c in _df_show.columns]
                     st.dataframe(_df_show[_cols_show], use_container_width=True, hide_index=True)
+
+                # ── Saídas do Funil ───────────────────────────────────────────
+                _df_vnr = df_jorn[df_jorn["status"] == "Venda não Realizada"]
+                _jn_vnr = len(_df_vnr)
+                if _jn_vnr > 0:
+                    st.markdown(
+                        "<div style='margin-top:20px;border-top:1px dashed #1c2a3d;"
+                        "padding-top:16px;'>"
+                        "<div style='font-size:11px;color:#7a9cc7;text-transform:uppercase;"
+                        "letter-spacing:.7px;font-weight:600;margin-bottom:12px;'>"
+                        "↳ Saídas do Funil</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                    _motivo_col = next(
+                        (c for c in ["motivo", "motivo_perda", "descricao", "observacao"]
+                         if c in _df_vnr.columns),
+                        None,
+                    )
+                    if _motivo_col:
+                        _motivos = _df_vnr[_motivo_col].fillna("Não informado").value_counts().head(8)
+                        _rows_html = ""
+                        for _mot, _cnt in _motivos.items():
+                            _mot_label = str(_mot).strip() or "Não informado"
+                            _pct_m = round(_cnt / _jn_vnr * 100)
+                            _rows_html += (
+                                f"<div style='display:flex;justify-content:space-between;"
+                                f"align-items:center;padding:9px 0;"
+                                f"border-bottom:1px solid #0d1320;'>"
+                                f"<div style='font-size:13px;color:#c9d8f0;'>❌ {_mot_label}</div>"
+                                f"<div style='display:flex;gap:10px;align-items:center;'>"
+                                f"<div style='width:80px;height:4px;background:#1a2a3a;"
+                                f"border-radius:2px;overflow:hidden;'>"
+                                f"<div style='width:{_pct_m}%;height:4px;background:#ef4444;"
+                                f"border-radius:2px;'></div></div>"
+                                f"<div style='font-size:13px;color:#ef4444;font-weight:700;"
+                                f"min-width:24px;text-align:right;'>{_cnt}</div>"
+                                f"</div></div>"
+                            )
+                        st.markdown(
+                            f"<div style='background:#0a111e;border:1px solid #1c2a3d;"
+                            f"border-radius:12px;padding:14px 18px;'>{_rows_html}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f"<div style='background:#0a111e;border:1px solid #1c2a3d;"
+                            f"border-radius:12px;padding:16px 20px;text-align:center;'>"
+                            f"<div style='font-size:13px;color:#ef4444;font-weight:700;'>"
+                            f"❌ Venda não Realizada: {_jn_vnr} leads</div>"
+                            f"<div style='font-size:11px;color:#7a9cc7;margin-top:6px;'>"
+                            f"Campo de motivo não disponível — verifique Followize.</div>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
 
 
