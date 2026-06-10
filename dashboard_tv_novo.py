@@ -75,13 +75,26 @@ _authenticator = stauth.Authenticate(
 if st.session_state.get("authentication_status") is not True:
     st.markdown("""
     <style>
-    [data-testid="stMainBlockContainer"] { padding-top: 2rem !important; }
+    [data-testid="stMainBlockContainer"] {
+        padding-top: 2rem !important;
+        max-width: 420px !important;
+        margin: 0 auto !important;
+    }
     [data-testid="stForm"] {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border) !important;
+        background: #1a2332 !important;
+        border: 1px solid #2a3f5f !important;
         border-radius: 20px !important;
         padding: 32px 36px !important;
-        box-shadow: 0 8px 40px rgba(0,0,0,.5) !important;
+        box-shadow: 0 8px 40px rgba(0,0,0,.6) !important;
+    }
+    [data-testid="stForm"] input {
+        background: #0d1b2a !important;
+        color: #e8eef8 !important;
+        border: 1px solid #2a3f5f !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stForm"] label, [data-testid="stForm"] p {
+        color: #7a9cc7 !important;
     }
     </style>
     <div style="text-align:center;padding:48px 0 28px;">
@@ -90,9 +103,7 @@ if st.session_state.get("authentication_status") is not True:
         <div style="font-size:13px;color:#7a9cc7;letter-spacing:.4px;">Dashboard de Acompanhamento de Leads</div>
     </div>
     """, unsafe_allow_html=True)
-    _, col_login, _ = st.columns([1, 1.2, 1])
-    with col_login:
-        _authenticator.login(location="main")
+    _authenticator.login(location="main")
     if st.session_state.get("authentication_status") is False:
         st.error("Usuário ou senha incorretos.")
     st.stop()
