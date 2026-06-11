@@ -208,12 +208,12 @@ def fetch_leads_30dias():
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_leads_80dias():
-    """80 dias por criação. Prioriza cache em disco do updater.py."""
+    """90 dias por criação. Prioriza cache em disco do updater.py."""
     if _cache_disco_disponivel(CACHE_80_PATH):
         df, _ = _ler_cache_disco(CACHE_80_PATH)
         if not df.empty:
             return df, None
-    return _fetch_leads_from_api(days=80, date_of="creation")
+    return _fetch_leads_from_api(days=90, date_of="creation")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
