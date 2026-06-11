@@ -130,9 +130,16 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
         email    = (lead.get("contact") or {}).get("email", "") or ""
         telefone = ((lead.get("contact") or {}).get("cellphone") or
                     (lead.get("contact") or {}).get("phone", "")) or ""
-        int2     = ((lead.get("interests") or {}).get("interest_2") or {}).get("name", "") or ""
-        int3     = ((lead.get("interests") or {}).get("interest_3") or {}).get("name", "") or ""
-        int5     = ((lead.get("interests") or {}).get("interest_5") or {}).get("name", "") or ""
+        int2          = ((lead.get("interests") or {}).get("interest_2") or {}).get("name", "") or ""
+        int3          = ((lead.get("interests") or {}).get("interest_3") or {}).get("name", "") or ""
+        int4          = ((lead.get("interests") or {}).get("interest_4") or {}).get("name", "") or ""
+        int5          = ((lead.get("interests") or {}).get("interest_5") or {}).get("name", "") or ""
+        _addr         = ((lead.get("contact") or {}).get("address") or {})
+        cidade        = _addr.get("city", "") or ""
+        estado        = _addr.get("state", "") or ""
+        _company      = ((lead.get("contact") or {}).get("company") or {})
+        cnpj          = _company.get("id_number", "") or ""
+        filial        = ((lead.get("location") or {}).get("name", "")) or ""
 
         msg_raw = lead.get("message", "") or ""
         base = ""
@@ -182,7 +189,12 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             "telefone":            telefone,
             "interest_2":          int2,
             "interest_3":          int3,
+            "coparticipacao":      int4,
             "idade":               int5,
+            "cidade":              cidade,
+            "estado":              estado,
+            "cnpj":                cnpj,
+            "filial":              filial,
             "last_interaction_at": last_inter,
             "agendamento_data":    sched_data,
             "agendamento_tipo":    sched_tipo,
