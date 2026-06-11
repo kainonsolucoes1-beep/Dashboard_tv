@@ -158,9 +158,6 @@ def render_dashboard_home(df_todos: pd.DataFrame):
             f"{_pct_hoje}% atingido</div>"
             f"</div></div>"
             f"{_rank_rows}"
-            f"<div style='display:flex;justify-content:space-between;margin-top:12px;"
-            f"font-size:11px;color:#3a5a7a;'>"
-            f"<span>Atualizado em tempo real</span><span>Ranking do dia</span></div>"
             f"</div>",
             unsafe_allow_html=True,
         )
