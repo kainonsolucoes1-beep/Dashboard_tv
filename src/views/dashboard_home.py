@@ -144,11 +144,10 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         st.markdown(
             f"<div class='card-status' style='padding:20px 22px;'>"
             f"<div style='font-size:11px;color:#7a9cc7;font-weight:700;text-transform:uppercase;"
-            f"letter-spacing:.7px;margin-bottom:14px;'>🏆 Captação Hoje</div>"
+            f"letter-spacing:.7px;margin-bottom:14px;'>🏆 Performance do Dia</div>"
             f"<div style='display:flex;justify-content:space-between;align-items:flex-start;"
             f"margin-bottom:16px;'>"
             f"<div>"
-            f"<div style='font-size:11px;color:#7a9cc7;margin-bottom:4px;'>Leads captados hoje</div>"
             f"<div style='font-size:48px;font-weight:700;color:#c9d8f0;line-height:1;'>{_leads_hoje}</div>"
             f"</div>"
             f"<div style='text-align:right;'>"
