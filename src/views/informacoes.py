@@ -47,6 +47,10 @@ def render_informacoes():
         "idade":     "Idades",
     }
 
+    for col in col_labels:
+        if col not in df.columns:
+            df[col] = ""
+
     df_display = df[list(col_labels.keys())].copy().rename(columns=col_labels)
 
     if _term:
