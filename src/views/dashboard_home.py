@@ -108,14 +108,63 @@ def render_dashboard_home(df_todos: pd.DataFrame):
     col_rosca, col_cards = st.columns([6, 4])
 
     with col_rosca:
-        st.markdown("#### 🍩 Captação por Base Hoje")
-        _aliases = load_base_aliases()
-        df_rosca = apply_base_aliases(df_hoje.copy(), _aliases)
-        _fig_bases = grafico_rosca_bases(df_rosca)
-        if _fig_bases is not None and "base" in df_rosca.columns and df_rosca["base"].notna().any():
-            st.plotly_chart(_fig_bases, use_container_width=True, key="rosca_dash")
-        else:
-            st.info("Nenhuma base registrada nos leads de hoje.")
+        _meta_diaria = max(round(_meta / max(_du_totais, 1)), 1)
+        _leads_hoje  = len(df_hoje)
+        _pct_hoje    = round(_leads_hoje / _meta_diaria * 100)
+        _cor_hoje    = "#22c55e" if _leads_hoje >= _meta_diaria else ("#f59e0b" if _pct_hoje >= 70 else "#ef4444")
+
+        _rank_hoje = (
+            df_hoje.groupby("origem")
+            .size()
+            .reset_index(name="n")
+            .sort_values("n", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        _medalhas = ["🥇", "🥈", "🥉"]
+        _rank_rows = ""
+        for _ri, _rrow in _rank_hoje.iterrows():
+            _med   = _medalhas[_ri] if _ri < 3 else ""
+            _pct_op = round(_rrow["n"] / max(_leads_hoje, 1) * 100, 1)
+            _lead_label = "lead" if _rrow["n"] == 1 else "leads"
+            _rank_rows += (
+                f"<div style='display:flex;justify-content:space-between;align-items:center;"
+                f"padding:9px 0;border-bottom:1px solid #0d1320;'>"
+                f"<div style='display:flex;align-items:center;gap:8px;'>"
+                f"<span style='font-size:15px;min-width:20px;'>{_med}</span>"
+                f"<span style='font-size:14px;font-weight:600;color:#c9d8f0;'>{_rrow['origem']}</span>"
+                f"<span style='background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.3);"
+                f"border-radius:99px;padding:2px 9px;font-size:11px;color:#4f8ef7;font-weight:600;'>"
+                f"{_rrow['n']} {_lead_label}</span>"
+                f"</div>"
+                f"<div style='font-size:13px;color:#7a9cc7;font-weight:500;'>{_pct_op}%</div>"
+                f"</div>"
+            )
+
+        st.markdown(
+            f"<div class='card-status' style='padding:20px 22px;'>"
+            f"<div style='font-size:11px;color:#7a9cc7;font-weight:700;text-transform:uppercase;"
+            f"letter-spacing:.7px;margin-bottom:14px;'>🏆 Captação Hoje</div>"
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-start;"
+            f"margin-bottom:16px;'>"
+            f"<div>"
+            f"<div style='font-size:11px;color:#7a9cc7;margin-bottom:4px;'>Leads captados hoje</div>"
+            f"<div style='font-size:48px;font-weight:700;color:#c9d8f0;line-height:1;'>{_leads_hoje}</div>"
+            f"</div>"
+            f"<div style='text-align:right;'>"
+            f"<div style='font-size:11px;color:#7a9cc7;margin-bottom:4px;'>Meta diária</div>"
+            f"<div style='font-size:28px;font-weight:700;color:#c9d8f0;line-height:1;'>"
+            f"{_leads_hoje} / {_meta_diaria}</div>"
+            f"<div style='font-size:12px;color:{_cor_hoje};font-weight:600;margin-top:5px;'>"
+            f"{_pct_hoje}% atingido</div>"
+            f"</div></div>"
+            f"{_rank_rows}"
+            f"<div style='display:flex;justify-content:space-between;margin-top:12px;"
+            f"font-size:11px;color:#3a5a7a;'>"
+            f"<span>Atualizado em tempo real</span><span>Ranking do dia</span></div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     with col_cards:
         with st.expander("⚙️ Meta mensal", expanded=False):
