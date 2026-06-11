@@ -132,6 +132,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
                     (lead.get("contact") or {}).get("phone", "")) or ""
         int2     = ((lead.get("interests") or {}).get("interest_2") or {}).get("name", "") or ""
         int3     = ((lead.get("interests") or {}).get("interest_3") or {}).get("name", "") or ""
+        int5     = ((lead.get("interests") or {}).get("interest_5") or {}).get("name", "") or ""
 
         msg_raw = lead.get("message", "") or ""
         base = ""
@@ -181,6 +182,7 @@ def _fetch_leads_from_api(days: int, date_of: str = "creation"):
             "telefone":            telefone,
             "interest_2":          int2,
             "interest_3":          int3,
+            "idade":               int5,
             "last_interaction_at": last_inter,
             "agendamento_data":    sched_data,
             "agendamento_tipo":    sched_tipo,
