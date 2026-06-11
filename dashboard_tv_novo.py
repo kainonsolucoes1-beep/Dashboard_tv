@@ -39,6 +39,7 @@ from src.views.estagio import render_estagio_lead
 from src.views.fragments import render_funil_rt, render_leads_rt
 from src.views.kpis import render_kpis
 from src.views.dashboard_home import render_dashboard_home
+from src.views.informacoes import render_informacoes
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -271,7 +272,7 @@ else:
 
 # ── NAV BAR ───────────────────────────────────────────────────────────────────
 _abas = (
-    ["🏠 Dashboard", "📊 SDR", "🔥 Comercial", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs"]
+    ["🏠 Dashboard", "📊 SDR", "🔥 Comercial", "👤 Por Operador", "📋 Leads Recentes", "🗂️ CRM", "📈 KPIs", "ℹ️ Informações"]
     if _is_admin else
     ["🏠 Dashboard", "📊 SDR", "🔥 Comercial", "👤 Por Operador", "📈 KPIs"]
 )
@@ -301,6 +302,8 @@ elif "CRM" in aba_ativa:
     render_crm()
 elif "KPIs" in aba_ativa:
     render_kpis(df_todos)
+elif "Informações" in aba_ativa:
+    render_informacoes()
 
 # ── RODAPÉ ────────────────────────────────────────────────────────────────────
 st.markdown("---")
