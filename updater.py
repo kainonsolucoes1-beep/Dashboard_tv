@@ -312,10 +312,10 @@ def ciclo_de_atualizacao():
     if not df_30.empty:
         salvar_cache(df_30, CACHE_30_PATH, "30 dias")
 
-    # 80 dias (Funil de Vendas)
-    df_80 = buscar_leads_api(days=80, date_of="creation")
+    # 90 dias (Funil de Vendas)
+    df_80 = buscar_leads_api(days=90, date_of="creation")
     if not df_80.empty:
-        salvar_cache(df_80, CACHE_80_PATH, "80 dias")
+        salvar_cache(df_80, CACHE_80_PATH, "90 dias")
 
     # Hoje (painel Hoje da Visão Geral) — 5 dias garante que sexta aparece na segunda
     df_hoje = buscar_leads_api(days=5, date_of="creation")
