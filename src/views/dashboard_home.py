@@ -113,6 +113,10 @@ def render_dashboard_home(df_todos: pd.DataFrame):
         _pct_hoje    = round(_leads_hoje / _meta_diaria * 100)
         _cor_hoje    = "#22c55e" if _leads_hoje >= _meta_diaria else ("#f59e0b" if _pct_hoje >= 70 else "#ef4444")
 
+        if "origem" not in df_hoje.columns:
+            df_hoje = df_hoje.copy()
+            df_hoje["origem"] = "Sem origem"
+
         _rank_hoje = (
             df_hoje.groupby("origem")
             .size()
